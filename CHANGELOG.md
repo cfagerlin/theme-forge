@@ -2,7 +2,9 @@
 
 ## 0.4.1 — 2026-04-08
 
-- **Onboard Chrome MCP prompt**: When Chrome MCP is not detected during onboard, prompt the user to install it instead of silently falling back to code-only mode. Also detects alternative browse tools (gstack browse daemon).
+- **Browse tool abstraction**: Replaced all Chrome MCP references with a browse tool layer that supports multiple backends: gstack browse binary, Playwright MCP (`@playwright/mcp`), and legacy Chrome MCP. Detection checks for gstack browse first (CLI binary), then Playwright MCP tools, then other MCP browse tools.
+- **pull-section browse instructions**: Added concrete usage examples for each browse method (gstack_browse, playwright_mcp, mcp_chrome) including navigation, screenshots, element screenshots, JS execution, and responsive testing.
+- **Onboard install prompt**: When no browse tool is detected, prompts user to install Playwright MCP (`claude mcp add playwright -- npx @playwright/mcp --headless`) or notes gstack browse if available.
 - **Shopify CLI 3.x auth**: Use `shopify theme list` for authentication and theme detection (CLI 3.x removed `auth login`)
 
 ## 0.4.0 — 2026-04-08

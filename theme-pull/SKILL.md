@@ -119,7 +119,7 @@ The pipeline state machine tracks progress across sections and sessions. It enab
 | (new) | `pending` | Section discovered during scan/map |
 | `pending` | `in_progress` | pull-section starts working on it |
 | `in_progress` | `completed` | Visual verification passed |
-| `in_progress` | `completed_code_only` | Code analysis done, no Chrome MCP |
+| `in_progress` | `completed_code_only` | Code analysis done, no browse tool |
 | `in_progress` | `failed` | Retry budget exhausted or unrecoverable error |
 | `in_progress` | `pending` | Staleness timeout (10 min with no update) |
 | `failed` | `pending` | `--reset-failed` flag |
@@ -161,16 +161,16 @@ theme-pull works across Claude Code, Cowork, and OpenClaw. It detects available 
 |-----------|-------------|--------|----------|
 | File read/write | ✓ | ✓ | ✓ |
 | Bash/shell | ✓ | ✓ (sandboxed) | ✓ |
-| Chrome MCP | Maybe | Maybe | Maybe |
+| Browse tool | Maybe | Maybe | Maybe |
 | Computer use | ✗ | ✓ | ✗ |
 | Subagents | ✓ | ✓ | ? |
 
-When Chrome MCP is unavailable, visual comparison falls back to code-only analysis. When Shopify CLI is unavailable, dev preview is skipped with instructions for manual verification.
+When no browse tool is available, visual comparison falls back to code-only analysis. When Shopify CLI is unavailable, dev preview is skipped with instructions for manual verification.
 
 ### Architecture Principles
 
 1. **Theme-agnostic**: Works for any base→target Shopify theme migration, not just legacy→Horizon. Extension layer prefix is configurable.
-2. **Visual-first, code-capable**: Chrome MCP enables pixel-level comparison; without it, falls back to schema/CSS/settings analysis.
+2. **Visual-first, code-capable**: Browse tools (gstack browse, Playwright MCP) enable pixel-level comparison; without them, falls back to schema/CSS/settings analysis.
 3. **Non-destructive**: `map-*` and `scan` never modify files. `pull-*` modifies only the target theme, never the base theme.
 4. **Resumable**: All state in `.theme-pull/`. Sessions can be interrupted and resumed.
 5. **Composable**: Each command works independently. `scan` composes them into a pipeline, but you can `map-section` one section without a full migration.

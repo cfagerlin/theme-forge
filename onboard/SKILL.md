@@ -40,22 +40,34 @@ Check which tools are available in the current environment:
 
 ```
 capabilities:
-  chrome_mcp    — Can we take screenshots and inspect computed styles on live/dev sites?
+  browse        — Can we take screenshots and inspect computed styles on live/dev sites?
+  browse_method — Which browse tool to use (gstack_browse, playwright_mcp, mcp_chrome)
   computer_use  — Can we use computer-use tools for screenshots and interaction?
   shopify_cli   — Is `shopify` CLI available for `theme dev`?
 ```
 
-**Detection method:**
-- Browser MCP: Check if any browser automation tools are available. Look for these tool prefixes (in order of preference):
-  1. `mcp__playwright__*` — Playwright MCP server
-  2. `mcp__browser__*` or `mcp__browse__*` — generic browser MCP or gstack browse daemon
-  3. `mcp__Claude_in_Chrome__*` — Chrome MCP extension (legacy)
-- Computer use: Check if `mcp__computer-use__*` tools are available
-- Shopify CLI: Run `which shopify` or `shopify version` in bash
+**Detection method (check in this order, use the first one found):**
 
-If any browser tool is detected, set `chrome_mcp: true` in capabilities (the key name is kept for backwards compatibility).
+1. **GStack browse binary**: Check if the executable exists at either:
+   - `~/.claude/skills/gstack/browse/dist/browse`
+   - `{project_root}/.claude/skills/gstack/browse/dist/browse`
 
-**If no browser tools are detected**, prompt the user to install one:
+   Test with: `~/.claude/skills/gstack/browse/dist/browse url 2>/dev/null`
+
+   If found → set `browse: true`, `browse_method: "gstack_browse"`
+
+2. **Playwright MCP**: Check if `mcp__playwright__*` tools are available in the tool list.
+
+   If found → set `browse: true`, `browse_method: "playwright_mcp"`
+
+3. **Other MCP browse tools**: Check for `mcp__browser__*`, `mcp__browse__*`, or `mcp__Claude_in_Chrome__*` tool prefixes.
+
+   If found → set `browse: true`, `browse_method: "mcp_chrome"`
+
+4. **Computer use**: Check if `mcp__computer-use__*` tools are available
+5. **Shopify CLI**: Run `which shopify` or `shopify version` in bash
+
+**If no browse tools are detected**, prompt the user to install one:
 
 > Visual comparison is the core of theme-pull. Without a browser tool, pull-section
 > falls back to code-only analysis (no screenshots, no computed style diffs). This
@@ -70,14 +82,14 @@ If any browser tool is detected, set `chrome_mcp: true` in capabilities (the key
 >    Then restart Claude Code and re-run `/theme-pull onboard`
 >
 > 2. **GStack browse tool** (if you have gstack installed):
->    - Run `/open-gstack-browser` to launch the browse daemon
->    - theme-pull will detect it automatically
+>    - The browse binary is included with gstack
+>    - theme-pull will detect it automatically at `~/.claude/skills/gstack/browse/dist/browse`
 >
 > Do you want to:
 > A) Install Playwright MCP now (I'll run the command for you)
 > B) Continue without visual comparison (code-only analysis)
 
-If the user chooses A, run `claude mcp add playwright -- npx @playwright/mcp --headless` and tell them to restart Claude Code and re-run onboard. If they choose B, set `chrome_mcp: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by running the install command and re-running onboard.
+If the user chooses A, run `claude mcp add playwright -- npx @playwright/mcp --headless` and tell them to restart Claude Code and re-run onboard. If they choose B, set `browse: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing a browse tool and re-running onboard.
 
 ### Step 3.5: Detect Store Themes (if Shopify CLI available)
 
@@ -120,7 +132,8 @@ Create `.theme-pull/config.json` in the target theme root:
   "dev_url": "http://127.0.0.1:9292",
   "extension_prefix": "custom-",
   "capabilities": {
-    "chrome_mcp": true,
+    "browse": true,
+    "browse_method": "gstack_browse",
     "computer_use": true,
     "shopify_cli": true
   },
@@ -132,7 +145,7 @@ Create `.theme-pull/config.json` in the target theme root:
 
 1. Confirm the base theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
 2. Confirm the target theme path exists and contains Shopify theme files
-3. If Chrome MCP is available, verify the live URL is reachable
+3. If a browse tool is available, verify the live URL is reachable
 4. Create `.theme-pull/mappings/sections/`, `.theme-pull/mappings/pages/`, `.theme-pull/reports/sections/`, `.theme-pull/reports/pages/` directories
 5. **Check `.gitignore`**: If `.theme-pull/` is not in the target theme's `.gitignore`, add it. The state directory contains session-specific data that should not be committed.
 6. Print a summary of the configuration

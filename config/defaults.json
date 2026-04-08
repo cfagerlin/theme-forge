@@ -8,7 +8,8 @@
   "dev_url": "",
   "extension_prefix": "custom-",
   "capabilities": {
-    "chrome_mcp": false,
+    "browse": false,
+    "browse_method": null,
     "computer_use": false,
     "shopify_cli": false
   },
