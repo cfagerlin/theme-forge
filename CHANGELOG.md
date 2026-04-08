@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 — 2026-04-08
+
+Pipeline hardening release. Makes theme-pull reliable enough for unsupervised full-store migration runs.
+
+- **State machine**: `.theme-pull/state.json` tracks every section through 6 states (pending, in_progress, completed, completed_code_only, failed, skipped) with atomic write-then-rename persistence
+- **Resume protocol**: Kill a run, restart it, picks up where it left off. Stale `in_progress` sections auto-reset after 10 minutes.
+- **Lock mechanism**: Session-level lock prevents concurrent runs. Stale locks (>30 min) breakable with `--force`.
+- **Error classification**: 7 error classes (css_override_failed, structural_mismatch, missing_asset, schema_incompatible, chrome_mcp_error, liquid_render_error, unknown) with structured error reports and suggested remediation
+- **Pipeline flags**: `--full` (all sections), `--force` (break stale lock), `--reset` (reset all to pending), `--reset-failed` (retry failures only)
+- **Chrome MCP fallback**: Graceful degradation to code-only analysis when Chrome MCP is unavailable, with `completed_code_only` status
+- **Configurable retry budget**: `default_retry_limit` in config (default 3), `computed_style_match_threshold` (default 85%)
+- **Status command upgrade**: Shows pipeline lock state, failed section details with error class and remediation, state.json as primary data source
+- **Onboard .gitignore**: Auto-adds `.theme-pull/` to `.gitignore` during onboard
+- **Config version fix**: defaults.json version corrected from 0.1.0 to 0.3.1
+
 ## 0.3.1 — 2026-04-08
 
 - Add gstack skill routing to CLAUDE.md for automatic skill dispatch

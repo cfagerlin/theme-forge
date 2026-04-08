@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.3.1",
   "live_url": "",
   "base_theme": "",
   "target_theme": ".",
@@ -13,5 +13,7 @@
     "shopify_cli": false
   },
   "auto_upgrade": false,
-  "reports_format": "json"
+  "reports_format": "json",
+  "default_retry_limit": 3,
+  "computed_style_match_threshold": 85
 }

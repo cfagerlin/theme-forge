@@ -11,7 +11,7 @@ theme-pull automates the tedious work of migrating a Shopify store from one them
 3. **Pulls** sections one by one — comparing screenshots, computed styles, and code to match the live site pixel-by-pixel
 4. **Reviews** completed work to catch remaining variances
 
-All state is stored in `.theme-pull/` as JSON, so work is resumable across sessions.
+All state is stored in `.theme-pull/` as JSON, so work is resumable across sessions. The pipeline tracks every section through a state machine, handles errors with structured classification, and resumes from where it left off after interruption.
 
 ## Install
 
@@ -45,6 +45,8 @@ Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your
 | `/theme-pull review [page]` | Post-work variance review |
 | `/theme-pull status` | Human-readable progress report |
 | `/theme-pull upgrade` | Check for and apply updates |
+| `/theme-pull --full` | Run all sections across all mapped pages |
+| `/theme-pull --full --reset-failed` | Retry all previously failed sections |
 
 ## Quick Start
 
@@ -112,7 +114,9 @@ All state lives in `.theme-pull/` in your target theme:
 ```
 .theme-pull/
 ├── config.json              # Project config (from onboard)
+├── state.json               # Pipeline state machine (tracks section progress)
 ├── site-inventory.json      # Theme inventory (from scan)
+├── learnings.json           # Accumulated learnings from retries
 ├── plan.json                # Migration plan (from scan)
 ├── mappings/
 │   ├── sections/            # Per-section compatibility reports
@@ -129,7 +133,7 @@ All state lives in `.theme-pull/` in your target theme:
 - **Visual-first** — Screenshots and computed styles, not just code diffing
 - **Non-destructive** — Never modifies the source/base theme
 - **Extension layer** — All target customizations in namespaced files (configurable prefix)
-- **Resumable** — JSON state means sessions can be interrupted and continued; `reconcile` picks up in-progress migrations
+- **Resumable** — State machine tracks every section; kill a run and restart it, picks up where it left off. Stale sections auto-recover after 10 minutes
 - **Composable** — Each command works independently
 
 ## Requirements
