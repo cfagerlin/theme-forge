@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "live_url": "",
+  "base_theme": "",
+  "target_theme": ".",
+  "target_type": "auto",
+  "dev_store": "",
+  "dev_url": "",
+  "extension_prefix": "custom-",
+  "capabilities": {
+    "chrome_mcp": false,
+    "computer_use": false,
+    "shopify_cli": false
+  },
+  "auto_upgrade": false,
+  "reports_format": "json"
+}
