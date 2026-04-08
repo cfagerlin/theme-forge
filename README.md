@@ -37,6 +37,7 @@ Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your
 | `/theme-pull scan` | Inventory both themes, generate migration plan |
 | `/theme-pull map-section <name>` | Assess one section's compatibility |
 | `/theme-pull map-page [page]` | Map all sections on a page |
+| `/theme-pull reconcile [--page <tpl>]` | Detect work already done, import into reports |
 | `/theme-pull pull-section <name> [--page <tpl>]` | Full compare→fix→verify loop on one section |
 | `/theme-pull pull-page [page]` | Pull all sections on a page |
 | `/theme-pull pull-header` | Pull the site header |
@@ -50,6 +51,7 @@ Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your
 ```
 /theme-pull onboard
 /theme-pull scan
+/theme-pull reconcile          # if picking up existing work
 /theme-pull pull-header
 /theme-pull pull-footer
 /theme-pull pull-page
@@ -82,6 +84,7 @@ theme-pull/
 ├── scan/           # Full theme inventory & migration planning
 ├── map-section/    # Per-section compatibility assessment
 ├── map-page/       # Page-level mapping (composes map-section)
+├── reconcile/      # Detect existing work on in-progress migrations
 ├── pull-section/   # The workhorse — visual section matching
 ├── pull-page/      # Page-level pulling (composes pull-section)
 ├── pull-header/    # Convenience wrapper for header
@@ -120,7 +123,7 @@ All state lives in `.theme-pull/` in your target theme:
 - **Visual-first** — Screenshots and computed styles, not just code diffing
 - **Non-destructive** — Never modifies the source/base theme
 - **Extension layer** — All target customizations in namespaced files (configurable prefix)
-- **Resumable** — JSON state means sessions can be interrupted and continued
+- **Resumable** — JSON state means sessions can be interrupted and continued; `reconcile` picks up in-progress migrations
 - **Composable** — Each command works independently
 
 ## Requirements

@@ -16,6 +16,7 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-pull scan       — Inventory all pages, sections, and settings
 /theme-pull map-section <name>  — Assess compatibility of a single section
 /theme-pull map-page [path]    — Map all sections on a page
+/theme-pull reconcile [--page <template>]  — Detect work already done, create report stubs
 /theme-pull pull-section <name> [--page <template>] — Execute compare→fix→verify on a section
 /theme-pull pull-page [path]   — Pull all sections on a page
 /theme-pull pull-header        — Pull the site header
