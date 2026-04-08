@@ -39,6 +39,17 @@ When invoked as `/theme-pull <command> [args]`:
 3. Pass remaining arguments to the sub-skill
 4. If no command is given, show the quick start reference above
 
+### Pipeline Flags
+
+These flags modify pipeline behavior for batch operations (`pull-page`, `pull-header`, `pull-footer`, or `--full`):
+
+```
+--full                 Run pull on ALL sections across all mapped pages
+--force                Break a stale lock and resume (requires lock age > 30 min)
+--reset                Reset all sections to pending (asks for confirmation first)
+--reset-failed         Reset only failed sections to pending for retry
+```
+
 ### Configuration
 
 All project state lives in `.theme-pull/` in the target theme's root:
@@ -46,7 +57,9 @@ All project state lives in `.theme-pull/` in the target theme's root:
 ```
 .theme-pull/
 ├── config.json              # Project configuration (created by onboard)
+├── state.json               # Pipeline state machine (created on first pull)
 ├── site-inventory.json      # Full site inventory (created by scan)
+├── learnings.json           # Accumulated learnings from retries
 ├── mappings/
 │   ├── sections/            # Per-section compatibility reports
 │   │   ├── header.json
@@ -64,6 +77,81 @@ All project state lives in `.theme-pull/` in the target theme's root:
 │       └── ...
 └── plan.json                # Migration plan (created by scan)
 ```
+
+### State Machine (`state.json`)
+
+The pipeline state machine tracks progress across sections and sessions. It enables resume after interruption, progress reporting, and batch operations.
+
+```json
+{
+  "pipeline": {
+    "stage": "pull",
+    "started_at": "2026-04-08T12:00:00Z",
+    "locked_by": null
+  },
+  "sections": {
+    "featured-collection-1:index": {
+      "section": "featured-collection",
+      "page": "index",
+      "status": "completed",
+      "attempts": 1,
+      "last_updated": "2026-04-08T12:10:00Z",
+      "visual_verification": "passed",
+      "error_history": []
+    },
+    "hero-slideshow-1:index": {
+      "section": "hero-slideshow",
+      "page": "index",
+      "status": "in_progress",
+      "attempts": 2,
+      "last_updated": "2026-04-08T12:15:00Z",
+      "visual_verification": null,
+      "error_history": []
+    }
+  }
+}
+```
+
+**State transitions:**
+
+| From | To | Trigger |
+|------|----|---------|
+| (new) | `pending` | Section discovered during scan/map |
+| `pending` | `in_progress` | pull-section starts working on it |
+| `in_progress` | `completed` | Visual verification passed |
+| `in_progress` | `completed_code_only` | Code analysis done, no Chrome MCP |
+| `in_progress` | `failed` | Retry budget exhausted or unrecoverable error |
+| `in_progress` | `pending` | Staleness timeout (10 min with no update) |
+| `failed` | `pending` | `--reset-failed` flag |
+| any | `pending` | `--reset` flag (with confirmation) |
+| any | `skipped` | User explicitly skips section |
+
+**Atomic writes:** Always write state.json using write-then-rename: write to `state.json.tmp`, then rename to `state.json`. This prevents corruption if the process is killed mid-write.
+
+**Staleness recovery:** If a section has `status: "in_progress"` and `last_updated` is older than 10 minutes, treat it as stale and reset to `pending`. This handles sessions that were killed without cleanup.
+
+### Lock Mechanism
+
+When running batch operations (`--full`, `pull-page`), the pipeline acquires a lock:
+
+1. **Acquire**: Set `pipeline.locked_by` to a session identifier (e.g., `session-{timestamp}`) and `pipeline.locked_at` timestamp
+2. **Check**: Before acquiring, check if a lock exists. If it does:
+   - If lock age < 30 minutes: refuse to start, tell the user another session may be running
+   - If lock age >= 30 minutes and `--force` is passed: break the lock and acquire
+   - If lock age >= 30 minutes without `--force`: warn and suggest `--force`
+3. **Release**: Clear `locked_by` and `locked_at` when the batch operation completes (success or failure)
+
+### Resume Protocol
+
+When `--full` or `pull-page` starts, it reads `state.json` and:
+
+1. Skips sections with status `completed` or `completed_code_only`
+2. Skips sections with status `skipped`
+3. Skips sections with status `failed` (use `--reset-failed` to retry them)
+4. Resets stale `in_progress` sections (>10 min old) to `pending`
+5. Processes all `pending` sections in order
+
+This means you can kill a run and restart it. It picks up where it left off. Failed sections are NOT automatically retried, they require explicit `--reset-failed` to re-queue.
 
 ### Platform Detection
 

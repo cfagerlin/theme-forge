@@ -28,24 +28,27 @@ Read all JSON state in `.theme-pull/` and produce a clear, human-readable progre
 Read from `.theme-pull/`:
 
 1. `config.json` — Project configuration
-2. `site-inventory.json` — Full inventory (if scan has been run)
-3. `plan.json` — Migration plan (if scan has been run)
-4. `mappings/sections/*.json` — All section mappings
-5. `mappings/pages/*.json` — All page mappings
-6. `reports/sections/*.json` — All section pull reports
-7. `reports/pages/*.json` — All page pull reports
-8. `reports/review-*.json` — All review reports
+2. `state.json` — Pipeline state machine (if any pull has been run)
+3. `site-inventory.json` — Full inventory (if scan has been run)
+4. `plan.json` — Migration plan (if scan has been run)
+5. `mappings/sections/*.json` — All section mappings
+6. `mappings/pages/*.json` — All page mappings
+7. `reports/sections/*.json` — All section pull reports
+8. `reports/pages/*.json` — All page pull reports
+9. `reports/review-*.json` — All review reports
 
 ### Step 2: Compute Progress
 
+If `state.json` exists, use it as the primary source of truth for section status. Fall back to reports/ directory scanning only if state.json is missing (pre-0.4.0 projects).
+
 For each page in the migration plan:
 
-1. Count sections: total, mapped, pulled, reviewed
+1. Count sections: total, mapped, pulled (completed + completed_code_only), failed, skipped, reviewed
 2. Determine page status:
    - `not_started` — No mappings or reports exist
    - `mapped` — All sections mapped but not pulled
    - `in_progress` — Some sections pulled
-   - `pulled` — All sections pulled
+   - `pulled` — All sections pulled (completed or completed_code_only)
    - `reviewed` — Review completed
    - `complete` — Review passed
 
@@ -60,10 +63,15 @@ Print a summary like:
   Live: https://gldn.com
 ═══════════════════════════════════════════
 
+  PIPELINE STATE
+  ────────────────
+  Lock: none (or: locked by session-1712577600, 12 min ago)
+
   OVERALL PROGRESS
   ────────────────
   Sections mapped:  18 / 42  (43%)
   Sections pulled:  12 / 42  (29%)
+  Sections failed:   2 / 42  ( 5%)
   Pages reviewed:    1 / 7   (14%)
 
   PAGE BREAKDOWN
@@ -82,6 +90,13 @@ Print a summary like:
   🔄 Footer               3/4 sub-sections pulled
   ⬜ Announcement Bar     not started
 
+  FAILED SECTIONS
+  ────────────────
+  ❌ hero-slideshow:index    css_override_failed (3 attempts)
+     → Try creating extension section for font-weight control
+  ❌ product-gallery:product  schema_incompatible (1 attempt)
+     → Target schema lacks video block
+
   OUTSTANDING ISSUES
   ────────────────
   2 major variances (homepage hero, product gallery)
@@ -92,6 +107,7 @@ Print a summary like:
   1. Run: /theme-pull pull-section product-gallery
   2. Run: /theme-pull pull-footer (1 sub-section remaining)
   3. Run: /theme-pull pull-page collection
+  4. Run: /theme-pull --full --reset-failed (retry all failures)
 ═══════════════════════════════════════════
 ```
 

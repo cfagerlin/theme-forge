@@ -87,7 +87,8 @@ Create `.theme-pull/config.json` in the target theme root:
 2. Confirm the target theme path exists and contains Shopify theme files
 3. If Chrome MCP is available, verify the live URL is reachable
 4. Create `.theme-pull/mappings/sections/`, `.theme-pull/mappings/pages/`, `.theme-pull/reports/sections/`, `.theme-pull/reports/pages/` directories
-5. Print a summary of the configuration
+5. **Check `.gitignore`**: If `.theme-pull/` is not in the target theme's `.gitignore`, add it. The state directory contains session-specific data that should not be committed.
+6. Print a summary of the configuration
 
 ### Step 7: Suggest Next Step
 

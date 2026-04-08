@@ -14,6 +14,27 @@ Execute the full compare→fix→verify methodology on a single section. This is
 - `.theme-pull/config.json` must exist (run `onboard` first)
 - Ideally, a mapping exists at `.theme-pull/mappings/sections/{section-name}.json` (will auto-run `map-section` if not)
 
+## State Integration
+
+When `.theme-pull/state.json` exists, pull-section reads and writes it (whether invoked standalone or as part of a pipeline):
+
+1. **On start**: Set section status to `in_progress` with `last_updated` timestamp
+2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no Chrome MCP)
+3. **On failure**: Set status to `failed` with `error_history` entry (see Error Classification below)
+4. **On skip**: If section is already `completed`, skip unless `--force` is passed
+
+State keys use the format `{section-type}-{index}:{page}` to prevent collisions when the same section type appears multiple times on a page (e.g., `featured-collection-1:index`, `featured-collection-2:index`).
+
+### Chrome MCP Fallback
+
+When Chrome MCP is unavailable (`capabilities.chrome_mcp: false` in config):
+- Skip Steps 4.1-4.4 (screenshot and computed style diff)
+- Perform code-only analysis: compare CSS, schema, and settings between base and target
+- Set final status to `completed_code_only` instead of `completed`
+- Log a note in the report: "Visual verification skipped, no Chrome MCP available"
+
+This is a graceful degradation, not a failure. The section still gets pulled, just without visual confirmation.
+
 ## Arguments
 
 ```
@@ -157,7 +178,7 @@ If the variance requires HTML/Liquid changes:
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
-4. If the variance persists, go back to Step 6. **Retry up to 3 times.** If still not fixed, log as outstanding.
+4. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
 5. **Capture learnings on retry.** If a fix required retry (first attempt didn't work):
    - Record what was tried first (the anti-pattern)
    - Record what eventually worked (the correct pattern)
@@ -187,7 +208,7 @@ After all code-identified variances are addressed:
 
 ### Step 11: Write Report
 
-Save to `.theme-pull/reports/sections/{section-name}.json`:
+Save to `.theme-pull/reports/sections/{state-key}.json` (where state-key matches the `state.json` key, e.g., `featured-collection-1:index`). Use the state key, not the bare section name, to prevent report collisions when the same section type appears multiple times:
 
 ```json
 {
@@ -277,3 +298,34 @@ Many themes cap section padding via range controls (e.g., max 100px). If the liv
 
 ### Content Copy
 NEVER change heading/body copy without explicit instruction. Match character-for-character.
+
+## Error Classification
+
+When a section fails (retries exhausted or unrecoverable error), classify the failure for structured reporting:
+
+| Error Class | Description | Retryable | Example |
+|-------------|-------------|-----------|---------|
+| `css_override_failed` | CSS fix applied but variance persists after all retries | Yes | `!important` still overridden by inline style |
+| `structural_mismatch` | HTML structure too different for CSS-only fix | No | Live section uses grid, target uses flexbox with no override path |
+| `missing_asset` | Referenced image, font, or file not found | No | `shopify://shop_images/hero.jpg` returns 404 |
+| `schema_incompatible` | Target schema lacks required setting type | No | Live uses `video` block, target schema has no video block |
+| `chrome_mcp_error` | Screenshot or computed style extraction failed | Yes | Chrome tab crashed, timeout, navigation error |
+| `liquid_render_error` | Section renders with Liquid errors on dev site | Yes | Missing snippet, undefined variable |
+| `unknown` | Unclassified failure | Yes | Catch-all for unexpected errors |
+
+### Error Report Format
+
+When a section fails, add an entry to the section's `error_history` in `state.json`:
+
+```json
+{
+  "error_class": "css_override_failed",
+  "attempt": 3,
+  "timestamp": "2026-04-08T12:15:00Z",
+  "description": "font-weight override not applying despite !important",
+  "suggested_remediation": "Try creating extension section to control font-weight directly",
+  "files_modified_before_failure": ["assets/custom.css"]
+}
+```
+
+And write a structured error report to `.theme-pull/reports/sections/{section-name}.json` with `"status": "failed"` and the full `error_history` array. This enables `status` to show actionable failure summaries and `--reset-failed` to know which sections to retry.
