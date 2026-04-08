@@ -37,7 +37,7 @@ Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your
 | `/theme-pull scan` | Inventory both themes, generate migration plan |
 | `/theme-pull map-section <name>` | Assess one section's compatibility |
 | `/theme-pull map-page [page]` | Map all sections on a page |
-| `/theme-pull pull-section <name>` | Full compare→fix→verify loop on one section |
+| `/theme-pull pull-section <name> [--page <tpl>]` | Full compare→fix→verify loop on one section |
 | `/theme-pull pull-page [page]` | Pull all sections on a page |
 | `/theme-pull pull-header` | Pull the site header |
 | `/theme-pull pull-footer` | Pull the site footer |

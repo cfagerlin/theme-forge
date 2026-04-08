@@ -17,17 +17,35 @@ Execute the full compare→fix→verify methodology on a single section. This is
 ## Arguments
 
 ```
-/theme-pull pull-section <section-name>
+/theme-pull pull-section <section-name> [--page <template>] [--url <live-page-url>]
 ```
+
+- `<section-name>` — The section type name (e.g., `featured-collection`, `slideshow`, `custom-trust-bar`)
+- `--page <template>` — Which template contains this section (e.g., `index`, `product`, `collection`). **Required** unless the section is in a section group (header-group, footer-group) or can be unambiguously found in exactly one template.
+- `--url <live-page-url>` — The specific live page URL to screenshot for comparison (e.g., `https://gldn.com/collections/necklaces`). Defaults to the live site root for `index`, or the first matching page for other templates.
+
+### How the page is resolved
+
+1. If `--page` is provided, look up the section in `{target_theme}/templates/{page}.json`
+2. If not provided, search all template JSON files and section group JSON files for a section with matching `type`
+3. If found in exactly one location, use that
+4. If found in multiple locations, list them and ask which one to work on
+5. If found in a section group (e.g., `footer-group.json`), no `--page` is needed — section groups appear on every page
+
+The page context matters because:
+- The section's **configured settings** (content, colors, padding) live in the template JSON, not the section `.liquid` file
+- The same section type can appear on multiple pages with different settings
+- Screenshots need to be taken on the correct page
 
 ## Methodology
 
 ### Step 1: Load Context
 
 1. Read `.theme-pull/config.json` for paths, URLs, and capabilities
-2. Check for existing mapping at `.theme-pull/mappings/sections/{section-name}.json`
+2. Resolve the page context (see "How the page is resolved" above)
+3. Check for existing mapping at `.theme-pull/mappings/sections/{section-name}.json`
    - If missing, run `map-section` first to find the target section and assess compatibility
-3. Load the mapping to determine the approach (JSON-only, JSON+CSS, extension section, custom section)
+4. Load the mapping to determine the approach (JSON-only, JSON+CSS, extension section, custom section)
 
 ### Step 2: Read Both Sections
 
