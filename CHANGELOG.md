@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 — 2026-04-08
+
+Operational quality release. Encodes real-session learnings into the methodology.
+
+- **7 operational rules**: Extracted from analyzing a real pull-page session (lagunapeak.com → Horizon). Rules: never do rem math manually, read target schema first, find CSS loading mechanism early, navigate before screenshot, screenshot individual sections, match visual weight via font settings, set global settings before sections.
+- **Favicon detection**: pull-page Step 0 now extracts favicon from the live site's HTML via browse tool and sets it in the target theme's `settings_data.json`.
+
 ## 0.4.2 — 2026-04-08
 
 Visual fidelity release. Makes cross-theme CSS comparison actually work.
