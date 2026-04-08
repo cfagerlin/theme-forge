@@ -111,6 +111,24 @@ The page context matters because:
 - The same section type can appear on multiple pages with different settings
 - Screenshots need to be taken on the correct page
 
+## Operational Rules
+
+These rules prevent the most common mistakes observed in real migrations. Follow them strictly.
+
+1. **Never do rem/em math manually.** Always extract computed pixel values via the browse tool (`getComputedStyle(el).fontSize`). Themes use different base font sizes, responsive scaling, and `clamp()` functions. Manual calculation is wrong more often than right.
+
+2. **Read the target section schema FIRST.** Before setting any values, read the `{% schema %}` of the target section to understand what settings are available (presets, font_size options, color schemes, padding ranges). Don't guess what knobs exist — read the schema.
+
+3. **Find the CSS loading mechanism early.** In Step 1, identify how the target theme loads custom CSS (e.g., `snippets/stylesheets.liquid`, `assets/custom.css`, `content_for_header`). You will need this for CSS overrides. Don't discover it halfway through.
+
+4. **Always navigate before screenshotting.** The browse tool can lose page context. Always run `$B goto <url>` immediately before `$B screenshot`. Never assume the page is still loaded from a previous command.
+
+5. **Screenshot individual sections, not just full pages.** Use element selectors (`$B screenshot ".shopify-section:nth-child(3)" /tmp/section.png`) for precise per-section comparison. Full-page screenshots miss details.
+
+6. **When a section uses simplified blocks** (text-only, no heading tags), match visual weight through font settings and CSS, not by changing HTML tags. Don't swap `<h3>` for `<p><strong>` unless that's how the target theme actually renders headings.
+
+7. **Set global settings before sections.** Logo, favicon, global font settings, and global color schemes must be set in `settings_data.json` before working on individual sections. A wrong logo or missing font will affect every section.
+
 ## Methodology
 
 ### Step 1: Load Context
@@ -123,6 +141,11 @@ The page context matters because:
 5. **Load learnings** from `.theme-pull/learnings.json` (see `references/learnings.md`)
    - Filter to learnings whose trigger matches the current section or has `target_theme`/`universal` scope
    - These will be applied proactively in Steps 3, 6, and 7 — before writing code, not after it fails
+6. **Find the target theme's CSS loading mechanism.** Search for how the theme includes stylesheets:
+   - Check `snippets/stylesheets.liquid` or similar snippet
+   - Check `layout/theme.liquid` for `{{ 'base.css' | asset_url | stylesheet_tag }}`
+   - Identify where a custom CSS file can be loaded (e.g., add a line to the stylesheets snippet)
+   - Record the path — you'll need it in Step 6 for CSS overrides
 
 ### Step 2: Read Both Sections
 
@@ -139,7 +162,7 @@ The page context matters because:
    - Color values
    - Padding/margin values with theme-level variables
    - Also check the HTML for global CSS classes that apply fonts not visible in the section's `<style>` block
-5. Read the **target theme's section `.liquid` file** — its `{% schema %}`, CSS, and HTML structure
+5. Read the **target theme's section `.liquid` file** — its `{% schema %}`, CSS, and HTML structure. **Pay special attention to the `{% schema %}` block**: what settings exist, what presets are available, what font_size/type_preset options can be used. This determines what can be fixed via JSON vs what needs CSS overrides.
 6. Read the **target theme's configured values** from template JSON
 
 ### Step 2.5: Resolve Final Computed CSS Values
@@ -236,8 +259,8 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. Take a **screenshot of the live site** section using the browse tool (see "Browse Tool Usage" above for the method matching your `browse_method` config). Save to a temp file and read it with the Read tool to visually inspect.
-2. Take a **screenshot of the dev site** section at the same viewport width
+1. **Navigate to the live site** first (`$B goto <live_url>`), then take a **screenshot of this specific section** using an element selector. For gstack_browse: `$B screenshot ".shopify-section:nth-child(N)" /tmp/live-section.png`. If element selectors don't work, take a full-page screenshot and note the section's position. Read the screenshot file with the Read tool to visually inspect.
+2. **Navigate to the dev site** (`$B goto <dev_url>`), then take a **screenshot of the same section** at the same viewport width. Always navigate immediately before screenshotting — the browse tool can lose page context.
 3. **Before reading any CSS**, list every visual difference you can see:
    - **Structural layout**: Which elements exist? Where are they positioned?
    - **Proportions**: How much space does each element take?
