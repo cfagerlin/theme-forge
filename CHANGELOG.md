@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 — 2026-04-08
+
+- **Onboard Chrome MCP prompt**: When Chrome MCP is not detected during onboard, prompt the user to install it instead of silently falling back to code-only mode. Also detects alternative browse tools (gstack browse daemon).
+- **Shopify CLI 3.x auth**: Use `shopify theme list` for authentication and theme detection (CLI 3.x removed `auth login`)
+
 ## 0.4.0 — 2026-04-08
 
 Pipeline hardening release. Makes theme-pull reliable enough for unsupervised full-store migration runs.
