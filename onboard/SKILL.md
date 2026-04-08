@@ -46,9 +46,32 @@ capabilities:
 ```
 
 **Detection method:**
-- Chrome MCP: Check if `mcp__Claude_in_Chrome__*` tools are available
+- Chrome MCP: Check if `mcp__Claude_in_Chrome__*` tools are available. Also check for alternative browse tools (`mcp__browse__*` or gstack browse daemon).
 - Computer use: Check if `mcp__computer-use__*` tools are available
 - Shopify CLI: Run `which shopify` or `shopify version` in bash
+
+**If Chrome MCP is not detected**, prompt the user to install it:
+
+> Visual comparison is the core of theme-pull. Without a browser tool, pull-section
+> falls back to code-only analysis (no screenshots, no computed style diffs). This
+> works but misses visual issues that only show up in the rendered page.
+>
+> To enable visual comparison, install one of these:
+>
+> 1. **Chrome MCP extension** (recommended for Claude Code):
+>    - Install from Chrome Web Store: search "anthropic claude mcp"
+>    - Or: https://chromewebstore.google.com/detail/claude-mcp/
+>    - After installing, restart Claude Code and re-run `/theme-pull onboard`
+>
+> 2. **GStack browse tool** (if you have gstack installed):
+>    - Run `/open-gstack-browser` to launch the browse daemon
+>    - theme-pull will detect it automatically
+>
+> Do you want to:
+> A) Install Chrome MCP now (I'll wait)
+> B) Continue without visual comparison (code-only analysis)
+
+If the user chooses A, wait for them to install and then re-detect. If they choose B, set `chrome_mcp: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing Chrome MCP and re-running onboard.
 
 ### Step 3.5: Detect Store Themes (if Shopify CLI available)
 
