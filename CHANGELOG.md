@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.4 — 2026-04-08
+
+Precision and safety release. Catches variances that code-only analysis misses.
+
+- **Browse tool runtime verification**: When browse tool was configured during onboard but is unavailable at runtime, STOP and ask the user whether to fall back to code-only or troubleshoot. No more silent degradation.
+- **Bounding box extraction**: New validation check (#16) captures `getBoundingClientRect()` for all key elements (headings, paragraphs, images, buttons) on both live and dev sites. Compares x, y, width, height to catch layout/positioning differences invisible in computed style diffs.
+- **Zero-tolerance on measured deltas**: Any measurable difference between live and dev rendering MUST be fixed. "Could add if needed" is not a valid resolution. Only user-approved accepted variances or documented platform limitations are exceptions.
+- **Cutover checklist**: `.theme-pull/cutover.json` auto-accumulates items that require manual action during production go-live (template assignments, asset uploads, custom section verification). New `/theme-pull cutover` command displays and verifies the checklist.
+- Total commands: 14 (was 13)
+
 ## 0.4.3 — 2026-04-08
 
 Operational quality release. Encodes real-session learnings into the methodology.
