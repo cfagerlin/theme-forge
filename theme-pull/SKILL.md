@@ -1,7 +1,7 @@
 ---
 name: theme-pull
 description: >
-  **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, review, status, upgrade.
+  **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, review, cutover, status, upgrade.
   - MANDATORY TRIGGERS: theme-pull, theme pull, migrate theme, pull section, pull page, pull header, pull footer, scan theme, map section, map page, theme migration, theme status, theme review
 ---
 
@@ -23,6 +23,7 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-pull pull-footer        — Pull the site footer
 /theme-pull review [path]      — Post-work variance review
 /theme-pull status             — Human-readable migration progress report
+/theme-pull cutover            — Show cutover checklist for production go-live
 /theme-pull upgrade            — Check for and apply updates
 ```
 
@@ -75,6 +76,7 @@ All project state lives in `.theme-pull/` in the target theme's root:
 │   │   └── ...
 │   └── pages/               # Per-page pull reports
 │       └── ...
+├── cutover.json              # Items requiring manual action during production go-live
 └── plan.json                # Migration plan (created by scan)
 ```
 

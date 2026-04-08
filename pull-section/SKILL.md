@@ -78,15 +78,32 @@ Use `mcp__playwright__*` tools:
 
 Use the detected `mcp__*` tool prefix for navigation, screenshots, and JS execution.
 
-### Fallback (no browse tool)
+### Runtime Browse Verification
 
-When no browse tool is available (`capabilities.browse: false` in config):
+**Before starting Step 4**, verify the browse tool is actually reachable — not just configured.
+
+If `capabilities.browse: true` in config, test the connection:
+- **`gstack_browse`**: Run `$B url 2>/dev/null; echo $?` — exit code 0 means reachable
+- **`playwright_mcp`**: Attempt `mcp__playwright__browser_navigate` to `about:blank`
+- **`mcp_chrome`**: Attempt a simple navigation with the detected MCP tools
+
+**If the browse tool was configured but is NOT reachable: STOP.** Do not silently degrade. The user set up browse-enabled mode during onboard because the methodology depends on visual comparison. Present these options:
+
+- **A) Fall back to code-only analysis for this session.** Proceeds without screenshots or computed style diffs. Final status will be `completed_code_only`. The user accepts that visual variances may go undetected.
+- **B) Troubleshoot the browse tool.** Show diagnostic commands:
+  - `gstack_browse`: `ls -la ~/.claude/skills/gstack/browse/dist/browse` and `$B url`
+  - `playwright_mcp`: `npx @playwright/mcp --help` and check `claude mcp list`
+  - `mcp_chrome`: Check MCP server registration with `claude mcp list`
+
+### Fallback (no browse tool configured)
+
+When no browse tool was configured during onboard (`capabilities.browse: false` in config):
 - Skip Steps 4.1-4.4 (screenshot and computed style diff)
 - Perform code-only analysis: compare CSS, schema, and settings between base and target
 - Set final status to `completed_code_only` instead of `completed`
-- Log a note in the report: "Visual verification skipped, no browse tool available"
+- Log a note in the report: "Visual verification skipped, no browse tool configured"
 
-This is a graceful degradation, not a failure. The section still gets pulled, just without visual confirmation.
+This is a graceful degradation for users who chose not to set up a browse tool. It is NOT the same as a browse tool that was configured but stopped working — that case is handled by Runtime Browse Verification above.
 
 ## Arguments
 
@@ -279,6 +296,8 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 ### Step 5: Identify Variances
 
+**ZERO TOLERANCE: Every measurable difference between the live and dev rendering is a defect that MUST be fixed.** There is no category of "acceptable" variance based on size or severity. If it can be measured (font weight, letter spacing, container width, padding, color), it must be corrected. The only exceptions are: (1) variances explicitly listed in `learnings.json` with `accepted: true` that were signed off by the user in a prior session, or (2) platform limitations documented with a specific Shopify constraint. "Could add if needed" is not a valid resolution.
+
 **Start with the combined work list from Step 4.5.** Categorize each variance:
 
 - **Structural variance**: Elements in the wrong place, missing, or extra. Highest priority — CSS won't fix wrong HTML. → Requires `.liquid` changes (Step 7)
@@ -286,7 +305,7 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 - **Setting variance**: A target setting exists but has the wrong value → Fix in JSON (Step 3)
 - **CSS variance (overridable)**: Renders differently but fixable with CSS → Apply CSS override (Step 6)
 - **Missing feature**: Live section has functionality the target lacks entirely → May need custom section or JS
-- **Accepted variance**: Matches a known accepted variance from learnings or prior reconcile → Log but don't fix
+- **Accepted variance**: Matches a variance in `learnings.json` with `accepted: true` that was explicitly approved by the user during a prior session. Do NOT create new accepted variances without user confirmation. Every other measurable difference must be fixed.
 
 **Check learnings before planning fixes.** For each CSS variance, check if a learning applies:
 - Does a learning say this property needs `!important`? Apply it from the start.
@@ -309,6 +328,7 @@ Guidelines:
 - Use component-scoped selectors (class-based, not IDs or element selectors)
 - Use `!important` only when overriding core inline styles or CSS custom properties
 - Match the live site's CSS values exactly — copy font-size, padding, letter-spacing values
+- **Do not log any CSS variance as "could add if needed" or "minor, skipping."** If the computed style diff or bounding box comparison shows a measurable difference, write the CSS override now. The only valid outcome for a CSS variance is: fixed (override applied and verified) or escalated (requires structural change in Step 7). There is no "noted for later."
 - For colors not available in any existing color scheme, create a new named scheme
 
 ### Step 7: Structural Changes
@@ -361,6 +381,7 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
 | 13 | **No empty CSS values** | Search for `rgb()` (empty), `font-family: , ;`, `border-width: px` | Any broken CSS value |
 | 14 | **No placeholder images** | Check `<img>` src attributes, flag SVG data URIs where real images expected | Placeholder instead of real image |
 | 15 | **Section height** | `sectionEl.getBoundingClientRect().height` | Differs by >20% from live |
+| 16 | **Element bounding boxes** | `getBoundingClientRect()` for all headings, paragraphs, images, buttons, containers | x, width, or height differs by >2px; relativeY differs by >2px (after normalizing for section offset) |
 
 **Extraction script example** (run on both live and dev via browse tool):
 
@@ -399,12 +420,34 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
       padding: getComputedStyle(btn).padding
     } : null,
     liquidErrors: s.innerHTML.includes('Liquid error'),
-    emptyRgb: (s.outerHTML.match(/rgb\(\)/g) || []).length
+    emptyRgb: (s.outerHTML.match(/rgb\(\)/g) || []).length,
+    boundingBoxes: (function() {
+      const sectionRect = s.getBoundingClientRect();
+      const els = s.querySelectorAll('h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]');
+      return [...els].slice(0, 20).map(el => {
+        const r = el.getBoundingClientRect();
+        return {
+          tag: el.tagName,
+          classes: el.className.toString().substring(0, 60),
+          text: el.textContent ? el.textContent.trim().substring(0, 30) : null,
+          x: Math.round(r.x),
+          relativeY: Math.round(r.y - sectionRect.y),
+          width: Math.round(r.width),
+          height: Math.round(r.height)
+        };
+      });
+    })()
   };
 })()
 ```
 
 Compare the two results property by property. Every difference is a variance that needs fixing.
+
+**Bounding box comparison**: Match elements between live and dev by tag + text content. For each matched pair, flag any property where the values differ by >2px. Common findings:
+- **Width differs** — text container has different max-width or grid column sizing
+- **Height differs** — font size, line-height, or padding causing different text wrapping
+- **x differs** — alignment or margin difference
+- **relativeY differs** — padding, margin, or element ordering difference
 
 ### Step 9: Next Variance
 
@@ -463,13 +506,8 @@ Save to `.theme-pull/reports/sections/{state-key}.json` (where state-key matches
     "sections/custom-hero-slideshow.liquid"
   ],
   "files_created": [],
-  "outstanding_issues": [
-    {
-      "description": "Bottom padding 8px larger than live due to Horizon spacing system",
-      "severity": "low",
-      "reason": "Horizon's min() formula adds unavoidable overhead"
-    }
-  ],
+  "cutover_items": [],
+  "outstanding_issues": [],
   "breakpoints_verified": {
     "desktop": "pass",
     "tablet_800": "pass",
@@ -488,6 +526,32 @@ Save to `.theme-pull/reports/sections/{state-key}.json` (where state-key matches
   "notes": "Heading font requires !important to override Horizon's Inter Bold default"
 }
 ```
+
+**`outstanding_issues`** should contain ONLY items genuinely blocked by a platform limitation or requiring user decision. If an item is fixable with CSS or JSON, it should not appear here — it should have been fixed. "Could add CSS override" is not an outstanding issue, it's unfinished work.
+
+#### Cutover Checklist
+
+When any file created during this section requires manual action during the production cutover, auto-append an entry to `.theme-pull/cutover.json`:
+
+```json
+{
+  "type": "template_assignment",
+  "file": "templates/page.about-us.json",
+  "page": "/pages/about-us",
+  "section": "about-hero",
+  "created_at": "2026-04-08T20:30:00Z",
+  "action": "Assign template 'page.about-us' to page '/pages/about-us' in Shopify Admin (Pages > About Us > Theme template dropdown)",
+  "notes": "Template cannot be assigned until the new theme goes live"
+}
+```
+
+Common cutover item types:
+- **`template_assignment`** — Custom page template created (e.g., `page.about-us.json`). Must be assigned in Shopify admin after theme goes live.
+- **`custom_section`** — Extension section created (e.g., `sections/custom-hero.liquid`). Verify it renders correctly on the live theme.
+- **`color_scheme`** — Custom color scheme added to `settings_data.json`. Verify it persists after theme publish.
+- **`asset_upload`** — Image or font referenced but not yet in the store's files. Must be uploaded before cutover.
+
+Create `.theme-pull/cutover.json` as an array if it does not exist. Append entries, never overwrite. Also add the items to the section report's `cutover_items` array.
 
 The report tracks which learnings were applied proactively (`learnings_applied`) and which new learnings were discovered during this section (`learnings_created`). Over time, the ratio of applied-to-created should increase — meaning fewer surprises per section.
 
