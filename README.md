@@ -142,7 +142,7 @@ All state lives in `.theme-pull/` in your target theme:
 - Claude Code, Cowork, or OpenClaw
 
 **Optional (enhances capabilities):**
-- Chrome MCP extension (for live-site screenshots and computed style inspection)
+- Browser MCP server (for live-site screenshots and computed style inspection). Recommended: `claude mcp add playwright -- npx @playwright/mcp --headless`
 - Shopify CLI (for local dev preview)
 - Git (for auto-updates)
 
