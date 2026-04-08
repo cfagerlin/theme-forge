@@ -165,4 +165,4 @@ else
 fi
 
 echo ""
-echo "Chrome MCP and computer-use capabilities will be detected at runtime."
+echo "Browse tool (gstack browse, Playwright MCP) and computer-use capabilities will be detected at runtime."

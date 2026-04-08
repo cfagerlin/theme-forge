@@ -19,19 +19,72 @@ Execute the full compare→fix→verify methodology on a single section. This is
 When `.theme-pull/state.json` exists, pull-section reads and writes it (whether invoked standalone or as part of a pipeline):
 
 1. **On start**: Set section status to `in_progress` with `last_updated` timestamp
-2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no Chrome MCP)
+2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no browse tool)
 3. **On failure**: Set status to `failed` with `error_history` entry (see Error Classification below)
 4. **On skip**: If section is already `completed`, skip unless `--force` is passed
 
 State keys use the format `{section-type}-{index}:{page}` to prevent collisions when the same section type appears multiple times on a page (e.g., `featured-collection-1:index`, `featured-collection-2:index`).
 
-### Chrome MCP Fallback
+### Browse Tool Usage
 
-When Chrome MCP is unavailable (`capabilities.chrome_mcp: false` in config):
+Read `capabilities.browse_method` from config to determine how to take screenshots and run JavaScript:
+
+#### `gstack_browse` — GStack browse binary
+
+The browse binary is a CLI tool that persists browser state between calls. Locate it:
+
+```bash
+# Check both locations, use the first that exists
+B=""
+[ -x "$HOME/.claude/skills/gstack/browse/dist/browse" ] && B="$HOME/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && _ROOT=$(git rev-parse --show-toplevel 2>/dev/null) && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+```
+
+**Navigate and screenshot:**
+```bash
+$B goto "https://livesite.com"
+$B screenshot /tmp/live-section.png
+
+$B goto "http://127.0.0.1:9292"
+$B screenshot /tmp/dev-section.png
+```
+
+**Screenshot a specific element:**
+```bash
+$B screenshot ".section-hero" /tmp/hero-live.png
+```
+
+**Run JavaScript (for computed style extraction):**
+```bash
+$B js "document.querySelector('.hero').getBoundingClientRect().height"
+$B js "JSON.stringify(window.getComputedStyle(document.querySelector('.hero')))"
+```
+
+**Responsive screenshots:**
+```bash
+$B responsive /tmp/section    # Creates mobile, tablet, desktop screenshots
+```
+
+**Read the screenshot file** using the Read tool to visually inspect it.
+
+#### `playwright_mcp` — Playwright MCP server
+
+Use `mcp__playwright__*` tools:
+- `mcp__playwright__browser_navigate` to go to a URL
+- `mcp__playwright__browser_screenshot` to capture the page
+- `mcp__playwright__browser_evaluate` to run JavaScript
+
+#### `mcp_chrome` — Chrome MCP or other MCP browse tools
+
+Use the detected `mcp__*` tool prefix for navigation, screenshots, and JS execution.
+
+### Fallback (no browse tool)
+
+When no browse tool is available (`capabilities.browse: false` in config):
 - Skip Steps 4.1-4.4 (screenshot and computed style diff)
 - Perform code-only analysis: compare CSS, schema, and settings between base and target
 - Set final status to `completed_code_only` instead of `completed`
-- Log a note in the report: "Visual verification skipped, no Chrome MCP available"
+- Log a note in the report: "Visual verification skipped, no browse tool available"
 
 This is a graceful degradation, not a failure. The section still gets pulled, just without visual confirmation.
 
@@ -86,19 +139,94 @@ The page context matters because:
    - Color values
    - Padding/margin values with theme-level variables
    - Also check the HTML for global CSS classes that apply fonts not visible in the section's `<style>` block
-4. Read the **target theme's section `.liquid` file** — its `{% schema %}`, CSS, and HTML structure
-5. Read the **target theme's configured values** from template JSON
+5. Read the **target theme's section `.liquid` file** — its `{% schema %}`, CSS, and HTML structure
+6. Read the **target theme's configured values** from template JSON
+
+### Step 2.5: Resolve Final Computed CSS Values
+
+**CRITICAL: Different themes use different CSS variable names and formats for the same visual properties. You MUST resolve both themes' variables down to final computed pixel/color/font values and compare THOSE, not the variable names.**
+
+This is the most common source of migration errors. Two themes can have completely different variable systems but need to produce identical visual output.
+
+#### Build a Computed Value Table
+
+For this section, resolve every visual property to its final rendered value on BOTH themes. Use the base theme's `settings_data.json` + section CSS + global CSS to compute the actual values. Do the same for the target theme.
+
+```
+Property                  | Live (base) value      | Dev (target) value     | Match?
+--------------------------|------------------------|------------------------|-------
+background-color          | rgb(255, 255, 255)     | rgb(44, 67, 81)        | NO ← fix
+foreground-color          | rgb(18, 18, 18)        | rgb(235, 239, 235)     | NO ← fix
+font-family (body)        | Helvetica, Arial       | Helvetica, Arial       | YES
+font-weight (headings)    | 400                    | 700                    | NO ← fix
+font-size (body)          | 16px                   | 14px                   | NO ← fix
+letter-spacing (body)     | 0.96px (0.06rem)       | 0px                    | NO ← fix
+padding-top               | 36px                   | 48px                   | NO ← fix
+padding-bottom            | 0px                    | 48px                   | NO ← fix
+content-alignment         | bottom-right           | center                 | NO ← fix
+button-variant            | secondary              | primary                | NO ← fix
+overlay-opacity           | 0.3                    | 0.4                    | NO ← fix
+section-height            | medium (~50svh)        | large (~80svh)         | NO ← fix
+```
+
+#### Cross-Theme CSS Variable Mapping
+
+Themes use different variable names for the same properties. When comparing, you must resolve through these equivalences:
+
+**Colors** (the formats differ but the RGB values must match):
+- Dawn: `--color-background: 255,255,255` → consumed as `rgb(var(--color-background))`
+- Horizon: `--color-background: rgb(255 255 255 / 1.0)` + `--color-background-rgb: 255 255 255`
+- **Compare the raw RGB triplet, not the variable format**
+
+**Fonts:**
+- Dawn: `--font-heading-weight: 400` / Horizon: `--font-heading--weight: 700` (note double dash)
+- Dawn: `--font-body-family` / Horizon: `--font-body--family`
+- Dawn: `--font-body-scale: 1.0` with `html { font-size: calc(var(--font-body-scale) * 62.5%) }` / Horizon: `--font-size--paragraph: 0.875rem`
+- **Compute the actual pixel font-size, don't compare scale factors**
+
+**Spacing:**
+- Dawn: `padding-top: 36px; padding-bottom: 36px` (direct pixel values from settings)
+- Horizon: `--padding-block-start: max(20px, calc(var(--spacing-scale) * 48px))` (formula)
+- **Resolve the formula to a pixel value and compare**
+
+**Layout:**
+- Dawn: `banner--content-align-right` (class) / Horizon: `--horizontal-alignment: center` (CSS var)
+- Dawn: `banner--medium` (class, ~50svh) / Horizon: `--section-height-large` (var, ~80svh)
+- Dawn: `grid--4-col-desktop` / Horizon: `layout-panel-flex layout-panel-flex--row`
+- **The rendered layout must match, not the class names**
+
+#### Light/Dark Polarity Check
+
+For every section, determine whether the live site uses a light background (RGB sum > 384) or dark background (RGB sum < 384). If the target section has the OPPOSITE polarity, the color scheme assignment is wrong. This is the single most visible error — an entire section with inverted colors.
 
 ### Step 3: Align Settings (JSON)
 
-Apply all setting changes that can be made via JSON (template config or `settings_data.json`):
+Using the computed value table from Step 2.5, apply all setting changes via JSON (template config or `settings_data.json`):
 
-- Color scheme (create a new named scheme if no existing scheme matches)
-- Content text, button labels, links, images
-- Padding values
-- Alignment options
+**Color scheme alignment** (highest priority):
+1. For each section, extract the live site's background color RGB values
+2. Check if any existing target color scheme has matching background/foreground RGB values
+3. If a match exists, assign that scheme. If not, **create a new named color scheme** in `settings_data.json` with the exact RGB values from the live site
+4. Verify the color scheme also matches: button colors, link colors, badge colors, border colors
+
+**Content alignment:**
+- Content text, button labels, links, images — match character-for-character
+- Button variant (primary/secondary) — must match the live site's button style
+
+**Layout settings:**
+- Content alignment (left/center/right, top/center/bottom)
+- Section height (small/medium/large) — pick the closest match
 - Width (page-width vs full-width)
-- Any section-specific toggles
+- Column count and layout mode
+
+**Spacing:**
+- Padding values — if the target theme uses a scale formula, find the scale value that produces the closest match to the live site's pixel values
+- If the theme caps padding at a maximum, note this for CSS override in Step 6
+
+**Typography settings (if exposed in schema):**
+- Font family, weight, style
+- Font size scale
+- Letter-spacing
 
 **Always prefer JSON settings over CSS overrides.** CSS is only for what settings cannot control.
 
@@ -108,7 +236,7 @@ Apply all setting changes that can be made via JSON (template config or `setting
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. Take a **screenshot of the live site** section using Chrome MCP or computer-use tools
+1. Take a **screenshot of the live site** section using the browse tool (see "Browse Tool Usage" above for the method matching your `browse_method` config). Save to a temp file and read it with the Read tool to visually inspect.
 2. Take a **screenshot of the dev site** section at the same viewport width
 3. **Before reading any CSS**, list every visual difference you can see:
    - **Structural layout**: Which elements exist? Where are they positioned?
@@ -116,7 +244,7 @@ Apply all setting changes that can be made via JSON (template config or `setting
    - **Element presence/absence**: Are there elements on one that don't exist on the other?
    - **Vertical positioning**: Where does text sit within its container?
 4. **Run the computed style diff** (see `references/computed-style-diff.md`):
-   - Execute the extraction script on the **live site** section via Chrome MCP `javascript_tool`
+   - Execute the extraction JavaScript on the **live site** section (use `$B js "..."` for gstack_browse, or the appropriate MCP tool for other methods)
    - Execute the same script on the **dev site** section
    - Diff the two results to get a structured table of every CSS property that differs
    - This catches variances invisible in screenshots (1px spacing, letter-spacing, font-weight)
@@ -178,13 +306,82 @@ If the variance requires HTML/Liquid changes:
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
-4. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
-5. **Capture learnings on retry.** If a fix required retry (first attempt didn't work):
+4. **Run the rendered output validation checklist** (see below). If any check fails, the fix is not complete.
+5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
+6. **Capture learnings on retry.** If a fix required retry (first attempt didn't work):
    - Record what was tried first (the anti-pattern)
    - Record what eventually worked (the correct pattern)
    - Determine the trigger condition (why the first approach failed)
    - Write a learning to `.theme-pull/learnings.json` so future sections get it right on the first try
    - Example: tried `font-family: 'Spectral', serif;` → didn't apply → added `!important` → worked → learning: "target theme inline styles override font-family, use !important"
+
+#### Rendered Output Validation Checklist
+
+Run these checks on the dev site's rendered HTML for this section. These catch issues that source code review misses because they only manifest at render time.
+
+**Use the browse tool** to fetch the rendered page and run JavaScript to extract these values. For gstack_browse: `$B js "..."`. Compare each against the live site.
+
+| # | Check | How to extract | Fail condition |
+|---|-------|---------------|----------------|
+| 1 | **Background color** | `getComputedStyle(sectionEl).backgroundColor` | RGB values differ from live site |
+| 2 | **Foreground color** | `getComputedStyle(sectionEl).color` | RGB values differ from live |
+| 3 | **Light/dark polarity** | Sum RGB of background: >384 = light, <384 = dark | Polarity flipped vs live |
+| 4 | **Font family** | `getComputedStyle(heading).fontFamily` | Different font family |
+| 5 | **Font weight (headings)** | `getComputedStyle(heading).fontWeight` | Differs by >100 from live |
+| 6 | **Font size (body)** | `getComputedStyle(bodyText).fontSize` | Differs by >1px from live |
+| 7 | **Letter spacing** | `getComputedStyle(bodyText).letterSpacing` | Differs by >0.5px from live |
+| 8 | **Section padding** | `getComputedStyle(sectionEl).paddingTop/Bottom` | Differs by >8px from live |
+| 9 | **Content alignment** | Text-align + flexbox/grid alignment properties | Different alignment |
+| 10 | **Button classes** | Check for primary/secondary class on CTA buttons | Wrong variant |
+| 11 | **Overlay opacity** | Computed opacity on overlay element or pseudo-element | Differs by >0.05 |
+| 12 | **No Liquid errors** | Search rendered HTML for "Liquid error" | Any Liquid error text present |
+| 13 | **No empty CSS values** | Search for `rgb()` (empty), `font-family: , ;`, `border-width: px` | Any broken CSS value |
+| 14 | **No placeholder images** | Check `<img>` src attributes, flag SVG data URIs where real images expected | Placeholder instead of real image |
+| 15 | **Section height** | `sectionEl.getBoundingClientRect().height` | Differs by >20% from live |
+
+**Extraction script example** (run on both live and dev via browse tool):
+
+```javascript
+(function() {
+  const s = document.querySelector('[data-section-id="SECTION_ID"]') ||
+            document.querySelector('.shopify-section:nth-child(N)');
+  if (!s) return {error: 'Section not found'};
+  const cs = getComputedStyle(s);
+  const h = s.querySelector('h1,h2,h3');
+  const p = s.querySelector('p');
+  const btn = s.querySelector('.button,a[class*=button]');
+  return {
+    bg: cs.backgroundColor,
+    fg: cs.color,
+    padding: {top: cs.paddingTop, bottom: cs.paddingBottom},
+    height: s.getBoundingClientRect().height,
+    heading: h ? {
+      fontFamily: getComputedStyle(h).fontFamily,
+      fontWeight: getComputedStyle(h).fontWeight,
+      fontSize: getComputedStyle(h).fontSize,
+      letterSpacing: getComputedStyle(h).letterSpacing,
+      textAlign: getComputedStyle(h).textAlign
+    } : null,
+    body: p ? {
+      fontFamily: getComputedStyle(p).fontFamily,
+      fontSize: getComputedStyle(p).fontSize,
+      letterSpacing: getComputedStyle(p).letterSpacing,
+      lineHeight: getComputedStyle(p).lineHeight
+    } : null,
+    button: btn ? {
+      classes: btn.className,
+      bg: getComputedStyle(btn).backgroundColor,
+      color: getComputedStyle(btn).color,
+      borderRadius: getComputedStyle(btn).borderRadius,
+      padding: getComputedStyle(btn).padding
+    } : null,
+    liquidErrors: s.innerHTML.includes('Liquid error'),
+    emptyRgb: (s.outerHTML.match(/rgb\(\)/g) || []).length
+  };
+})()
+```
+
+Compare the two results property by property. Every difference is a variance that needs fixing.
 
 ### Step 9: Next Variance
 
@@ -275,6 +472,19 @@ The report tracks which learnings were applied proactively (`learnings_applied`)
 
 These patterns recur across sections. Check for them proactively:
 
+### CSS Variable Names Differ Between Themes
+**This is the #1 source of migration errors.** Never assume variable names match. Always resolve to final computed values.
+- Dawn `--font-heading-weight` vs Horizon `--font-heading--weight` (double dash)
+- Dawn `--color-background: 255,255,255` (bare triplet) vs Horizon `--color-background: rgb(255 255 255 / 1.0)` (full value)
+- Dawn `--font-body-scale: 1.0` (multiplier) vs Horizon `--font-size--paragraph: 0.875rem` (direct size)
+- Dawn `padding-top: 36px` (direct) vs Horizon `max(20px, calc(var(--spacing-scale) * 48px))` (formula)
+
+### Color Scheme Polarity Inversion
+If the live section has a white background and the target has a dark background (or vice versa), the color scheme assignment is wrong. Check: sum the RGB values of the background. If >384 it's light, <384 it's dark. Both must have the same polarity.
+
+### Heading Weight Mismatch
+Many themes set different default heading weights. Dawn uses 400, Horizon uses 700. If the live site wraps heading text in `<strong>` to make it bold, but the target theme already applies 700, the heading will look the same. But if the live site does NOT use `<strong>` and relies on weight 400, the target will be too bold. Override `--font-heading--weight` or equivalent.
+
 ### Font Overrides
 Target theme's global font CSS custom properties are set as inline styles. Custom font-family values must use `!important`.
 
@@ -285,7 +495,7 @@ The base theme's section CSS often uses Liquid variables like `{{settings.headin
 When the live site shows lighter text, check whether it's `opacity`, an explicit `color`, or `color: inherit`. Don't approximate with `opacity`.
 
 ### Button Class Conflicts
-Target theme's button classes add their own padding, border-radius, and colors. When implementing custom button styles, remove default button classes to avoid conflicts.
+Target theme's button classes add their own padding, border-radius, and colors. When implementing custom button styles, remove default button classes to avoid conflicts. Also check primary vs secondary button variant — the wrong variant changes background color, text color, and border.
 
 ### Image References
 Use `shopify://shop_images/filename.ext` — find actual filenames in the base theme's `settings_data.json`.
@@ -294,10 +504,18 @@ Use `shopify://shop_images/filename.ext` — find actual filenames in the base t
 Theme export is a point-in-time snapshot. Always verify key values by inspecting the live storefront. When export and live disagree, the live site wins.
 
 ### Padding Limits
-Many themes cap section padding via range controls (e.g., max 100px). If the live site exceeds this, use CSS overrides.
+Many themes cap section padding via range controls (e.g., max 100px). If the live site exceeds this, use CSS overrides. Themes using spacing formulas (e.g., `max(20px, calc(scale * 48px))`) may produce different values than direct pixel settings — compute the actual result.
 
 ### Content Copy
 NEVER change heading/body copy without explicit instruction. Match character-for-character.
+
+### Rendered HTML Validation
+After applying changes, always check the rendered HTML (via browse tool or curl) for:
+- `Liquid error` text anywhere in the output
+- Empty `rgb()` values (broken color variables)
+- Empty `font-family: , ;` declarations (broken font variables)
+- `border-width: px` without a number (missing values)
+- SVG data URIs in `<img>` tags where real images should be (placeholder images)
 
 ## Error Classification
 
@@ -309,7 +527,7 @@ When a section fails (retries exhausted or unrecoverable error), classify the fa
 | `structural_mismatch` | HTML structure too different for CSS-only fix | No | Live section uses grid, target uses flexbox with no override path |
 | `missing_asset` | Referenced image, font, or file not found | No | `shopify://shop_images/hero.jpg` returns 404 |
 | `schema_incompatible` | Target schema lacks required setting type | No | Live uses `video` block, target schema has no video block |
-| `chrome_mcp_error` | Screenshot or computed style extraction failed | Yes | Chrome tab crashed, timeout, navigation error |
+| `browse_error` | Screenshot or computed style extraction failed | Yes | Browser crashed, timeout, navigation error |
 | `liquid_render_error` | Section renders with Liquid errors on dev site | Yes | Missing snippet, undefined variable |
 | `unknown` | Unclassified failure | Yes | Catch-all for unexpected errors |
 

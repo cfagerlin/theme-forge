@@ -8,7 +8,7 @@ Run this at **Step 4 (Render & Inspect)** of pull-section, AFTER taking screensh
 
 ## The Extraction Script
 
-Use Chrome MCP's `javascript_tool` to run this on both the live and dev sites. Replace the selector with the section's container.
+Run this JavaScript on both the live and dev sites using your browse tool. For gstack_browse: `$B js "..."`. For Playwright MCP: `mcp__playwright__browser_evaluate`. Replace the selector with the section's container.
 
 ```javascript
 // Extract computed styles for a section and its key children

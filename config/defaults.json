@@ -1,5 +1,5 @@
 {
-  "version": "0.4.1",
+  "version": "0.4.2",
   "live_url": "",
   "base_theme": "",
   "target_theme": ".",
@@ -8,7 +8,8 @@
   "dev_url": "",
   "extension_prefix": "custom-",
   "capabilities": {
-    "chrome_mcp": false,
+    "browse": false,
+    "browse_method": null,
     "computer_use": false,
     "shopify_cli": false
   },

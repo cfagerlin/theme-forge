@@ -1,8 +1,15 @@
 # Changelog
 
-## 0.4.1 — 2026-04-08
+## 0.4.2 — 2026-04-08
 
-- **Onboard Chrome MCP prompt**: When Chrome MCP is not detected during onboard, prompt the user to install it instead of silently falling back to code-only mode. Also detects alternative browse tools (gstack browse daemon).
+Visual fidelity release. Makes cross-theme CSS comparison actually work.
+
+- **Cross-theme CSS resolution**: New Step 2.5 in pull-section requires resolving both themes' CSS variables to final computed pixel/color/font values and comparing those, not variable names. Includes a cross-theme variable mapping reference (Dawn↔Horizon) for colors, fonts, spacing, and layout.
+- **Rendered output validation checklist**: 15 automated checks (background color, font weight/size, letter-spacing, padding, button variant, Liquid errors, empty CSS values, placeholder images) with a JavaScript extraction script that runs on both sites via the browse tool.
+- **Light/dark polarity check**: Detects when a section's background color polarity flips between live and dev (the single most visible migration error).
+- **Common Gotchas expanded**: CSS variable name mismatches (#1 error source), heading weight differences, spacing formula resolution, rendered HTML validation.
+- **Browse tool abstraction**: Replaced all Chrome MCP references with a browse tool layer supporting gstack browse binary, Playwright MCP (`@playwright/mcp`), and legacy Chrome MCP.
+- **Onboard install prompt**: When no browse tool is detected, prompts user to install Playwright MCP or notes gstack browse if available.
 - **Shopify CLI 3.x auth**: Use `shopify theme list` for authentication and theme detection (CLI 3.x removed `auth login`)
 
 ## 0.4.0 — 2026-04-08
