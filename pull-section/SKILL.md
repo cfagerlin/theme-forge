@@ -19,19 +19,72 @@ Execute the full compare→fix→verify methodology on a single section. This is
 When `.theme-pull/state.json` exists, pull-section reads and writes it (whether invoked standalone or as part of a pipeline):
 
 1. **On start**: Set section status to `in_progress` with `last_updated` timestamp
-2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no Chrome MCP)
+2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no browse tool)
 3. **On failure**: Set status to `failed` with `error_history` entry (see Error Classification below)
 4. **On skip**: If section is already `completed`, skip unless `--force` is passed
 
 State keys use the format `{section-type}-{index}:{page}` to prevent collisions when the same section type appears multiple times on a page (e.g., `featured-collection-1:index`, `featured-collection-2:index`).
 
-### Chrome MCP Fallback
+### Browse Tool Usage
 
-When Chrome MCP is unavailable (`capabilities.chrome_mcp: false` in config):
+Read `capabilities.browse_method` from config to determine how to take screenshots and run JavaScript:
+
+#### `gstack_browse` — GStack browse binary
+
+The browse binary is a CLI tool that persists browser state between calls. Locate it:
+
+```bash
+# Check both locations, use the first that exists
+B=""
+[ -x "$HOME/.claude/skills/gstack/browse/dist/browse" ] && B="$HOME/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && _ROOT=$(git rev-parse --show-toplevel 2>/dev/null) && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+```
+
+**Navigate and screenshot:**
+```bash
+$B goto "https://livesite.com"
+$B screenshot /tmp/live-section.png
+
+$B goto "http://127.0.0.1:9292"
+$B screenshot /tmp/dev-section.png
+```
+
+**Screenshot a specific element:**
+```bash
+$B screenshot ".section-hero" /tmp/hero-live.png
+```
+
+**Run JavaScript (for computed style extraction):**
+```bash
+$B js "document.querySelector('.hero').getBoundingClientRect().height"
+$B js "JSON.stringify(window.getComputedStyle(document.querySelector('.hero')))"
+```
+
+**Responsive screenshots:**
+```bash
+$B responsive /tmp/section    # Creates mobile, tablet, desktop screenshots
+```
+
+**Read the screenshot file** using the Read tool to visually inspect it.
+
+#### `playwright_mcp` — Playwright MCP server
+
+Use `mcp__playwright__*` tools:
+- `mcp__playwright__browser_navigate` to go to a URL
+- `mcp__playwright__browser_screenshot` to capture the page
+- `mcp__playwright__browser_evaluate` to run JavaScript
+
+#### `mcp_chrome` — Chrome MCP or other MCP browse tools
+
+Use the detected `mcp__*` tool prefix for navigation, screenshots, and JS execution.
+
+### Fallback (no browse tool)
+
+When no browse tool is available (`capabilities.browse: false` in config):
 - Skip Steps 4.1-4.4 (screenshot and computed style diff)
 - Perform code-only analysis: compare CSS, schema, and settings between base and target
 - Set final status to `completed_code_only` instead of `completed`
-- Log a note in the report: "Visual verification skipped, no Chrome MCP available"
+- Log a note in the report: "Visual verification skipped, no browse tool available"
 
 This is a graceful degradation, not a failure. The section still gets pulled, just without visual confirmation.
 
@@ -108,7 +161,7 @@ Apply all setting changes that can be made via JSON (template config or `setting
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. Take a **screenshot of the live site** section using Chrome MCP or computer-use tools
+1. Take a **screenshot of the live site** section using the browse tool (see "Browse Tool Usage" above for the method matching your `browse_method` config). Save to a temp file and read it with the Read tool to visually inspect.
 2. Take a **screenshot of the dev site** section at the same viewport width
 3. **Before reading any CSS**, list every visual difference you can see:
    - **Structural layout**: Which elements exist? Where are they positioned?
@@ -116,7 +169,7 @@ Apply all setting changes that can be made via JSON (template config or `setting
    - **Element presence/absence**: Are there elements on one that don't exist on the other?
    - **Vertical positioning**: Where does text sit within its container?
 4. **Run the computed style diff** (see `references/computed-style-diff.md`):
-   - Execute the extraction script on the **live site** section via Chrome MCP `javascript_tool`
+   - Execute the extraction JavaScript on the **live site** section (use `$B js "..."` for gstack_browse, or the appropriate MCP tool for other methods)
    - Execute the same script on the **dev site** section
    - Diff the two results to get a structured table of every CSS property that differs
    - This catches variances invisible in screenshots (1px spacing, letter-spacing, font-weight)
@@ -309,7 +362,7 @@ When a section fails (retries exhausted or unrecoverable error), classify the fa
 | `structural_mismatch` | HTML structure too different for CSS-only fix | No | Live section uses grid, target uses flexbox with no override path |
 | `missing_asset` | Referenced image, font, or file not found | No | `shopify://shop_images/hero.jpg` returns 404 |
 | `schema_incompatible` | Target schema lacks required setting type | No | Live uses `video` block, target schema has no video block |
-| `chrome_mcp_error` | Screenshot or computed style extraction failed | Yes | Chrome tab crashed, timeout, navigation error |
+| `browse_error` | Screenshot or computed style extraction failed | Yes | Browser crashed, timeout, navigation error |
 | `liquid_render_error` | Section renders with Liquid errors on dev site | Yes | Missing snippet, undefined variable |
 | `unknown` | Unclassified failure | Yes | Catch-all for unexpected errors |
 

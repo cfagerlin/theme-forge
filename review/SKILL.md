@@ -13,7 +13,7 @@ Perform a final visual review of completed work to find and fix remaining varian
 
 - `.theme-pull/config.json` must exist
 - At least one section should have been pulled (reports exist in `.theme-pull/reports/sections/`)
-- Chrome MCP or computer-use capability is strongly recommended (code-only review is possible but limited)
+- Browse tool or computer-use capability is strongly recommended (code-only review is possible but limited)
 
 ## Arguments
 
@@ -33,7 +33,7 @@ Defaults to `index` if omitted. Use `all` to review all pages that have been pul
 
 ### Step 2: Full-Page Screenshots
 
-If Chrome MCP or computer-use is available:
+If a browse tool or computer-use is available:
 
 1. Navigate to the live site page
 2. Take a full-page screenshot at **desktop width** (1440px)
