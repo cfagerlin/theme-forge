@@ -39,6 +39,24 @@ Before pulling any sections, verify that global theme settings are correct. Thes
 
 **Push global settings to the dev store** (`shopify theme push --theme <id> --only config/...`) before proceeding to sections. This prevents every section from having wrong fonts/colors on first render.
 
+### Step 0.5: Verify Browse Tool
+
+Before pulling any sections, verify the browse tool is actually reachable if it was configured during onboard.
+
+If `capabilities.browse: true` in config, test the connection:
+- **`gstack_browse`**: Run `$B url 2>/dev/null; echo $?` — exit code 0 means reachable
+- **`playwright_mcp`**: Attempt `mcp__playwright__browser_navigate` to `about:blank`
+- **`mcp_chrome`**: Attempt a simple navigation with the detected MCP tools
+
+**If the browse tool was configured but is NOT reachable: STOP.** Do not silently degrade to code-only mode. The entire methodology depends on visual comparison. Present these options:
+
+- **A) Fall back to code-only analysis for this session.** All sections will be `completed_code_only`. Visual variances may go undetected.
+- **B) Troubleshoot the browse tool.** Show diagnostic commands for the detected `browse_method`.
+
+Catching this once at the page level prevents repeated failures across every section.
+
+If `capabilities.browse: false` (user opted out during onboard), proceed with code-only analysis. No prompt needed.
+
 ### Step 1: Parse Template
 
 1. Load config and read the page's template JSON from the **target theme** (since we're modifying the target)
@@ -108,12 +126,28 @@ Save to `.theme-pull/reports/pages/{page-path}.json`:
   "section_reports": [
     "sections/slideshow.json",
     "sections/featured-collection.json"
+  ],
+  "cutover_items": 2,
+  "cutover_summary": [
+    "Assign template 'page.about-us' to /pages/about-us after theme goes live",
+    "Upload hero-banner.jpg to store files before cutover"
   ]
 }
+```
+
+After writing the page report, display the cutover items summary if any exist:
+
+```
+CUTOVER ITEMS (2):
+  1. Assign template 'page.about-us' to /pages/about-us (Shopify Admin > Pages > Theme template)
+  2. Upload hero-banner.jpg to store files (Settings > Files)
+
+Run /theme-pull cutover for the full checklist.
 ```
 
 ## Output
 
 - `.theme-pull/reports/pages/{page-path}.json` — Page pull report
 - Individual section reports in `.theme-pull/reports/sections/`
+- `.theme-pull/cutover.json` — Running cutover checklist (appended to)
 - Modified target theme files
