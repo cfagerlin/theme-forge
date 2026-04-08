@@ -50,6 +50,23 @@ capabilities:
 - Computer use: Check if `mcp__computer-use__*` tools are available
 - Shopify CLI: Run `which shopify` or `shopify version` in bash
 
+### Step 3.5: Detect Store Themes (if Shopify CLI available)
+
+If Shopify CLI is available and a dev store is configured, list the store's themes to identify the target theme ID and validate the setup:
+
+```bash
+shopify theme list --store <dev_store>
+```
+
+This authenticates via browser OAuth (Shopify CLI 3.x has no separate `auth login` command). The output shows theme name, role (live/unpublished), and ID.
+
+Use this to:
+1. Confirm the target theme exists on the store
+2. Capture the theme ID for `theme pull` and `theme dev` commands
+3. Identify the live theme (this is the base theme to export if not already downloaded)
+
+Store the target theme ID in config as `target_theme_id`.
+
 ### Step 4: Detect Dev URL
 
 If Shopify CLI is available and a dev store is configured:
@@ -64,11 +81,12 @@ Create `.theme-pull/config.json` in the target theme root:
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.4.0",
   "live_url": "https://example.com",
   "base_theme": "../path-to-exported-theme",
   "target_theme": ".",
   "target_type": "horizon",
+  "target_theme_id": 147980124204,
   "dev_store": "store.myshopify.com",
   "dev_url": "http://127.0.0.1:9292",
   "extension_prefix": "custom-",
