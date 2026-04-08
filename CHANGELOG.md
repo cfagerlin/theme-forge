@@ -1,10 +1,15 @@
 # Changelog
 
-## 0.4.1 — 2026-04-08
+## 0.4.2 — 2026-04-08
 
-- **Browse tool abstraction**: Replaced all Chrome MCP references with a browse tool layer that supports multiple backends: gstack browse binary, Playwright MCP (`@playwright/mcp`), and legacy Chrome MCP. Detection checks for gstack browse first (CLI binary), then Playwright MCP tools, then other MCP browse tools.
-- **pull-section browse instructions**: Added concrete usage examples for each browse method (gstack_browse, playwright_mcp, mcp_chrome) including navigation, screenshots, element screenshots, JS execution, and responsive testing.
-- **Onboard install prompt**: When no browse tool is detected, prompts user to install Playwright MCP (`claude mcp add playwright -- npx @playwright/mcp --headless`) or notes gstack browse if available.
+Visual fidelity release. Makes cross-theme CSS comparison actually work.
+
+- **Cross-theme CSS resolution**: New Step 2.5 in pull-section requires resolving both themes' CSS variables to final computed pixel/color/font values and comparing those, not variable names. Includes a cross-theme variable mapping reference (Dawn↔Horizon) for colors, fonts, spacing, and layout.
+- **Rendered output validation checklist**: 15 automated checks (background color, font weight/size, letter-spacing, padding, button variant, Liquid errors, empty CSS values, placeholder images) with a JavaScript extraction script that runs on both sites via the browse tool.
+- **Light/dark polarity check**: Detects when a section's background color polarity flips between live and dev (the single most visible migration error).
+- **Common Gotchas expanded**: CSS variable name mismatches (#1 error source), heading weight differences, spacing formula resolution, rendered HTML validation.
+- **Browse tool abstraction**: Replaced all Chrome MCP references with a browse tool layer supporting gstack browse binary, Playwright MCP (`@playwright/mcp`), and legacy Chrome MCP.
+- **Onboard install prompt**: When no browse tool is detected, prompts user to install Playwright MCP or notes gstack browse if available.
 - **Shopify CLI 3.x auth**: Use `shopify theme list` for authentication and theme detection (CLI 3.x removed `auth login`)
 
 ## 0.4.0 — 2026-04-08

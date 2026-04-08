@@ -122,7 +122,7 @@ Create `.theme-pull/config.json` in the target theme root:
 
 ```json
 {
-  "version": "0.4.1",
+  "version": "0.4.2",
   "live_url": "https://example.com",
   "base_theme": "../path-to-exported-theme",
   "target_theme": ".",
