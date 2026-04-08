@@ -146,6 +146,10 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 7. **Set global settings before sections.** Logo, favicon, global font settings, and global color schemes must be set in `settings_data.json` before working on individual sections. A wrong logo or missing font will affect every section.
 
+8. **Always run the extraction script, never skip it.** The JavaScript extraction script (in Step 8 / Rendered Output Validation Checklist) MUST be executed on both live and dev sites. Do not skip it because "the screenshots look close enough." The extraction catches differences invisible in screenshots (1px font-size, letter-spacing, object-position). If the browse tool is available, there is no excuse for not running it.
+
+9. **Never accept a variance without user approval.** You may not mark any difference as "accepted" or "known limitation" or "global theme setting." If a property differs between live and dev, fix it with CSS. If you truly cannot fix it (e.g., Shopify Liquid doesn't support the operation), escalate to the user. Do not silently accept it.
+
 ## Methodology
 
 ### Step 1: Load Context
@@ -296,7 +300,24 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 ### Step 5: Identify Variances
 
-**ZERO TOLERANCE: Every measurable difference between the live and dev rendering is a defect that MUST be fixed.** There is no category of "acceptable" variance based on size or severity. If it can be measured (font weight, letter spacing, container width, padding, color), it must be corrected. The only exceptions are: (1) variances explicitly listed in `learnings.json` with `accepted: true` that were signed off by the user in a prior session, or (2) platform limitations documented with a specific Shopify constraint. "Could add if needed" is not a valid resolution.
+**ZERO TOLERANCE: Every measurable difference between the live and dev rendering is a defect that MUST be fixed.** There is no category of "acceptable" variance based on size or severity. If it can be measured (font weight, letter spacing, container width, padding, color), it must be corrected. "Could add if needed" is not a valid resolution.
+
+**The only exceptions are:**
+1. Variances explicitly listed in `learnings.json` with `accepted: true` that were signed off by the user in a prior session (not by you).
+2. True Shopify platform limitations (e.g., Shopify CDN serves a different image format, Liquid doesn't support a specific operation).
+
+**These are NEVER platform limitations (always fixable with CSS `!important`):**
+- Font weight (e.g., 700 vs 400) — override `--font-heading--weight` or equivalent with `!important`
+- Font size — override with `!important`
+- Font family — override with `!important`
+- Letter spacing — override with `!important`
+- Container width — override `max-width` or `width` with `!important`
+- Image container height/aspect-ratio — override with `!important`
+- Object-fit / object-position — override with `!important`
+- Padding/margin values — override with `!important`
+- Text alignment — override with `!important`
+
+A "global theme setting" or "theme default" is NOT a platform limitation. If the target theme defaults to font-weight 700 but the live site uses 400, you override it with CSS. That's what CSS overrides are for.
 
 **Start with the combined work list from Step 4.5.** Categorize each variance:
 
@@ -305,7 +326,7 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 - **Setting variance**: A target setting exists but has the wrong value → Fix in JSON (Step 3)
 - **CSS variance (overridable)**: Renders differently but fixable with CSS → Apply CSS override (Step 6)
 - **Missing feature**: Live section has functionality the target lacks entirely → May need custom section or JS
-- **Accepted variance**: Matches a variance in `learnings.json` with `accepted: true` that was explicitly approved by the user during a prior session. Do NOT create new accepted variances without user confirmation. Every other measurable difference must be fixed.
+- **Accepted variance**: Matches a variance in `learnings.json` with `accepted: true` that was explicitly approved by the user during a prior session. **You (the agent) may NEVER create a new accepted variance on your own.** Only the user can accept a variance, and only by explicitly saying so. "Global theme setting" or "theme default" is not an acceptable reason to skip a fix — override it with CSS.
 
 **Check learnings before planning fixes.** For each CSS variance, check if a learning applies:
 - Does a learning say this property needs `!important`? Apply it from the start.
@@ -349,7 +370,7 @@ If the variance requires HTML/Liquid changes:
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
-4. **Run the rendered output validation checklist** (see below). If any check fails, the fix is not complete.
+4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. If any property differs (font weight, font size, letter spacing, container width, image object-fit, image container size, padding, colors), the fix is NOT complete. Go back and fix it.
 5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
 6. **Capture learnings on retry.** If a fix required retry (first attempt didn't work):
    - Record what was tried first (the anti-pattern)
@@ -485,21 +506,40 @@ These image properties are the most common cause of "the image looks different" 
 
 Return to Step 5 for the next visual difference. Repeat Steps 5-8 until all variances are resolved or logged.
 
-### Step 10: Final Visual Comparison
+### Step 10: Final Validation Gate
 
-After all code-identified variances are addressed:
+**You cannot declare a section "done" without passing this gate.** This is not optional.
 
-1. Take fresh screenshots at **desktop width**
-2. Do a pure visual comparison — look for anything missed:
-   - Spacing that "feels off"
-   - Hover states, transitions, animations
-   - Interactive elements
-3. **Breakpoint verification** — render and compare at all breakpoints defined in the base section's CSS:
+1. **Run the FULL extraction script** on both the live and dev site sections. This is the same script from Step 8's Rendered Output Validation Checklist. You MUST actually run it, not skip it.
+
+2. **Build the final delta table.** For every property in the extraction output, compare live vs dev:
+
+```
+Property                | Live          | Dev           | Delta    | Status
+------------------------|---------------|---------------|----------|--------
+heading fontWeight      | 400           | 400           | 0        | PASS
+heading fontSize        | 24px          | 24px          | 0        | PASS
+body fontSize           | 16px          | 16px          | 0        | PASS
+body letterSpacing      | 0.96px        | 0.96px        | 0        | PASS
+padding top             | 36px          | 36px          | 0        | PASS
+image[0] containerWidth | 1564px        | 1564px        | 0        | PASS
+image[0] containerHeight| 560px         | 560px         | 0        | PASS
+image[0] objectFit      | cover         | cover         | -        | PASS
+image[0] objectPosition | 50% 50%      | 50% 50%       | -        | PASS
+bbox[h2] width          | 600px         | 600px         | 0        | PASS
+```
+
+3. **If ANY row has a non-zero delta or mismatched value: FAIL.** Go back to Step 6 and fix it. Do not proceed to Step 11.
+
+4. **Take final side-by-side screenshots** at desktop width. Read both screenshots and visually confirm they match. If you see ANY visual difference not captured in the delta table, investigate and fix it.
+
+5. **Breakpoint verification** — render and compare at all breakpoints defined in the base section's CSS:
    - Desktop (default)
    - Tablet (typically ≤800px)
    - Mobile (typically ≤480px)
-   - Any section-specific breakpoints
-4. For new variances found, repeat Steps 5-8
+6. For new variances found, repeat Steps 5-8
+
+**You MUST show the final delta table in your output.** The user needs to see the evidence that every property matches. A section reported as "complete" without a passing delta table is a bug in your process.
 
 ### Step 11: Write Report
 

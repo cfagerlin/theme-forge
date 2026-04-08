@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.6 — 2026-04-08
+
+Enforcement release. Closes loopholes that let the agent skip fixes.
+
+- **Closed zero-tolerance loophole**: Explicit list of properties that are NEVER platform limitations (font-weight, font-size, letter-spacing, container width, image sizing, padding, alignment). "Global theme setting" is not an excuse to skip a fix. Override with CSS `!important`.
+- **Mandatory extraction script**: The JS extraction script MUST be run on both live and dev sites during verification. Cannot be skipped because "screenshots look close enough."
+- **Final Validation Gate**: Replaced soft "Final Visual Comparison" step with a hard gate. Must build a delta table comparing every extracted property. If ANY row has a non-zero delta, the section cannot be declared done. The delta table must be shown to the user.
+- **Agent cannot accept variances**: Only the user can accept a variance. The agent may never mark a difference as "accepted" or "known limitation" on its own.
+- **Two new operational rules**: (8) always run the extraction script, (9) never accept a variance without user approval.
+
+Prompted by a services page pull where the agent accepted font-weight 700 vs 400 as a "global Horizon setting" and declared the section done with visible variances in hero height, image aspect ratios, container widths, and text positioning.
+
 ## 0.4.5 — 2026-04-08
 
 Image fidelity release. Fixes the "same image looks different" problem.
