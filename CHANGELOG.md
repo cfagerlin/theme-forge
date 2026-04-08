@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-04-08
+
+- Add gstack skill routing to CLAUDE.md for automatic skill dispatch
+
 ## 0.3.0 — 2026-04-07
 
 Efficiency release — focused on one-shotting sections.
