@@ -46,11 +46,16 @@ capabilities:
 ```
 
 **Detection method:**
-- Chrome MCP: Check if `mcp__Claude_in_Chrome__*` tools are available. Also check for alternative browse tools (`mcp__browse__*` or gstack browse daemon).
+- Browser MCP: Check if any browser automation tools are available. Look for these tool prefixes (in order of preference):
+  1. `mcp__playwright__*` — Playwright MCP server
+  2. `mcp__browser__*` or `mcp__browse__*` — generic browser MCP or gstack browse daemon
+  3. `mcp__Claude_in_Chrome__*` — Chrome MCP extension (legacy)
 - Computer use: Check if `mcp__computer-use__*` tools are available
 - Shopify CLI: Run `which shopify` or `shopify version` in bash
 
-**If Chrome MCP is not detected**, prompt the user to install it:
+If any browser tool is detected, set `chrome_mcp: true` in capabilities (the key name is kept for backwards compatibility).
+
+**If no browser tools are detected**, prompt the user to install one:
 
 > Visual comparison is the core of theme-pull. Without a browser tool, pull-section
 > falls back to code-only analysis (no screenshots, no computed style diffs). This
@@ -58,20 +63,21 @@ capabilities:
 >
 > To enable visual comparison, install one of these:
 >
-> 1. **Chrome MCP extension** (recommended for Claude Code):
->    - Install from Chrome Web Store: search "anthropic claude mcp"
->    - Or: https://chromewebstore.google.com/detail/claude-mcp/
->    - After installing, restart Claude Code and re-run `/theme-pull onboard`
+> 1. **Playwright MCP** (recommended, works everywhere):
+>    ```
+>    claude mcp add playwright -- npx @playwright/mcp --headless
+>    ```
+>    Then restart Claude Code and re-run `/theme-pull onboard`
 >
 > 2. **GStack browse tool** (if you have gstack installed):
 >    - Run `/open-gstack-browser` to launch the browse daemon
 >    - theme-pull will detect it automatically
 >
 > Do you want to:
-> A) Install Chrome MCP now (I'll wait)
+> A) Install Playwright MCP now (I'll run the command for you)
 > B) Continue without visual comparison (code-only analysis)
 
-If the user chooses A, wait for them to install and then re-detect. If they choose B, set `chrome_mcp: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing Chrome MCP and re-running onboard.
+If the user chooses A, run `claude mcp add playwright -- npx @playwright/mcp --headless` and tell them to restart Claude Code and re-run onboard. If they choose B, set `chrome_mcp: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by running the install command and re-running onboard.
 
 ### Step 3.5: Detect Store Themes (if Shopify CLI available)
 
