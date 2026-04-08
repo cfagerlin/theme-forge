@@ -382,6 +382,8 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
 | 14 | **No placeholder images** | Check `<img>` src attributes, flag SVG data URIs where real images expected | Placeholder instead of real image |
 | 15 | **Section height** | `sectionEl.getBoundingClientRect().height` | Differs by >20% from live |
 | 16 | **Element bounding boxes** | `getBoundingClientRect()` for all headings, paragraphs, images, buttons, containers | x, width, or height differs by >2px; relativeY differs by >2px (after normalizing for section offset) |
+| 17 | **Image container size** | `getBoundingClientRect()` on image wrapper/container element | Container width or height differs by >2px from live |
+| 18 | **Image sizing properties** | `getComputedStyle(img).objectFit`, `objectPosition`, container `aspectRatio` | Different `object-fit` (cover vs contain), different `object-position`, or different `aspect-ratio` — these control which part of the image is visible |
 
 **Extraction script example** (run on both live and dev via browse tool):
 
@@ -419,6 +421,28 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
       borderRadius: getComputedStyle(btn).borderRadius,
       padding: getComputedStyle(btn).padding
     } : null,
+    images: (function() {
+      const imgs = s.querySelectorAll('img');
+      return [...imgs].slice(0, 10).map(img => {
+        const ics = getComputedStyle(img);
+        const ir = img.getBoundingClientRect();
+        const parent = img.parentElement;
+        const pr = parent.getBoundingClientRect();
+        const pcs = getComputedStyle(parent);
+        return {
+          src: img.src.split('/').pop().split('?')[0],
+          alt: (img.alt || '').substring(0, 40),
+          imgWidth: Math.round(ir.width),
+          imgHeight: Math.round(ir.height),
+          containerWidth: Math.round(pr.width),
+          containerHeight: Math.round(pr.height),
+          objectFit: ics.objectFit,
+          objectPosition: ics.objectPosition,
+          aspectRatio: pcs.aspectRatio,
+          overflow: pcs.overflow
+        };
+      });
+    })(),
     liquidErrors: s.innerHTML.includes('Liquid error'),
     emptyRgb: (s.outerHTML.match(/rgb\(\)/g) || []).length,
     boundingBoxes: (function() {
@@ -448,6 +472,14 @@ Compare the two results property by property. Every difference is a variance tha
 - **Height differs** — font size, line-height, or padding causing different text wrapping
 - **x differs** — alignment or margin difference
 - **relativeY differs** — padding, margin, or element ordering difference
+
+**Image comparison**: Match images by filename or alt text. For each matched pair, check:
+- **Container size** — the wrapper element's width/height determines the visible area of the image. If containers differ, the same image shows different content. Fix via CSS width/height or aspect-ratio on the container.
+- **object-fit** — `cover` crops the image to fill the container (most common for hero/banner images). `contain` shows the whole image with possible gaps. `fill` stretches. If live uses `cover` and dev uses `contain`, the image will look completely different.
+- **object-position** — controls which part of the image is visible when cropped. `50% 50%` (center) vs `50% 30%` (focus higher) changes what the user sees. Extract from live and match exactly.
+- **aspect-ratio** — some themes set `aspect-ratio` on the container instead of explicit height. Compare the computed aspect ratio between live and dev.
+
+These image properties are the most common cause of "the image looks different" variances. The image file is identical, but the container and positioning differ.
 
 ### Step 9: Next Variance
 
@@ -595,6 +627,12 @@ Many themes cap section padding via range controls (e.g., max 100px). If the liv
 
 ### Content Copy
 NEVER change heading/body copy without explicit instruction. Match character-for-character.
+
+### Image Viewable Area Mismatch
+The same image can look completely different between themes if the container size, `object-fit`, or `object-position` differs. The image file is identical but the visible portion changes. Always extract the image container's `getBoundingClientRect()` and the `<img>` element's `object-fit` and `object-position` from both sites. Match them exactly. Common issues:
+- Dawn uses `object-fit: cover` with a tall container, Horizon uses a shorter container — shows less of the image
+- Dawn sets `object-position: center 30%` to focus on the subject, Horizon defaults to `50% 50%` — subject is cut off
+- Container uses `aspect-ratio: 16/9` on one theme but explicit `height: 560px` on the other — different proportions at different viewport widths
 
 ### Rendered HTML Validation
 After applying changes, always check the rendered HTML (via browse tool or curl) for:

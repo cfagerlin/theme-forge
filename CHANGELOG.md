@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.5 — 2026-04-08
+
+Image fidelity release. Fixes the "same image looks different" problem.
+
+- **Image container validation**: New checks (#17, #18) in rendered output validation. Extracts `getBoundingClientRect()` on image containers, `object-fit`, `object-position`, and `aspect-ratio` from both live and dev. Catches when images show different visible areas despite using the same source file.
+- **Image extraction in JS script**: The validation script now captures all `<img>` elements with their container dimensions, object-fit/position, and aspect-ratio. Enables precise comparison of which part of an image is visible.
+- **Image Viewable Area Mismatch gotcha**: New common gotcha documenting the three most frequent causes of image differences (container height, object-position focal point, aspect-ratio vs explicit height).
+
 ## 0.4.4 — 2026-04-08
 
 Precision and safety release. Catches variances that code-only analysis misses.
