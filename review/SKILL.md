@@ -126,8 +126,41 @@ Verdict values:
 - `needs_work` — Major variances remain
 - `blocked` — Critical variances that break layout
 
+## Accepted Variances
+
+When `reconcile` has been run, section reports may contain `accepted_variances` — differences the developer has already decided are "close enough." Review handles these specially:
+
+1. **Before flagging a variance**, check if it matches an accepted variance from the section report
+2. **Matching criteria**: Compare the description and the CSS property/value involved. A variance matches if it describes the same element and the same property (even if worded differently).
+3. **If matched**: Include it in the report with `"status": "accepted"` — don't count it against the verdict and don't attempt to fix it
+4. **If not matched**: Flag it normally with severity rating
+
+### Accepting new variances during review
+
+When review finds a variance and the developer says "that's fine" or "close enough":
+
+1. Add it to the `accepted_variances` array in the section's report (`.theme-pull/reports/sections/{name}.json`)
+2. Mark it with a `reason` explaining why it was accepted
+3. It won't be flagged in future reviews
+
+```json
+{
+  "accepted_variances": [
+    {
+      "description": "Bottom padding 8px over due to Horizon spacing minimum",
+      "severity": "minor",
+      "reason": "Horizon's min() formula adds unavoidable overhead",
+      "accepted_at": "2026-04-07T22:00:00Z"
+    }
+  ]
+}
+```
+
+This is how "close enough" decisions persist across sessions and don't create noise on subsequent reviews.
+
 ## Output
 
 - `.theme-pull/reports/review-{page-path}.json` — Review report
 - Fixes applied to target theme files (for critical/major issues)
+- Accepted variances preserved in section reports
 - Summary printed to conversation

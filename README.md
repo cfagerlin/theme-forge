@@ -63,17 +63,23 @@ Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your
 
 The core methodology (in `pull-section`) follows an 11-step loop:
 
-1. Load the section mapping
-2. Read both theme's section code (Liquid, CSS, schema)
+1. Load section mapping **+ learnings** from prior sections
+2. Read both theme's section code — use **resolved CSS** from scan (Liquid variables pre-substituted)
 3. Align JSON settings (colors, content, padding, images)
-4. Screenshot both live and dev at the same viewport width
-5. List every visual difference before touching CSS
-6. Apply CSS overrides (component-scoped, prefer JSON over CSS)
+4. Screenshot both sites **+ run computed style diff** (structured extraction of all CSS properties)
+5. Combine visual + computed diffs into one work list; **check learnings** before planning fixes
+6. Apply CSS overrides — learnings tell you where `!important` is needed upfront
 7. Fix structural HTML/Liquid issues (extension layer only)
-8. Verify with new screenshot — retry up to 3x
+8. Verify with new screenshot — **capture learnings on retry** (what failed → what worked)
 9. Move to next variance
 10. Final comparison at all breakpoints (desktop, tablet, mobile)
-11. Write JSON report
+11. Write JSON report with learnings applied/created
+
+### Self-Learning
+
+theme-pull gets smarter with each section. When a fix requires retry or the user corrects an approach, the pattern is captured in `.theme-pull/learnings.json` and applied proactively on future sections. Over time, the ratio of "learnings applied" to "learnings created" should increase — meaning fewer surprises per section and more one-shot completions.
+
+Learnings have scopes (universal, project, theme-specific) and confidence levels. Universal learnings are portable across projects via `--import-learnings`.
 
 ## Architecture
 

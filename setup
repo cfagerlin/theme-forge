@@ -69,6 +69,7 @@ SKILLS=(
   "scan"
   "map-section"
   "map-page"
+  "reconcile"
   "pull-section"
   "pull-page"
   "pull-header"

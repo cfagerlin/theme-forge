@@ -38,6 +38,18 @@ Parse the base (live/exported) theme:
 6. **Assets** — List all `assets/*` files, categorize (CSS, JS, SVG, images, fonts)
 7. **Global Settings** — Parse `config/settings_schema.json` for theme-level settings (fonts, colors, spacing, etc.)
 8. **Settings Data** — Parse `config/settings_data.json` for current/active values of all settings
+9. **Resolved CSS** — For each section with an inline `<style>` block or `{% stylesheet %}`:
+   - Extract all CSS from the section's `.liquid` file
+   - Find every Liquid template variable (`{{ settings.* }}`, `{{ section.settings.* }}`, `{{ block.settings.* }}`)
+   - Resolve each variable against `settings_data.json` (for global `settings.*`) or the section's configured values in the template JSON (for `section.settings.*`)
+   - Also resolve theme-level font variables: look up `type_heading_font`, `type_body_font`, etc. in settings_data.json and expand them to their CSS values (font-family, weight, style)
+   - Also check the section HTML for global CSS class references (e.g., `heading_font`, `body_font`) that apply typography not visible in the `<style>` block — document these as implicit style dependencies
+   - Store the fully-resolved CSS alongside the raw CSS in the inventory
+   - This eliminates manual cross-referencing during `pull-section` and prevents the #1 time sink: chasing Liquid variables through settings files
+
+   **Example**: Raw CSS contains `font-weight: {{ settings.heading_font_weight }};` → settings_data.json has `"heading_font_weight": "200"` → Resolved CSS contains `font-weight: 200;`
+
+   **Unresolvable variables**: If a variable references a dynamic value (e.g., `{{ section.settings.custom_color }}` where the color changes per-instance), keep the Liquid syntax but add a comment with the current configured value: `font-weight: 200; /* from {{ settings.heading_font_weight }} */`
 
 ### Step 3: Inventory Target Theme
 
