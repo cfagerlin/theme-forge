@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2 — 2026-04-09
+
+**Safety and pipeline enforcement.** Prompted by a real migration where the agent pushed to Shopify without permission and skipped the entire pull-section pipeline.
+
+- **NEVER push to Shopify without user approval**: New hard safety rule. `shopify theme push` and `shopify theme publish` are now explicitly forbidden without user confirmation. `pull-page` Step 0 updated to save settings locally instead of pushing. `shopify theme dev` hot-reloads local files, so pushing is unnecessary during development.
+- **`--full` workflow enforced**: Previously, `--full` was described as a flag but had no defined workflow. An agent could (and did) skip scan, map, pull-section, state tracking, and visual verification entirely. Now `--full` has an explicit 8-step pipeline that must be followed in order. Every section must go through `pull-section` with its compare→fix→verify loop.
+- **State machine required**: The `--full` workflow now initializes `state.json` and tracks every section. No section can be marked complete without running pull-section on it.
+
 ## 0.5.1 — 2026-04-08
 
 **Zero-friction install.** Clone and go — no setup script required.
