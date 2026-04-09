@@ -96,6 +96,94 @@ If the binary exists but fails (e.g., `$B url` returns an error), present these 
 - **A) Fall back to code-only analysis for this session.** Final status will be `completed_code_only`.
 - **B) Troubleshoot.** Run `ls -la $HOME/.claude/skills/gstack/browse/dist/browse` and `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B url` to diagnose.
 
+### Shadow DOM Handling (Horizon and modern themes)
+
+Some Shopify themes (notably **Horizon**) use **Declarative Shadow DOM** with web components. All page content lives inside shadow roots, not the regular DOM. This means:
+
+1. **`document.querySelector()` cannot find elements inside shadow roots.** You must use a deep query that recurses into `.shadowRoot` on each element.
+2. **`document.body.innerHTML` will appear empty** even though the page renders visually. This is normal for Shadow DOM themes.
+3. **Screenshots may be blank if taken too quickly.** Declarative Shadow DOM is parsed during HTML load, but custom element JS (which sets up interactivity and may lazy-load images) needs time to register.
+
+**How to detect Shadow DOM themes:**
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B goto "http://127.0.0.1:9292"
+$B js "document.querySelectorAll('*').length + ' elements, ' + (document.querySelector('[shadowrootmode], template[shadowroot]') ? 'HAS' : 'NO') + ' declarative shadow DOM, shadow hosts: ' + [...document.querySelectorAll('*')].filter(e => e.shadowRoot).length"
+```
+
+If shadow hosts > 0, this is a Shadow DOM theme. Use the techniques below.
+
+**Wait for hydration before screenshots:**
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B goto "http://127.0.0.1:9292"
+$B js "await new Promise(r => setTimeout(r, 3000)); document.querySelectorAll('*').length"
+$B screenshot /tmp/dev-homepage.png
+```
+
+The 3-second wait lets custom elements register and images load. For pages with heavy media, increase to 5 seconds.
+
+**Deep querySelector — find elements inside shadow roots:**
+```javascript
+function deepQuery(root, sel) {
+  let r = root.querySelector(sel);
+  if (r) return r;
+  for (const el of root.querySelectorAll('*')) {
+    if (el.shadowRoot) {
+      r = deepQuery(el.shadowRoot, sel);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+```
+
+Run via browse tool:
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B js "function deepQuery(root,sel){let r=root.querySelector(sel);if(r)return r;for(const el of root.querySelectorAll('*')){if(el.shadowRoot){r=deepQuery(el.shadowRoot,sel);if(r)return r;}}return null;} const el=deepQuery(document,'h1,.hero-heading,[class*=title]'); el ? el.textContent.trim() : 'NOT FOUND'"
+```
+
+**Deep querySelectorAll — find ALL matching elements across shadow boundaries:**
+```javascript
+function deepQueryAll(root, sel) {
+  const results = [...root.querySelectorAll(sel)];
+  for (const el of root.querySelectorAll('*')) {
+    if (el.shadowRoot) results.push(...deepQueryAll(el.shadowRoot, sel));
+  }
+  return results;
+}
+```
+
+**Extract computed styles from Shadow DOM elements:**
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B js "function deepQueryAll(root,sel){const r=[...root.querySelectorAll(sel)];for(const el of root.querySelectorAll('*')){if(el.shadowRoot)r.push(...deepQueryAll(el.shadowRoot,sel));}return r;} JSON.stringify(deepQueryAll(document,'h1,h2,h3,p,a,button').slice(0,20).map(el=>{const s=getComputedStyle(el);return{tag:el.tagName,text:el.textContent.trim().slice(0,50),fontSize:s.fontSize,fontWeight:s.fontWeight,fontFamily:s.fontFamily,color:s.color,lineHeight:s.lineHeight}}))"
+```
+
+`getComputedStyle()` works fine on shadow DOM elements once you have a reference to them. The hard part is finding them.
+
+**Extract CSS custom properties (design tokens):**
+
+Shadow DOM themes use CSS custom properties to share styles across shadow boundaries. These are your primary style comparison tool:
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B js "const s=getComputedStyle(document.documentElement);const props=['--font-body-family','--font-heading-family','--font-body-weight','--font-heading-weight','--color-foreground','--color-background','--font-body-scale','--font-heading-scale'];JSON.stringify(Object.fromEntries(props.map(p=>[p,s.getPropertyValue(p).trim()])))"
+```
+
+CSS custom properties defined on `:root` pierce all shadow boundaries, making them the most reliable way to compare styles between themes.
+
+**Section-level screenshots for Shadow DOM themes:**
+
+Element selectors like `$B screenshot ".shopify-section:nth-child(3)"` may not work if sections are custom elements with shadow roots. Instead, use the section's custom element tag or ID:
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B js "await new Promise(r => setTimeout(r, 2000))"
+$B screenshot "section-featured-collection" /tmp/section.png
+```
+
+If element screenshots fail, fall back to full-page screenshots and note the section's vertical position.
+
 ### Fallback (code-only mode)
 
 When the browse binary is not installed and no Playwright MCP tools are available:

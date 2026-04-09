@@ -8,14 +8,27 @@ Run this at **Step 4 (Render & Inspect)** of pull-section, AFTER taking screensh
 
 ## The Extraction Script
 
-Run this JavaScript on both the live and dev sites using your browse tool. For gstack_browse: `$B js "..."`. For Playwright MCP: `mcp__playwright__browser_evaluate`. Replace the selector with the section's container.
+Run this JavaScript on both the live and dev sites using your browse tool. For gstack_browse: `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B js "..."`. For Playwright MCP: `mcp__playwright__browser_evaluate`. Replace the selector with the section's container.
+
+**Shadow DOM themes (e.g., Horizon):** If `document.querySelector(SECTION_SELECTOR)` returns null but the page renders visually, the section is inside a shadow root. Use the `deepQuery` function from the Shadow DOM Handling section in pull-section/SKILL.md to find the element, then pass it to the extraction script below.
 
 ```javascript
 // Extract computed styles for a section and its key children
+// For Shadow DOM themes: replace document.querySelector with deepQuery (see pull-section SKILL.md)
 (function() {
+  // Deep query helper for Shadow DOM themes
+  function deepQuery(root, sel) {
+    let r = root.querySelector(sel);
+    if (r) return r;
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) { r = deepQuery(el.shadowRoot, sel); if (r) return r; }
+    }
+    return null;
+  }
+
   const SECTION_SELECTOR = '[data-section-id="YOUR_SECTION_ID"]'; // or a class selector
-  const section = document.querySelector(SECTION_SELECTOR);
-  if (!section) return { error: 'Section not found: ' + SECTION_SELECTOR };
+  const section = deepQuery(document, SECTION_SELECTOR);
+  if (!section) return { error: 'Section not found (checked shadow roots): ' + SECTION_SELECTOR };
 
   // Properties that matter for visual matching
   const VISUAL_PROPS = [
@@ -70,9 +83,18 @@ Run this JavaScript on both the live and dev sites using your browse tool. For g
     '[class*="item"]', '[class*="card"]'
   ];
 
+  // Deep querySelectorAll for Shadow DOM support
+  function deepQueryAll(root, sel) {
+    const r = [...root.querySelectorAll(sel)];
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) r.push(...deepQueryAll(el.shadowRoot, sel));
+    }
+    return r;
+  }
+
   const seen = new Set();
   for (const sel of KEY_SELECTORS) {
-    for (const child of section.querySelectorAll(sel)) {
+    for (const child of deepQueryAll(section, sel)) {
       const id = child.className || child.tagName;
       if (seen.has(id)) continue;
       seen.add(id);
