@@ -25,6 +25,8 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-forge status             — Human-readable migration progress report
 /theme-forge cutover            — Show cutover checklist for production go-live
 /theme-forge upgrade            — Check for and apply updates
+/theme-forge --debug on         — Enable debug mode globally (persists in config.json)
+/theme-forge --debug off        — Disable debug mode globally
 ```
 
 ## How It Works
@@ -50,11 +52,30 @@ These flags modify pipeline behavior for batch operations (`pull-page`, `pull-he
 --reset                Reset all sections to pending (asks for confirmation first)
 --reset-failed         Reset only failed sections to pending for retry
 --debug                Save full transcript, screenshots, and diffs to .theme-forge/debug/
+--no-debug             Disable debug for this run (overrides global setting)
 ```
 
 ### `--debug` Mode
 
-When `--debug` is passed (with any command or with `--full`), **thread it through to every sub-skill invocation.** Each pull-section call creates its own debug directory at `.theme-forge/debug/{timestamp}-{section-key}/` with a transcript, screenshots, computed style diffs, and a summary.
+Debug mode can be activated three ways (highest priority first):
+
+1. **`--no-debug` flag** — disables debug for this run, overrides everything
+2. **`--debug` flag** — enables debug for this run
+3. **Global setting** in `.theme-forge/config.json` → `"debug": true` — applies to all runs
+
+**To toggle the global setting:**
+```
+/theme-forge --debug on     — sets "debug": true in config.json
+/theme-forge --debug off    — sets "debug": false in config.json
+```
+
+When handling `/theme-forge --debug on` or `/theme-forge --debug off`:
+1. Read `.theme-forge/config.json`
+2. Set or update the `"debug"` key (`true` or `false`)
+3. Write back the file
+4. Confirm: "Debug mode is now **on** globally. All runs will save transcripts and artifacts to `.theme-forge/debug/`. Use `--no-debug` on any command to skip it for one run."
+
+When debug is active (by any method), **thread it through to every sub-skill invocation.** Each pull-section call creates its own debug directory at `.theme-forge/debug/{timestamp}-{section-key}/` with a transcript, screenshots, computed style diffs, and a summary.
 
 After all sections complete, the debug directory contains a full audit trail. A human or another agent can review `.theme-forge/debug/` to diagnose issues without having watched the session live.
 

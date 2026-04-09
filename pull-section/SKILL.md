@@ -206,7 +206,8 @@ When the browse binary is not installed and no Playwright MCP tools are availabl
 - `<section-name>` — The section type name (e.g., `featured-collection`, `slideshow`, `custom-trust-bar`)
 - `--page <template>` — Which template contains this section (e.g., `index`, `product`, `collection`). **Required** unless the section is in a section group (header-group, footer-group) or can be unambiguously found in exactly one template.
 - `--url <live-page-url>` — The specific live page URL to screenshot for comparison (e.g., `https://gldn.com/collections/necklaces`). Defaults to the live site root for `index`, or the first matching page for other templates.
-- `--debug` — Enable debug mode. Saves a full transcript, all screenshots, and computed style diffs to `.theme-forge/debug/`. See "Debug Mode" section below.
+- `--debug` — Enable debug mode for this run. Saves a full transcript, all screenshots, and computed style diffs to `.theme-forge/debug/`. See "Debug Mode" section below.
+- `--no-debug` — Disable debug mode for this run, even if the global setting is on.
 
 ### How the page is resolved
 
@@ -223,11 +224,15 @@ The page context matters because:
 
 ## Debug Mode (`--debug`)
 
-When `--debug` is passed, save a complete transcript and all artifacts so a human or another agent can review what happened without watching the session live.
+Debug mode is active when ANY of these are true (checked in order):
+1. `--debug` flag was passed to this command
+2. `.theme-forge/config.json` has `"debug": true` AND `--no-debug` was NOT passed
+
+When debug is active, save a complete transcript and all artifacts so a human or another agent can review what happened without watching the session live.
 
 ### Setup
 
-At the start of pull-section, if `--debug` is active:
+At the start of pull-section, if debug is active:
 
 ```bash
 DEBUG_DIR=".theme-forge/debug/$(date +%Y%m%d-%H%M%S)-${SECTION_NAME}"
