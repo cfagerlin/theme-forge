@@ -2,7 +2,7 @@
 name: pull-footer
 description: >
   Pull the site footer section. Convenience wrapper around pull-section for the footer shared section.
-  - MANDATORY TRIGGERS: theme-pull pull-footer, pull footer, match footer, fix footer
+  - MANDATORY TRIGGERS: theme-forge pull-footer, pull footer, match footer, fix footer
 ---
 
 # pull-footer — Pull Site Footer
@@ -11,7 +11,7 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
 
 ## Workflow
 
-1. Read `.theme-pull/config.json`
+1. Read `.theme-forge/config.json`
 2. Identify the footer section:
    - Check `{base_theme}/sections/footer-group.json` for the footer section reference
    - Or look for `sections/footer.liquid`

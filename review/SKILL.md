@@ -2,7 +2,7 @@
 name: review
 description: >
   Post-work variance review. Scrolls through completed pages comparing live vs dev, finding and fixing remaining visual differences.
-  - MANDATORY TRIGGERS: theme-pull review, review page, variance review, final review, check variances
+  - MANDATORY TRIGGERS: theme-forge review, review page, variance review, final review, check variances
 ---
 
 # review — Post-Work Variance Review
@@ -11,14 +11,14 @@ Perform a final visual review of completed work to find and fix remaining varian
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist
-- At least one section should have been pulled (reports exist in `.theme-pull/reports/sections/`)
+- `.theme-forge/config.json` must exist
+- At least one section should have been pulled (reports exist in `.theme-forge/reports/sections/`)
 - Browse tool or computer-use capability is strongly recommended (code-only review is possible but limited)
 
 ## Arguments
 
 ```
-/theme-pull review [page-path]
+/theme-forge review [page-path]
 ```
 
 Defaults to `index` if omitted. Use `all` to review all pages that have been pulled.
@@ -75,13 +75,13 @@ For variances rated `critical` or `major`:
 
 1. Apply the suggested fix
 2. Verify the fix (screenshot comparison)
-3. Update the section report in `.theme-pull/reports/sections/`
+3. Update the section report in `.theme-forge/reports/sections/`
 
 For `minor` and `cosmetic` variances, log them but don't block completion.
 
 ### Step 6: Write Review Report
 
-Save to `.theme-pull/reports/review-{page-path}.json`:
+Save to `.theme-forge/reports/review-{page-path}.json`:
 
 ```json
 {
@@ -139,7 +139,7 @@ When `reconcile` has been run, section reports may contain `accepted_variances` 
 
 When review finds a variance and the developer says "that's fine" or "close enough":
 
-1. Add it to the `accepted_variances` array in the section's report (`.theme-pull/reports/sections/{name}.json`)
+1. Add it to the `accepted_variances` array in the section's report (`.theme-forge/reports/sections/{name}.json`)
 2. Mark it with a `reason` explaining why it was accepted
 3. It won't be flagged in future reviews
 
@@ -160,7 +160,7 @@ This is how "close enough" decisions persist across sessions and don't create no
 
 ## Output
 
-- `.theme-pull/reports/review-{page-path}.json` — Review report
+- `.theme-forge/reports/review-{page-path}.json` — Review report
 - Fixes applied to target theme files (for critical/major issues)
 - Accepted variances preserved in section reports
 - Summary printed to conversation

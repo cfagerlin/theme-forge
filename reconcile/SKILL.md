@@ -2,7 +2,7 @@
 name: reconcile
 description: >
   Detect work already done in an in-progress Shopify theme migration. Diffs the target theme against its baseline, identifies custom sections, evaluates completeness, and creates report stubs so status and review reflect reality.
-  - MANDATORY TRIGGERS: theme-pull reconcile, reconcile, import progress, pick up where we left off, detect existing work, resume migration
+  - MANDATORY TRIGGERS: theme-forge reconcile, reconcile, import progress, pick up where we left off, detect existing work, resume migration
 ---
 
 # reconcile — Detect Existing Migration Work
@@ -12,19 +12,19 @@ For migrations already in progress. Analyzes the target theme to figure out what
 ## When to Use
 
 Run `reconcile` when:
-- You're adopting theme-pull on a migration that's already underway
-- Work was done manually or in prior sessions without theme-pull state
+- You're adopting theme-forge on a migration that's already underway
+- Work was done manually or in prior sessions without theme-forge state
 - You want `status` to reflect real progress, not show 0%
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist (run `onboard` first)
+- `.theme-forge/config.json` must exist (run `onboard` first)
 - The target theme should have some work already done (custom sections, modified settings, etc.)
 
 ## Arguments
 
 ```
-/theme-pull reconcile [--page <template>] [--dry-run]
+/theme-forge reconcile [--page <template>] [--dry-run]
 ```
 
 - `--page <template>` — Only reconcile sections on a specific page. Without this, reconciles all pages.
@@ -34,7 +34,7 @@ Run `reconcile` when:
 
 ### Step 1: Load Context
 
-1. Read `.theme-pull/config.json` for paths and extension prefix
+1. Read `.theme-forge/config.json` for paths and extension prefix
 2. Load `site-inventory.json` if it exists (from a prior `scan`). If not, run a lightweight inventory of just the template JSON files in both themes.
 3. Check for any existing `SECTION_NOTES.md` or similar documentation from prior work
 
@@ -117,7 +117,7 @@ If `SECTION_NOTES.md` or similar documentation exists:
 
 ### Step 7: Write Reports
 
-For each section with detected work, write to `.theme-pull/reports/sections/{section-name}.json`:
+For each section with detected work, write to `.theme-forge/reports/sections/{section-name}.json`:
 
 ```json
 {
@@ -173,7 +173,7 @@ For each section with detected work, write to `.theme-pull/reports/sections/{sec
     "sections/custom-dynamic-collections.liquid",
     "templates/index.json"
   ],
-  "recommendation": "Run /theme-pull review index to verify visually"
+  "recommendation": "Run /theme-forge review index to verify visually"
 }
 ```
 
@@ -185,7 +185,7 @@ Print a summary:
 
 ```
 ═══════════════════════════════════════════
-  theme-pull reconcile — Results
+  theme-forge reconcile — Results
 ═══════════════════════════════════════════
 
   Detected work on 4 sections:
@@ -208,9 +208,9 @@ Print a summary:
   Sections with no detected work: 12
 
   Next steps:
-    /theme-pull status         — See full progress dashboard
-    /theme-pull review index   — Verify completed sections visually
-    /theme-pull pull-section custom-hero-slideshow --page index
+    /theme-forge status         — See full progress dashboard
+    /theme-forge review index   — Verify completed sections visually
+    /theme-forge pull-section custom-hero-slideshow --page index
                                — Finish in-progress sections
 ═══════════════════════════════════════════
 ```
@@ -219,11 +219,11 @@ Print a summary:
 
 Running `reconcile` multiple times is safe:
 - If a report already exists with `source: "reconcile"`, it will be updated (not duplicated)
-- If a report exists with `source: "pull-section"` (from actual theme-pull work), reconcile will NOT overwrite it — pull-section reports are higher fidelity
+- If a report exists with `source: "pull-section"` (from actual theme-forge work), reconcile will NOT overwrite it — pull-section reports are higher fidelity
 - Accepted variances from notes are merged, not replaced
 
 ## Output
 
-- `.theme-pull/reports/sections/{section-name}.json` for each detected section (with `status: "imported"`)
+- `.theme-forge/reports/sections/{section-name}.json` for each detected section (with `status: "imported"`)
 - Summary printed to conversation
 - No files in the target theme are modified (reconcile is read-only)

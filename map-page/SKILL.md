@@ -2,7 +2,7 @@
 name: map-page
 description: >
   Map all sections on a Shopify page by running map-section on each. Produces a page-level compatibility summary with migration effort estimate.
-  - MANDATORY TRIGGERS: theme-pull map-page, map page, assess page, page compatibility
+  - MANDATORY TRIGGERS: theme-forge map-page, map page, assess page, page compatibility
 ---
 
 # map-page — Page-Level Section Mapping
@@ -11,12 +11,12 @@ Map all sections on a page by running `map-section` on each. Produces a page-lev
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist (run `onboard` first)
+- `.theme-forge/config.json` must exist (run `onboard` first)
 
 ## Arguments
 
 ```
-/theme-pull map-page [page-path]
+/theme-forge map-page [page-path]
 ```
 
 `[page-path]` is the template name (e.g., `index`, `product`, `collection`, `cart`). Defaults to `index` (homepage) if omitted.
@@ -25,7 +25,7 @@ Map all sections on a page by running `map-section` on each. Produces a page-lev
 
 ### Step 1: Parse Template
 
-1. Read `.theme-pull/config.json` for the base theme path
+1. Read `.theme-forge/config.json` for the base theme path
 2. Read the base theme's template JSON: `{base_theme}/templates/{page-path}.json`
    - If multiple variants exist (e.g., `index.sl-*.json`), use the primary one
 3. Extract the `order` array and `sections` object to get the list of sections on this page
@@ -35,7 +35,7 @@ Map all sections on a page by running `map-section` on each. Produces a page-lev
 
 For each section in the page's template:
 
-1. Check if a mapping already exists at `.theme-pull/mappings/sections/{section-type}.json`
+1. Check if a mapping already exists at `.theme-forge/mappings/sections/{section-type}.json`
    - If yes, load it (skip re-mapping unless `--force` is passed)
    - If no, run `map-section` on it
 2. Collect all mapping results
@@ -51,7 +51,7 @@ Aggregate the section mappings into a page-level report:
 
 ### Step 4: Write Report
 
-Save to `.theme-pull/mappings/pages/{page-path}.json`:
+Save to `.theme-forge/mappings/pages/{page-path}.json`:
 
 ```json
 {
@@ -91,6 +91,6 @@ Save to `.theme-pull/mappings/pages/{page-path}.json`:
 
 ## Output
 
-- `.theme-pull/mappings/pages/{page-path}.json` — Page mapping report
-- Individual section mappings in `.theme-pull/mappings/sections/`
+- `.theme-forge/mappings/pages/{page-path}.json` — Page mapping report
+- Individual section mappings in `.theme-forge/mappings/sections/`
 - Summary printed to conversation

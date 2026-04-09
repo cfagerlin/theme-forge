@@ -2,7 +2,7 @@
 name: pull-page
 description: >
   Pull all sections on a Shopify page sequentially using pull-section. Works top-to-bottom, then does a full-page visual comparison.
-  - MANDATORY TRIGGERS: theme-pull pull-page, pull page, match page, fix page
+  - MANDATORY TRIGGERS: theme-forge pull-page, pull page, match page, fix page
 ---
 
 # pull-page — Pull All Sections on a Page
@@ -11,12 +11,12 @@ Execute `pull-section` on every section in a page's template, working top to bot
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist (run `onboard` first)
+- `.theme-forge/config.json` must exist (run `onboard` first)
 
 ## Arguments
 
 ```
-/theme-pull pull-page [page-path]
+/theme-forge pull-page [page-path]
 ```
 
 Defaults to `index` (homepage) if omitted.
@@ -61,7 +61,7 @@ If `capabilities.browse: false` (user opted out during onboard), proceed with co
 
 1. Load config and read the page's template JSON from the **target theme** (since we're modifying the target)
 2. Cross-reference with the **base theme's** template to identify the source section for each
-3. If a page mapping exists at `.theme-pull/mappings/pages/{page-path}.json`, use it for ordering
+3. If a page mapping exists at `.theme-forge/mappings/pages/{page-path}.json`, use it for ordering
 
 ### Step 1.5: Find CSS Loading Mechanism
 
@@ -86,7 +86,7 @@ Within each group, maintain the top-to-bottom page order.
 
 For each section:
 
-1. Check if a report already exists at `.theme-pull/reports/sections/{section-type}.json`
+1. Check if a report already exists at `.theme-forge/reports/sections/{section-type}.json`
    - If yes and `status` is `complete`, skip (unless `--force`)
 2. Run `pull-section` on it
 3. After each section completes, log progress
@@ -106,7 +106,7 @@ After all sections are pulled:
 
 ### Step 5: Write Page Report
 
-Save to `.theme-pull/reports/pages/{page-path}.json`:
+Save to `.theme-forge/reports/pages/{page-path}.json`:
 
 ```json
 {
@@ -142,12 +142,12 @@ CUTOVER ITEMS (2):
   1. Assign template 'page.about-us' to /pages/about-us (Shopify Admin > Pages > Theme template)
   2. Upload hero-banner.jpg to store files (Settings > Files)
 
-Run /theme-pull cutover for the full checklist.
+Run /theme-forge cutover for the full checklist.
 ```
 
 ## Output
 
-- `.theme-pull/reports/pages/{page-path}.json` — Page pull report
-- Individual section reports in `.theme-pull/reports/sections/`
-- `.theme-pull/cutover.json` — Running cutover checklist (appended to)
+- `.theme-forge/reports/pages/{page-path}.json` — Page pull report
+- Individual section reports in `.theme-forge/reports/sections/`
+- `.theme-forge/cutover.json` — Running cutover checklist (appended to)
 - Modified target theme files

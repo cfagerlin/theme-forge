@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Check if a newer version of theme-pull is available on GitHub
-# Usage: ./check-update.sh [theme-pull-dir]
+# Check if a newer version of theme-forge is available on GitHub
+# Usage: ./check-update.sh [theme-forge-dir]
 
 set -euo pipefail
 
 THEME_PULL_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
-REPO="cfagerlin/theme-pull"
+REPO="cfagerlin/theme-forge"
 VERSION_FILE="$THEME_PULL_DIR/VERSION"
 
 # Read local version

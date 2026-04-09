@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — 2026-04-08
+
+**theme-forge.** Renamed from theme-pull. Same tool, better name.
+
+- **Renamed to theme-forge**: All commands, config paths, and state directories updated. `.theme-pull/` → `.theme-forge/`, `/theme-pull` → `/theme-forge`.
+- Existing installs: re-run `setup` to update. State files in `.theme-pull/` will need to be moved to `.theme-forge/` (or start fresh with `onboard`).
+
 ## 0.4.6 — 2026-04-08
 
 Enforcement release. Closes loopholes that let the agent skip fixes.
@@ -27,7 +34,7 @@ Precision and safety release. Catches variances that code-only analysis misses.
 - **Browse tool runtime verification**: When browse tool was configured during onboard but is unavailable at runtime, STOP and ask the user whether to fall back to code-only or troubleshoot. No more silent degradation.
 - **Bounding box extraction**: New validation check (#16) captures `getBoundingClientRect()` for all key elements (headings, paragraphs, images, buttons) on both live and dev sites. Compares x, y, width, height to catch layout/positioning differences invisible in computed style diffs.
 - **Zero-tolerance on measured deltas**: Any measurable difference between live and dev rendering MUST be fixed. "Could add if needed" is not a valid resolution. Only user-approved accepted variances or documented platform limitations are exceptions.
-- **Cutover checklist**: `.theme-pull/cutover.json` auto-accumulates items that require manual action during production go-live (template assignments, asset uploads, custom section verification). New `/theme-pull cutover` command displays and verifies the checklist.
+- **Cutover checklist**: `.theme-forge/cutover.json` auto-accumulates items that require manual action during production go-live (template assignments, asset uploads, custom section verification). New `/theme-forge cutover` command displays and verifies the checklist.
 - Total commands: 14 (was 13)
 
 ## 0.4.3 — 2026-04-08
@@ -51,9 +58,9 @@ Visual fidelity release. Makes cross-theme CSS comparison actually work.
 
 ## 0.4.0 — 2026-04-08
 
-Pipeline hardening release. Makes theme-pull reliable enough for unsupervised full-store migration runs.
+Pipeline hardening release. Makes theme-forge reliable enough for unsupervised full-store migration runs.
 
-- **State machine**: `.theme-pull/state.json` tracks every section through 6 states (pending, in_progress, completed, completed_code_only, failed, skipped) with atomic write-then-rename persistence
+- **State machine**: `.theme-forge/state.json` tracks every section through 6 states (pending, in_progress, completed, completed_code_only, failed, skipped) with atomic write-then-rename persistence
 - **Resume protocol**: Kill a run, restart it, picks up where it left off. Stale `in_progress` sections auto-reset after 10 minutes.
 - **Lock mechanism**: Session-level lock prevents concurrent runs. Stale locks (>30 min) breakable with `--force`.
 - **Error classification**: 7 error classes (css_override_failed, structural_mismatch, missing_asset, schema_incompatible, chrome_mcp_error, liquid_render_error, unknown) with structured error reports and suggested remediation
@@ -61,7 +68,7 @@ Pipeline hardening release. Makes theme-pull reliable enough for unsupervised fu
 - **Chrome MCP fallback**: Graceful degradation to code-only analysis when Chrome MCP is unavailable, with `completed_code_only` status
 - **Configurable retry budget**: `default_retry_limit` in config (default 3), `computed_style_match_threshold` (default 85%)
 - **Status command upgrade**: Shows pipeline lock state, failed section details with error class and remediation, state.json as primary data source
-- **Onboard .gitignore**: Auto-adds `.theme-pull/` to `.gitignore` during onboard
+- **Onboard .gitignore**: Auto-adds `.theme-forge/` to `.gitignore` during onboard
 - **Config version fix**: defaults.json version corrected from 0.1.0 to 0.3.1
 
 ## 0.3.1 — 2026-04-08
@@ -72,7 +79,7 @@ Pipeline hardening release. Makes theme-pull reliable enough for unsupervised fu
 
 Efficiency release — focused on one-shotting sections.
 
-- **Learnings system**: `.theme-pull/learnings.json` accumulates knowledge from every correction. When a fix requires retry or the user corrects an approach, the pattern is captured and applied proactively on future sections. Includes confidence levels, scoping (universal/project/theme), and cross-project portability.
+- **Learnings system**: `.theme-forge/learnings.json` accumulates knowledge from every correction. When a fix requires retry or the user corrects an approach, the pattern is captured and applied proactively on future sections. Includes confidence levels, scoping (universal/project/theme), and cross-project portability.
 - **Computed style diff**: Structured JavaScript extraction that pulls all visual CSS properties from both live and dev sites in one pass, producing a severity-rated diff table. Replaces ad-hoc inspection.
 - **Resolved CSS in scan**: `scan` now pre-resolves all Liquid template variables in section CSS against `settings_data.json`, eliminating manual cross-referencing during pull.
 - **!important guardrails**: !important usage is learning-driven, not default. Each use must trace to a specific learning with a documented trigger. Code comments reference the learning ID.
@@ -95,4 +102,4 @@ Initial release.
 - Setup script with global and project-level install modes
 - Platform detection: Claude Code, Cowork, OpenClaw
 - Auto-update mechanism via GitHub version checking
-- JSON-based reporting in `.theme-pull/` project directory
+- JSON-based reporting in `.theme-forge/` project directory

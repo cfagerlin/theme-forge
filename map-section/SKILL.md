@@ -2,7 +2,7 @@
 name: map-section
 description: >
   Assess compatibility between a live/base theme section and the target theme. Finds the best match, compares schemas, and produces a compatibility report.
-  - MANDATORY TRIGGERS: theme-pull map-section, map section, assess section, section compatibility
+  - MANDATORY TRIGGERS: theme-forge map-section, map section, assess section, section compatibility
 ---
 
 # map-section — Section Compatibility Assessment
@@ -11,12 +11,12 @@ Find the best target-theme match for a base-theme section and assess how much wo
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist (run `onboard` first)
+- `.theme-forge/config.json` must exist (run `onboard` first)
 
 ## Arguments
 
 ```
-/theme-pull map-section <section-name>
+/theme-forge map-section <section-name>
 ```
 
 `<section-name>` is the base theme's section name (filename without `.liquid`), e.g., `featured-collection`, `slideshow`, `header`.
@@ -25,7 +25,7 @@ Find the best target-theme match for a base-theme section and assess how much wo
 
 ### Step 1: Load Section from Base Theme
 
-1. Read `.theme-pull/config.json` for paths
+1. Read `.theme-forge/config.json` for paths
 2. Find the section in the base theme: `{base_theme}/sections/{section-name}.liquid`
 3. Parse its `{% schema %}` block to extract:
    - Section name and class
@@ -102,7 +102,7 @@ Rate overall compatibility:
 
 ### Step 5: Write Report
 
-Save to `.theme-pull/mappings/sections/{section-name}.json`:
+Save to `.theme-forge/mappings/sections/{section-name}.json`:
 
 ```json
 {
@@ -158,5 +158,5 @@ Save to `.theme-pull/mappings/sections/{section-name}.json`:
 
 ## Output
 
-- `.theme-pull/mappings/sections/{section-name}.json` — Compatibility report
+- `.theme-forge/mappings/sections/{section-name}.json` — Compatibility report
 - Summary printed to conversation

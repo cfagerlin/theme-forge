@@ -1,22 +1,22 @@
 ---
 name: status
 description: >
-  Human-readable migration progress report. Reads JSON reports from .theme-pull/ and displays a clear summary of what has been mapped, pulled, and what remains.
-  - MANDATORY TRIGGERS: theme-pull status, migration status, migration progress, what's done, what's left
+  Human-readable migration progress report. Reads JSON reports from .theme-forge/ and displays a clear summary of what has been mapped, pulled, and what remains.
+  - MANDATORY TRIGGERS: theme-forge status, migration status, migration progress, what's done, what's left
 ---
 
 # status — Migration Progress Report
 
-Read all JSON state in `.theme-pull/` and produce a clear, human-readable progress report.
+Read all JSON state in `.theme-forge/` and produce a clear, human-readable progress report.
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist
+- `.theme-forge/config.json` must exist
 
 ## Arguments
 
 ```
-/theme-pull status [--detail]
+/theme-forge status [--detail]
 ```
 
 `--detail` shows per-section breakdowns. Without it, shows summary only.
@@ -25,7 +25,7 @@ Read all JSON state in `.theme-pull/` and produce a clear, human-readable progre
 
 ### Step 1: Load All State
 
-Read from `.theme-pull/`:
+Read from `.theme-forge/`:
 
 1. `config.json` — Project configuration
 2. `state.json` — Pipeline state machine (if any pull has been run)
@@ -58,7 +58,7 @@ Print a summary like:
 
 ```
 ═══════════════════════════════════════════
-  theme-pull — Migration Status
+  theme-forge — Migration Status
   Project: GLDN Legacy → Horizon
   Live: https://gldn.com
 ═══════════════════════════════════════════
@@ -104,10 +104,10 @@ Print a summary like:
 
   NEXT RECOMMENDED ACTIONS
   ────────────────
-  1. Run: /theme-pull pull-section product-gallery
-  2. Run: /theme-pull pull-footer (1 sub-section remaining)
-  3. Run: /theme-pull pull-page collection
-  4. Run: /theme-pull --full --reset-failed (retry all failures)
+  1. Run: /theme-forge pull-section product-gallery
+  2. Run: /theme-forge pull-footer (1 sub-section remaining)
+  3. Run: /theme-forge pull-page collection
+  4. Run: /theme-forge --full --reset-failed (retry all failures)
 ═══════════════════════════════════════════
 ```
 

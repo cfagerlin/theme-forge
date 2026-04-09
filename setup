@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# theme-pull setup script
-# Installs theme-pull skills into the appropriate location for your platform.
+# theme-forge setup script
+# Installs theme-forge skills into the appropriate location for your platform.
 #
 # Usage:
 #   ./setup              # Global install (solo developer)
@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --dir)      INSTALL_DIR="$2"; shift 2 ;;
     --verbose)  VERBOSE=true; shift ;;
     --help|-h)
-      echo "theme-pull v$VERSION — Setup"
+      echo "theme-forge v$VERSION — Setup"
       echo ""
       echo "Usage:"
       echo "  ./setup              Global install (skills available everywhere)"
@@ -52,11 +52,11 @@ if [[ -n "$INSTALL_DIR" ]]; then
   TARGET_DIR="$INSTALL_DIR"
 elif [[ "$INSTALL_MODE" == "project" ]]; then
   # Project-level: install into current project's .claude/skills/
-  TARGET_DIR="$(pwd)/.claude/skills/theme-pull"
+  TARGET_DIR="$(pwd)/.claude/skills/theme-forge"
 else
   # Global: install into platform's skills directory
   SKILLS_DIR=$(get_skills_dir)
-  TARGET_DIR="$SKILLS_DIR/theme-pull"
+  TARGET_DIR="$SKILLS_DIR/theme-forge"
 fi
 
 echo "📁 Install directory: $TARGET_DIR"
@@ -64,7 +64,7 @@ echo "📁 Install directory: $TARGET_DIR"
 # ─── Skills to install ──────────────────────────────────────────────
 
 SKILLS=(
-  "theme-pull"
+  "theme-forge"
   "onboard"
   "scan"
   "map-section"
@@ -130,7 +130,7 @@ fi
 
 echo ""
 echo "═══════════════════════════════════════════"
-echo "  theme-pull v$VERSION installed ✅"
+echo "  theme-forge v$VERSION installed ✅"
 echo "═══════════════════════════════════════════"
 echo ""
 echo "  Platform:  $PLATFORM"
@@ -139,9 +139,9 @@ echo "  Mode:      $INSTALL_MODE"
 echo "  Skills:    ${#SKILLS[@]} commands available"
 echo ""
 echo "  Quick start:"
-echo "    /theme-pull onboard    — Configure your migration"
-echo "    /theme-pull scan       — Inventory themes & plan"
-echo "    /theme-pull pull-section <name> — Start pulling"
+echo "    /theme-forge onboard    — Configure your migration"
+echo "    /theme-forge scan       — Inventory themes & plan"
+echo "    /theme-forge pull-section <name> — Start pulling"
 echo ""
 echo "═══════════════════════════════════════════"
 
