@@ -170,6 +170,12 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 ### Step 2: Read Both Sections
 
+**CONTENT SOURCING RULE**: The base theme export may contain many alternate templates (e.g., `index.sl-7BABF038.json`, `index.sl-1D1AF432.json`) with old or stale content. **NEVER read content from alternate templates.** Always use:
+- The primary template file (e.g., `templates/index.json`, not `index.sl-*.json`)
+- `config/settings_data.json` for section content and settings (this is where Shopify stores the current values set through the theme editor)
+
+If the primary template and `settings_data.json` disagree on a content value, `settings_data.json` wins — it reflects what the theme editor has set, which is what the live site shows.
+
 1. Check if `scan` has already been run — look for this section in `.theme-forge/site-inventory.json`
    - If present, use the **resolved CSS** from the inventory (all Liquid variables already substituted with actual values). This saves significant time vs manual cross-referencing.
    - If not present, fall back to manual resolution (below)
@@ -177,7 +183,7 @@ These rules prevent the most common mistakes observed in real migrations. Follow
    - The inline `<style>` block with all CSS rules, breakpoints, responsive behavior
    - The `{% schema %}` with available settings and their types
    - The HTML structure and Liquid logic
-3. Read the **base theme's configured values** from `settings_data.json` (or template JSON) for this section
+3. Read the **base theme's configured values** from `settings_data.json` first, then template JSON as fallback. `settings_data.json` is the source of truth for content because it reflects what the theme editor shows on the live site.
 4. **Resolve all Liquid variables in the section CSS** (skip if resolved CSS was loaded from inventory). If the base section's `<style>` block contains `{{settings.something}}` or `{{section.settings.something}}`, look up the actual values in `settings_data.json`. Pay special attention to:
    - Font family, weight, style, and letter-spacing
    - Color values

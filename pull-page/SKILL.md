@@ -23,6 +23,24 @@ Defaults to `index` (homepage) if omitted.
 
 ## Workflow
 
+### Step -1: Base Theme Freshness Check
+
+Before any work, verify the base theme export is current:
+
+1. Read `base_theme_exported_at` from `.theme-forge/config.json`. If it's more than 24 hours old, warn the user:
+   > "The base theme export is from {date} ({N days ago}). The live site may have changed since then. Content like hero headlines, section ordering, and settings are stored in Shopify and update independently of theme code."
+   >
+   > A) Re-export the base theme now (`shopify theme pull --store <store> --theme <live_theme_id> --path <base_theme_path>`)
+   > B) Continue with the existing export (I know it's current)
+
+2. If `base_theme_exported_at` is missing from config (older project), check file timestamps:
+   ```bash
+   stat -f "%Sm" -t "%Y-%m-%dT%H:%M:%S" <base_theme_path>/config/settings_data.json
+   ```
+   If older than 24 hours, show the same warning.
+
+3. If the user chooses A, re-export and update `base_theme_exported_at` in config.
+
 ### Step 0: Global Settings (first run only)
 
 Before pulling any sections, verify that global theme settings are correct. These affect every section and must be set first:
@@ -60,8 +78,9 @@ If `capabilities.browse: false` (user opted out during onboard), proceed with co
 ### Step 1: Parse Template
 
 1. Load config and read the page's template JSON from the **target theme** (since we're modifying the target)
-2. Cross-reference with the **base theme's** template to identify the source section for each
-3. If a page mapping exists at `.theme-forge/mappings/pages/{page-path}.json`, use it for ordering
+2. Cross-reference with the **base theme's** template to identify the source section for each. **IMPORTANT**: Use only the active template file (e.g., `templates/index.json`), never alternate templates like `index.sl-*.json` or `index.*.json`. The base theme export may contain dozens of old/unused alternate templates with stale content. The active template is the one without a suffix, or the one referenced in `config/settings_data.json`.
+3. **Content comes from `settings_data.json`**: Many themes store section content (headlines, descriptions, button text) in `config/settings_data.json` under the section's key, not in the template JSON. Always check `settings_data.json` first for content values. The template JSON defines structure; `settings_data.json` defines content.
+4. If a page mapping exists at `.theme-forge/mappings/pages/{page-path}.json`, use it for ordering
 
 ### Step 1.5: Find CSS Loading Mechanism
 
