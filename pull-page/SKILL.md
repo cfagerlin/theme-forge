@@ -107,7 +107,7 @@ For each section:
 
 1. Check if a report already exists at `.theme-forge/reports/sections/{section-type}.json`
    - If yes and `status` is `complete`, skip (unless `--force`)
-2. Run `pull-section` on it. **If `--debug` was passed to pull-page, thread it through:** invoke pull-section with `--debug` so each section gets its own debug directory.
+2. Run `pull-section` on it. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
 3. After each section completes, log progress
 
 ### Step 4: Full-Page Comparison

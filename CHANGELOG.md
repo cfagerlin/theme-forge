@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.9 — 2026-04-09
+
+**Global debug toggle.** Debug mode can now be turned on globally so you don't have to pass `--debug` on every command.
+
+- **`/theme-forge --debug on`**: Sets `"debug": true` in `.theme-forge/config.json`. All subsequent runs save transcripts and artifacts automatically.
+- **`/theme-forge --debug off`**: Disables global debug.
+- **`--no-debug` flag**: Override the global setting for a single run. Useful when debug is on globally but you want a quick run without artifacts.
+- **Precedence**: `--no-debug` > `--debug` > config.json `"debug"` field.
+
 ## 0.5.8 — 2026-04-09
 
 **Debug mode (`--debug`).** Saves a complete transcript, all screenshots, computed style diffs, and a summary for every section. Review what happened without watching the session live.
