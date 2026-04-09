@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.5 — 2026-04-09
+
+**Shadow DOM support for Horizon and modern themes.** Prompted by a migration where the agent got blank screenshots and empty `querySelector` results because Horizon renders everything inside Declarative Shadow DOM.
+
+- **Shadow DOM detection**: New detection one-liner checks for shadow hosts in the page DOM. If found, all subsequent queries use shadow-piercing functions.
+- **`deepQuery` and `deepQueryAll` helpers**: Recursive functions that traverse `.shadowRoot` on every element to find elements behind shadow boundaries. `getComputedStyle()` works fine on shadow DOM elements... the hard part was finding them.
+- **Hydration wait for screenshots**: Shadow DOM themes need 3-5 seconds after navigation before screenshots. Without the wait, the headless browser captures a blank page. Instructions now include explicit `await new Promise(r => setTimeout(r, 3000))` before screenshotting.
+- **CSS custom properties as primary comparison tool**: For Shadow DOM themes, CSS custom properties (`--font-body-family`, `--color-foreground`, etc.) defined on `:root` pierce all shadow boundaries. These are the most reliable way to compare styles.
+- **Updated computed-style-diff.md**: The extraction script now uses `deepQuery`/`deepQueryAll` to find the section and its children, even when nested inside shadow roots.
+
 ## 0.5.4 — 2026-04-09
 
 **Browse tool discovery fix.** Prompted by an agent that couldn't find the browse tool even though it was installed. The agent checked its named tool list, didn't see "browse", and concluded it was unavailable — then thrashed with curl/WebFetch workarounds.

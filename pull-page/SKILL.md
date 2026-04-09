@@ -113,7 +113,7 @@ For each section:
 After all sections are pulled:
 
 1. Take a full-page screenshot of the live site
-2. Take a full-page screenshot of the dev site
+2. Take a full-page screenshot of the dev site. **For Shadow DOM themes (e.g., Horizon):** wait 3-5 seconds after navigation before screenshotting. Use `$B js "await new Promise(r => setTimeout(r, 3000))"` to let custom elements hydrate. If the screenshot is blank/white, this is the most likely cause.
 3. Scroll through both top-to-bottom, comparing section by section
 4. Look for:
    - Inter-section spacing issues (gaps between sections that don't match)
