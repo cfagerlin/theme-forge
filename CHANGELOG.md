@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.10 — 2026-04-09
+
+**Learnings on every fix, not just retries.** The agent was discovering theme defaults (like `text-wrap: balance`) and fixing them, but not capturing the pattern as a learning. The next section would hit the same default and rediscover it from scratch.
+
+- **Step 8.6 rewritten**: Capture learnings on every successful fix, not just retries. Three triggers: retry fixes, theme default overrides (first-attempt success), and pattern recognition (2+ sections).
+- **Theme default overrides are the key case**: If you overrode a target theme default to match the live site, every other section has that same default. Capture it immediately.
+- **Step 1.5 strengthened**: Matching learnings must be listed in the transcript and applied proactively in the first CSS pass.
+
 ## 0.5.9 — 2026-04-09
 
 **Global debug toggle.** Debug mode can now be turned on globally so you don't have to pass `--debug` on every command.
