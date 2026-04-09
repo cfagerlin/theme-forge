@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.11 — 2026-04-09
+
+**Debug quality + popup dismissal + honest status.** Four fixes from reviewing debug logs of the testimonial carousel run:
+
+1. **Popup/modal dismissal**: Live Shopify stores show email signup overlays that block section content. Step 4 now removes popups before screenshotting. If a popup is still visible, retake — never compare against an obscured screenshot.
+2. **Transcript is mandatory**: Debug mode without a transcript is useless. Added explicit "mandatory artifacts" checklist — transcript.md, step4 screenshots (before), step8 screenshot (after), summary.json, delta-table.md.
+3. **Section-level screenshots in Step 8**: The agent was falling back to full-page screenshots during verification despite the v0.5.7 rule. Step 8 now has an explicit code example and a direct prohibition.
+4. **Honest `final_status`**: Cannot mark "completed" when `variances_remaining > 0`. New status table: `completed`, `completed_with_accepted_variances`, `incomplete`, `failed`, `completed_code_only`. Also: `variances_found` must equal `variances_fixed + variances_remaining`.
+
 ## 0.5.10 — 2026-04-09
 
 **Learnings on every fix, not just retries.** The agent was discovering theme defaults (like `text-wrap: balance`) and fixing them, but not capturing the pattern as a learning. The next section would hit the same default and rediscover it from scratch.
