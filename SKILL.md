@@ -51,6 +51,23 @@ These flags modify pipeline behavior for batch operations (`pull-page`, `pull-he
 --reset-failed         Reset only failed sections to pending for retry
 ```
 
+### `--full` Workflow
+
+When `--full` is passed, run the complete pipeline in order. **Do not skip steps. Do not improvise.**
+
+1. **Check prerequisites**: `.theme-forge/config.json` must exist (run `onboard` first)
+2. **Run `scan`** if `.theme-forge/site-inventory.json` does not exist. This inventories both themes and creates the migration plan.
+3. **Run `map-page`** for each page template in the site inventory. This creates section mappings in `.theme-forge/mappings/`. Without mappings, pull-section has no source→target section pairs to work from.
+4. **Initialize `state.json`** if it does not exist. Every section from every mapped page gets an entry with status `pending`.
+5. **Run `pull-header`** (header appears on every page, do it first)
+6. **Run `pull-footer`** (footer appears on every page, do it second)
+7. **Run `pull-page`** for each page template in order: index, product, collection, then remaining pages
+8. **Run `review`** on each completed page
+
+**Every section must go through `pull-section`** with its full compare→fix→verify loop. Do not skip the visual comparison. Do not mark sections complete without verification. Do not write section reports without actually running the pull-section workflow on that section.
+
+The state machine in `state.json` tracks progress. If the session is interrupted, re-running `--full` picks up where it left off (completed sections are skipped).
+
 ### Configuration
 
 All project state lives in `.theme-forge/` in the target theme's root:
@@ -190,6 +207,7 @@ NEVER modify the target theme's core files. This preserves upstream upgradabilit
 
 ### Safety Rules
 
+- **NEVER run `shopify theme push` or `shopify theme publish` without explicit user approval.** All theme work happens locally. The `shopify theme dev` server hot-reloads local files, so pushing is unnecessary during development. When the user is ready to push, they will tell you. This is a bright red line — no exceptions, no "just pushing config", no "only pushing one file".
 - **NEVER access the production store's Shopify admin.** The live site is read-only (public storefront only).
 - **NEVER modify the base theme files.** The base theme export is a read-only reference.
 - **NEVER change content copy** (headings, body text, button labels) without explicit instruction. The live site is the source of truth for content.
