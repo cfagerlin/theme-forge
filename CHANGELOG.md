@@ -2,7 +2,11 @@
 
 ## 0.5.7 — 2026-04-09
 
-**Section-level screenshots enforced.** Prompted by an agent that took full-page screenshots for section comparison. Full-page screenshots compress a 5000px page into a tiny image where you can't tell if the heading is font-weight 400 or 700, or if the overlay is 10% too dark. Per-section screenshots are the only way to catch real variances.
+**Section-level screenshots + browse command chaining.** Two issues from the same migration session:
+
+1. **Full-page screenshots banned for section comparison.** The agent was screenshotting the entire page. At that resolution you can't see font-weight, letter-spacing, or overlay differences. Per-section screenshots are now the only accepted approach.
+
+2. **Browse commands must be chained in ONE Bash call.** The browse tool loses page state between separate Bash tool invocations (it restarts its server). The agent would `$B goto` in one call, then `$B screenshot` in the next, and find itself on `about:blank`. All examples now use `&&` chaining: `$B goto "<url>" && sleep 2 && $B screenshot`.
 
 - **"Never use full-page screenshots for section comparison"**: Explicit rule in Step 4 and the Shadow DOM section. Full-page is only for the final page-level review in pull-page, not for per-section work.
 - **Scroll-to-section technique**: Primary method for Shadow DOM themes — `scrollIntoView` + viewport screenshot. Works when element selectors fail because sections are custom elements with shadow roots.

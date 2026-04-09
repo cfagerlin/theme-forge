@@ -42,40 +42,34 @@ B="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/skills/gstack/browse/dis
 
 If neither location has it, fall back to code-only mode (see Fallback below).
 
-**IMPORTANT: Shell variables do not persist between Bash tool calls.** Every Bash command runs in a fresh shell. You must define `B=<path>` at the start of every Bash command that uses it, or inline the full path. For example:
+**IMPORTANT: Chain ALL browse commands in a SINGLE Bash call.** The browse tool may lose page state between separate Bash tool invocations (it restarts its server). Always chain `goto`, `js`, and `screenshot` commands in one Bash call using `&&` or newlines. Also define `B=<path>` at the start of every call since shell variables don't persist.
+
+**Navigate, wait, and screenshot** (all in ONE Bash call):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && $B screenshot /tmp/live-section.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B screenshot /tmp/live-section.png
 ```
 
-**Navigate and screenshot** (all via Bash tool — always define B first):
+**Navigate, run JavaScript, and screenshot** (all in ONE Bash call):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B goto "https://livesite.com"
-$B screenshot /tmp/live-section.png
-```
-
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B goto "http://127.0.0.1:9292"
-$B screenshot /tmp/dev-section.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "http://127.0.0.1:9292" && sleep 3 && $B js "document.title" && $B screenshot /tmp/dev-section.png
 ```
 
 **Screenshot a specific element:**
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B screenshot ".section-hero" /tmp/hero-live.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B screenshot ".section-hero" /tmp/hero-live.png
 ```
 
-**Run JavaScript (for computed style extraction):**
+**Run JavaScript for computed styles** (navigate + extract in ONE call):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B js "document.querySelector('.hero').getBoundingClientRect().height"
-$B js "JSON.stringify(window.getComputedStyle(document.querySelector('.hero')))"
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B js "JSON.stringify(window.getComputedStyle(document.querySelector('.hero')))"
 ```
 
 **Responsive screenshots:**
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B responsive /tmp/section
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B responsive /tmp/section
 ```
+
+**NEVER split browse commands across separate Bash tool calls.** For example, do NOT run `$B goto` in one Bash call and `$B screenshot` in the next — the page will be lost. Everything that needs the same page must be in one call.
 
 **View screenshots:** Use the Read tool on the output PNG to visually inspect it.
 
@@ -113,15 +107,12 @@ $B js "document.querySelectorAll('*').length + ' elements, ' + (document.querySe
 
 If shadow hosts > 0, this is a Shadow DOM theme. Use the techniques below.
 
-**Wait for hydration before screenshots:**
+**Wait for hydration before screenshots** (all in ONE Bash call — the browse tool loses page state between separate calls):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B goto "http://127.0.0.1:9292"
-$B js "await new Promise(r => setTimeout(r, 3000)); document.querySelectorAll('*').length"
-$B screenshot /tmp/dev-homepage.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "http://127.0.0.1:9292" && sleep 3 && $B js "document.querySelectorAll('*').length" && $B screenshot /tmp/dev-homepage.png
 ```
 
-The 3-second wait lets custom elements register and images load. For pages with heavy media, increase to 5 seconds.
+The 3-second sleep lets custom elements register and images load. For pages with heavy media, increase to 5 seconds.
 
 **Deep querySelector — find elements inside shadow roots:**
 ```javascript
@@ -179,25 +170,19 @@ CSS custom properties defined on `:root` pierce all shadow boundaries, making th
 
 **Technique 1: Scroll to section + viewport screenshot** (most reliable for Shadow DOM):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B js "await new Promise(r => setTimeout(r, 2000))"
-$B js "document.querySelectorAll('.shopify-section')[0].scrollIntoView({block:'start'})"
-$B js "await new Promise(r => setTimeout(r, 500))"
-$B screenshot /tmp/live-hero.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<url>" && sleep 2 && $B js "document.querySelectorAll('.shopify-section')[0].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/live-hero.png
 ```
-This scrolls to the Nth section (0-indexed) and takes a viewport-sized screenshot focused on it. Change the index `[0]` for each section.
+This navigates, waits, scrolls to the Nth section (0-indexed), and screenshots — all in ONE call. Change the index `[0]` for each section.
 
 **Technique 2: Section ID selector** (works on many themes):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B screenshot "#shopify-section-template--header" /tmp/live-header.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<url>" && sleep 2 && $B screenshot "#shopify-section-template--header" /tmp/live-header.png
 ```
 Section IDs follow the pattern `shopify-section-template--XXXXX--SECTION_NAME`. Check the page HTML for exact IDs.
 
 **Technique 3: Custom element tag** (for Horizon-style Shadow DOM themes):
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B screenshot "section-hero" /tmp/live-hero.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<url>" && sleep 2 && $B screenshot "section-hero" /tmp/live-hero.png
 ```
 
 **If all element selectors fail:** Use scroll-to-section (Technique 1). Do NOT fall back to full-page screenshots for section comparison — the resolution is too low to catch real variances.
@@ -402,17 +387,16 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. **Navigate to the live site** first, then take a **screenshot of THIS SPECIFIC SECTION ONLY** — not the full page. Use the scroll-to-section technique from the Shadow DOM section above:
+1. **Navigate to the live site** first, then take a **screenshot of THIS SPECIFIC SECTION ONLY** — not the full page. **Chain all commands in ONE Bash call** (the browse tool loses page state between separate calls):
    ```bash
-   B=$HOME/.claude/skills/gstack/browse/dist/browse
-   $B goto "<live_url>"
-   $B js "await new Promise(r => setTimeout(r, 2000))"
-   $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})"
-   $B js "await new Promise(r => setTimeout(r, 500))"
-   $B screenshot /tmp/live-section.png
+   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 2 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/live-section.png
    ```
-   Or use element selectors (`$B screenshot "#shopify-section-ID" /tmp/live-section.png`). Read the screenshot file with the Read tool to visually inspect. **Never use full-page screenshots for section comparison** — they're too small to see real differences.
-2. **Navigate to the dev site** and screenshot the **same section** at the same viewport width. Always navigate immediately before screenshotting — the browse tool can lose page context. For Shadow DOM themes, include the hydration wait (`await new Promise(r => setTimeout(r, 3000))`).
+   Or with element selector: `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 2 && $B screenshot "#shopify-section-ID" /tmp/live-section.png`. Read the screenshot file with the Read tool to visually inspect. **Never use full-page screenshots for section comparison** — they're too small to see real differences.
+2. **Navigate to the dev site** and screenshot the **same section** — again, **all in ONE Bash call**:
+   ```bash
+   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<dev_url>" && sleep 3 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/dev-section.png
+   ```
+   The 3-second sleep is for Shadow DOM hydration. Increase to 5 seconds if the screenshot is blank.
 3. **Before reading any CSS**, list every visual difference you can see:
    - **Structural layout**: Which elements exist? Where are they positioned?
    - **Proportions**: How much space does each element take?
