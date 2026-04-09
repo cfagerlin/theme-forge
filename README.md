@@ -18,16 +18,16 @@ All state is stored in `.theme-forge/` as JSON, so work is resumable across sess
 **Global** (solo developer):
 ```bash
 git clone https://github.com/cfagerlin/theme-forge.git ~/.claude/skills/theme-forge
-cd ~/.claude/skills/theme-forge && ./setup
 ```
 
 **Project-level** (team):
 ```bash
 git clone https://github.com/cfagerlin/theme-forge.git .claude/skills/theme-forge
-cd .claude/skills/theme-forge && ./setup --project
 ```
 
-Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your platform.
+That's it. Restart Claude Code and `/theme-forge` is available. No setup script needed.
+
+Optionally, run `./setup` to check dependencies (Shopify CLI, browse tools, Git).
 
 ## Commands
 
@@ -87,7 +87,7 @@ Learnings have scopes (universal, project, theme-specific) and confidence levels
 
 ```
 theme-forge/
-├── theme-forge/     # Orchestrator — routes /theme-forge <cmd> to sub-skills
+├── SKILL.md        # Orchestrator — routes /theme-forge <cmd> to sub-skills
 ├── onboard/        # Project setup & capability detection
 ├── scan/           # Full theme inventory & migration planning
 ├── map-section/    # Per-section compatibility assessment

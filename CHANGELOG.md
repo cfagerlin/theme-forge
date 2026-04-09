@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 — 2026-04-08
+
+**Zero-friction install.** Clone and go — no setup script required.
+
+- **SKILL.md moved to repo root**: Cloning the repo into `~/.claude/skills/theme-forge` or `.claude/skills/theme-forge` makes `/theme-forge` immediately discoverable. No symlinks, no setup step, no debugging nested directories.
+- **Setup script is now optional**: Only needed to check dependencies (Shopify CLI, browse tools, Git). Install no longer requires running it.
+- **Fixed `--project` install bug**: Previously, running `./setup --project` from inside the clone used `$(pwd)` to find the project root, which created broken nested paths like `.claude/skills/theme-forge/.claude/skills/theme-forge`. Now walks up to find the actual project root.
+- **Removed `theme-forge/` subdirectory**: The orchestrator SKILL.md lived inside a `theme-forge/` subdirectory, which meant the repo root had no SKILL.md for Claude Code to discover. Moved to root.
+
 ## 0.5.0 — 2026-04-08
 
 **theme-forge.** Renamed from theme-pull. Same tool, better name.
