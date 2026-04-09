@@ -206,6 +206,7 @@ When the browse binary is not installed and no Playwright MCP tools are availabl
 - `<section-name>` — The section type name (e.g., `featured-collection`, `slideshow`, `custom-trust-bar`)
 - `--page <template>` — Which template contains this section (e.g., `index`, `product`, `collection`). **Required** unless the section is in a section group (header-group, footer-group) or can be unambiguously found in exactly one template.
 - `--url <live-page-url>` — The specific live page URL to screenshot for comparison (e.g., `https://gldn.com/collections/necklaces`). Defaults to the live site root for `index`, or the first matching page for other templates.
+- `--debug` — Enable debug mode. Saves a full transcript, all screenshots, and computed style diffs to `.theme-forge/debug/`. See "Debug Mode" section below.
 
 ### How the page is resolved
 
@@ -219,6 +220,140 @@ The page context matters because:
 - The section's **configured settings** (content, colors, padding) live in the template JSON, not the section `.liquid` file
 - The same section type can appear on multiple pages with different settings
 - Screenshots need to be taken on the correct page
+
+## Debug Mode (`--debug`)
+
+When `--debug` is passed, save a complete transcript and all artifacts so a human or another agent can review what happened without watching the session live.
+
+### Setup
+
+At the start of pull-section, if `--debug` is active:
+
+```bash
+DEBUG_DIR=".theme-forge/debug/$(date +%Y%m%d-%H%M%S)-${SECTION_NAME}"
+mkdir -p "$DEBUG_DIR/screenshots" "$DEBUG_DIR/diffs"
+```
+
+Replace `${SECTION_NAME}` with the section's state key (e.g., `featured-collection-1:index`).
+
+### What to capture
+
+**At each step**, append to `$DEBUG_DIR/transcript.md`:
+
+```markdown
+## Step N: Step Name
+**Time:** YYYY-MM-DD HH:MM:SS
+**Decision:** What was decided and why
+
+### Commands
+\`\`\`bash
+<exact command run>
+\`\`\`
+
+### Output
+<command output or summary>
+
+### Files Modified
+- path/to/file.json — what changed
+```
+
+**Specific artifacts to save per step:**
+
+| Step | Artifact | Save to |
+|------|----------|---------|
+| Step 2 | Base section settings (from settings_data.json) | `$DEBUG_DIR/base-settings.json` |
+| Step 2 | Target section settings (before changes) | `$DEBUG_DIR/target-settings-before.json` |
+| Step 2.5 | Computed value table | `$DEBUG_DIR/computed-values.json` |
+| Step 3 | Target section settings (after JSON changes) | `$DEBUG_DIR/target-settings-after.json` |
+| Step 3 | Image references copied | append to transcript |
+| Step 4 | Live site section screenshot | `$DEBUG_DIR/screenshots/step4-live.png` |
+| Step 4 | Dev site section screenshot | `$DEBUG_DIR/screenshots/step4-dev.png` |
+| Step 4 | Visual differences listed | append to transcript |
+| Step 4 | Computed style extraction (live) | `$DEBUG_DIR/diffs/computed-live.json` |
+| Step 4 | Computed style extraction (dev) | `$DEBUG_DIR/diffs/computed-dev.json` |
+| Step 5 | Variance list with categories | `$DEBUG_DIR/variances.json` |
+| Step 6 | CSS rules added | append to transcript |
+| Step 8 | Verification screenshot | `$DEBUG_DIR/screenshots/step8-verify.png` |
+| Step 8 | Post-fix computed style extraction | `$DEBUG_DIR/diffs/computed-dev-after.json` |
+| Step 8 | Delta table (remaining differences) | `$DEBUG_DIR/diffs/delta-table.md` |
+
+### Screenshot naming
+
+When saving browse tool screenshots in debug mode, save to `$DEBUG_DIR/screenshots/` instead of `/tmp/`:
+
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 2 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot $DEBUG_DIR/screenshots/step4-live.png
+```
+
+**Always save to both locations** — `/tmp/` for immediate Read tool viewing, and `$DEBUG_DIR/screenshots/` for the permanent record:
+```bash
+$B screenshot /tmp/live-section.png && cp /tmp/live-section.png $DEBUG_DIR/screenshots/step4-live.png
+```
+
+### Transcript format
+
+The transcript should be a self-contained document that tells the full story. A reviewer reading only the transcript should understand:
+- What the section looked like on the live site vs dev site
+- What settings were changed and why
+- What CSS was added and why
+- What variances remain and why they couldn't be fixed
+- What errors occurred and how they were handled
+
+Example transcript entry:
+
+```markdown
+## Step 4: Render & Inspect
+**Time:** 2026-04-09 14:23:15
+**Live URL:** https://gldn.com
+**Dev URL:** http://127.0.0.1:9292
+
+### Screenshots
+- Live: screenshots/step4-live.png
+- Dev: screenshots/step4-dev.png
+
+### Visual Differences
+1. Heading "Most-Loved Gifts" — live: 2 lines, dev: 1 line (font-size differs)
+2. Hero overlay — live: darker, dev: lighter (background opacity differs)
+3. CTA button — live: outline style, dev: filled (button variant setting)
+
+### Computed Style Diff
+See: diffs/computed-live.json, diffs/computed-dev.json
+Key differences:
+- h1 font-size: 48px (live) vs 36px (dev)
+- overlay background: rgba(0,0,0,0.4) (live) vs rgba(0,0,0,0.2) (dev)
+- button border: 1px solid #fff (live) vs none (dev)
+```
+
+### Summary file
+
+At the end of pull-section, write `$DEBUG_DIR/summary.json`:
+
+```json
+{
+  "section": "featured-collection",
+  "state_key": "featured-collection-1:index",
+  "page": "index",
+  "started_at": "2026-04-09T14:20:00Z",
+  "completed_at": "2026-04-09T14:35:00Z",
+  "final_status": "completed",
+  "browse_tool_available": true,
+  "screenshots_taken": 4,
+  "json_changes": 12,
+  "css_rules_added": 3,
+  "variances_found": 8,
+  "variances_fixed": 7,
+  "variances_remaining": 1,
+  "errors": [],
+  "files_modified": [
+    "config/settings_data.json",
+    "assets/custom-migration.css"
+  ]
+}
+```
+
+### When NOT in debug mode
+
+When `--debug` is NOT passed, behavior is unchanged. Screenshots go to `/tmp/`, no transcript is written, no debug directory is created. Debug mode has zero overhead when disabled.
 
 ## Operational Rules
 
