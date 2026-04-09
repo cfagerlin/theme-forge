@@ -391,9 +391,11 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 3. Check for existing mapping at `.theme-forge/mappings/sections/{section-name}.json`
    - If missing, run `map-section` first to find the target section and assess compatibility
 4. Load the mapping to determine the approach (JSON-only, JSON+CSS, extension section, custom section)
-5. **Load learnings** from `.theme-forge/learnings.json` (see `references/learnings.md`)
+5. **Load and apply learnings** from `.theme-forge/learnings.json` (see `references/learnings.md`)
    - Filter to learnings whose trigger matches the current section or has `target_theme`/`universal` scope
-   - These will be applied proactively in Steps 3, 6, and 7 — before writing code, not after it fails
+   - **List the matching learnings by ID in the transcript** so it's clear which are being applied
+   - These MUST be applied proactively in Steps 5, 6, and 7 — before writing code, not after it fails
+   - Example: if a learning says the target theme uses `text-wrap: balance` on headings, include `text-wrap: wrap !important` in your FIRST CSS pass — don't wait to discover it again
 6. **Find the target theme's CSS loading mechanism.** Search for how the theme includes stylesheets:
    - Check `snippets/stylesheets.liquid` or similar snippet
    - Check `layout/theme.liquid` for `{{ 'base.css' | asset_url | stylesheet_tag }}`
@@ -627,12 +629,32 @@ If the variance requires HTML/Liquid changes:
    - No regressions — did the fix break anything else?
 4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. If any property differs (font weight, font size, letter spacing, container width, image object-fit, image container size, padding, colors), the fix is NOT complete. Go back and fix it.
 5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
-6. **Capture learnings on retry.** If a fix required retry (first attempt didn't work):
-   - Record what was tried first (the anti-pattern)
-   - Record what eventually worked (the correct pattern)
-   - Determine the trigger condition (why the first approach failed)
-   - Write a learning to `.theme-forge/learnings.json` so future sections get it right on the first try
-   - Example: tried `font-family: 'Spectral', serif;` → didn't apply → added `!important` → worked → learning: "target theme inline styles override font-family, use !important"
+6. **Capture learnings — on EVERY successful fix, not just retries.**
+   After verification passes, review each CSS override or settings change you made. For each fix, ask: *"Would this same issue appear in other sections?"* If yes, write a learning to `.theme-forge/learnings.json`.
+
+   **When to capture:**
+   - **Retry fixes** (first attempt failed): Record the anti-pattern AND the working fix. Trigger = why the first approach failed.
+   - **Theme default overrides** (first attempt succeeded but you overrode a target theme default): The same default applies to every section. Capture it so future sections apply the override proactively.
+   - **Pattern recognition**: You've now seen the same fix on 2+ sections. Promote it to a learning.
+
+   **What to capture:**
+   - The trigger condition (what to look for — e.g., "target theme applies text-wrap: balance to headings")
+   - The action (what to do — e.g., "add text-wrap: wrap !important to override")
+   - The scope (`target_theme` if it's a theme-wide default, `section_type` if specific to a section pattern)
+   - The anti-pattern (what NOT to do, if applicable)
+
+   **Example — theme default override (first-attempt success):**
+   You discovered the target theme sets `text-wrap: balance` on headings, which changes line breaks. You fixed it with `text-wrap: wrap !important`. This wasn't a retry — you got it right the first time. But every heading in every section will have this same default. Capture it:
+   ```json
+   {
+     "trigger": { "condition": "target_theme_heading_text_wrap", "property": "text-wrap", "description": "Target theme applies text-wrap: balance to headings, changing line break positions vs the live site" },
+     "action": { "description": "Override with text-wrap: wrap !important on headings", "anti_pattern": "Leaving text-wrap: balance (default) — line breaks won't match live site" },
+     "scope": "target_theme",
+     "confidence": "medium"
+   }
+   ```
+
+   The key insight: **if you had to override a theme default to match the live site, the next section will have that same default.** Capture it now so the next section one-shots it.
 
 #### Rendered Output Validation Checklist
 
