@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.6 — 2026-04-09
+
+**Image sourcing rule.** Prompted by an agent that told the user images "need to be set via Shopify admin" and would "remain placeholders until uploaded through the theme editor." Wrong — the images already exist on Shopify's CDN.
+
+- **IMAGE SOURCING RULE**: New explicit rule in both `pull-section` and `pull-page`. Images use `shopify://shop_images/filename.ext` URLs stored in `settings_data.json`. Copy them from the base theme to the target theme. They resolve to the store's CDN automatically. No upload needed, no admin needed, no theme editor needed.
+- **"Never tell the user images need to be uploaded manually"**: If a placeholder appears, the agent missed copying the image reference. Go back and fix it instead of telling the user to do it by hand.
+- **Where to find images**: Documented the three locations (settings_data.json section keys, template JSON blocks, global settings).
+
 ## 0.5.5 — 2026-04-09
 
 **Shadow DOM support for Horizon and modern themes.** Prompted by a migration where the agent got blank screenshots and empty `querySelector` results because Horizon renders everything inside Declarative Shadow DOM.
