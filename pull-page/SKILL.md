@@ -55,6 +55,8 @@ Before pulling any sections, verify that global theme settings are correct. Thes
 4. **Global color schemes**: Read the live site's color schemes from `settings_data.json`. For each scheme used by sections on this page, ensure a matching scheme exists in the target theme (matched by RGB values, not by name). Create new named schemes if needed.
 5. **Body text size**: Compare the base paragraph font size between themes. Set the target's paragraph size setting to match.
 
+**IMAGE SOURCING RULE**: Images do NOT need to be uploaded or set via the Shopify admin. The store's images already exist on Shopify's CDN. Copy image references (`shopify://shop_images/filename.ext`) from the **base theme's** `config/settings_data.json` to the **target theme's** `config/settings_data.json`. These URLs resolve to the store's CDN automatically — they work in any theme on the same store. **Never tell the user images need to be uploaded manually.** If an image shows a placeholder, go back and copy the correct URL from the base theme.
+
 **Save global settings locally** — write the updated `settings_data.json` to the target theme directory. If `shopify theme dev` is running, it will hot-reload the changes automatically. **Do NOT run `shopify theme push`** — all changes stay local until the user explicitly approves a push. The dev preview server (`shopify theme dev`) serves files from the local directory, so pushing is unnecessary for development work.
 
 ### Step 0.5: Verify Browse Tool

@@ -265,6 +265,15 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 If the primary template and `settings_data.json` disagree on a content value, `settings_data.json` wins — it reflects what the theme editor has set, which is what the live site shows.
 
+**IMAGE SOURCING RULE**: Images do NOT need to be uploaded or set via the Shopify admin. The store's images already exist on Shopify's CDN. Copy the image references from the **base theme's** `config/settings_data.json` into the **target theme's** `config/settings_data.json`. Image references use the `shopify://shop_images/filename.ext` protocol (e.g., `shopify://shop_images/hero-banner.jpg`). These URLs resolve to the store's CDN automatically — they work in any theme on the same store.
+
+Where to find image references:
+1. **`config/settings_data.json`** — most section images are stored here under the section's key (e.g., `"image": "shopify://shop_images/hero.jpg"`)
+2. **Template JSON files** — some images are referenced in the template's section blocks
+3. **Global settings** — logo, favicon, and other global images are in the `current` key of `settings_data.json`
+
+**NEVER tell the user that images need to be uploaded manually or set through the theme editor.** If an image shows a placeholder, you missed copying the image reference from the base theme. Go back and find the correct `shopify://shop_images/` URL in the base theme's `settings_data.json` and write it to the target theme's `settings_data.json`.
+
 1. Check if `scan` has already been run — look for this section in `.theme-forge/site-inventory.json`
    - If present, use the **resolved CSS** from the inventory (all Liquid variables already substituted with actual values). This saves significant time vs manual cross-referencing.
    - If not present, fall back to manual resolution (below)
@@ -369,7 +378,7 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 **Always prefer JSON settings over CSS overrides.** CSS is only for what settings cannot control.
 
-**Image references**: Use `shopify://shop_images/filename.ext` protocol. Find actual filenames in the base theme's `settings_data.json` or template JSON. These resolve to the store's CDN automatically.
+**Image references** (see IMAGE SOURCING RULE above): Copy `shopify://shop_images/filename.ext` URLs from the base theme's `settings_data.json`. These resolve to the store's CDN automatically. **Never leave placeholder images** — every image field in the target theme's settings should have the corresponding URL from the base theme.
 
 ### Step 4: Render & Inspect
 
