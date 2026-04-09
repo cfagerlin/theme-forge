@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 — 2026-04-09
+
+**Base theme freshness and content sourcing.** Prompted by a migration where the agent pulled "Poetry you can wear" from a stale alternate template instead of "Most-Loved Gifts" from the live site.
+
+- **Base theme freshness check**: New Step -1 in `pull-page`. If the base theme export is older than 24 hours, warns the user and offers to re-export via `shopify theme pull`. Records `base_theme_exported_at` and `live_theme_id` in config during onboard.
+- **Content sourcing rule**: Explicit rule in `pull-section` Step 2 — never read content from alternate templates (`index.sl-*.json`). Always use the primary template and `settings_data.json`. `settings_data.json` wins when values disagree because it reflects what the theme editor shows on the live site.
+- **Active template identification**: Onboard now records which template files are active vs alternate/unused.
+
 ## 0.5.2 — 2026-04-09
 
 **Safety and pipeline enforcement.** Prompted by a real migration where the agent pushed to Shopify without permission and skipped the entire pull-section pipeline.
