@@ -173,16 +173,34 @@ $B js "const s=getComputedStyle(document.documentElement);const props=['--font-b
 
 CSS custom properties defined on `:root` pierce all shadow boundaries, making them the most reliable way to compare styles between themes.
 
-**Section-level screenshots for Shadow DOM themes:**
+**Section-level screenshots — CRITICAL for quality:**
 
-Element selectors like `$B screenshot ".shopify-section:nth-child(3)"` may not work if sections are custom elements with shadow roots. Instead, use the section's custom element tag or ID:
+**Always screenshot individual sections, never full pages for comparison.** Full-page screenshots compress details into tiny images where you can't see font weight, letter spacing, padding, or overlay differences. Per-section screenshots are the only way to catch the variances that matter.
+
+**Technique 1: Scroll to section + viewport screenshot** (most reliable for Shadow DOM):
 ```bash
 B=$HOME/.claude/skills/gstack/browse/dist/browse
 $B js "await new Promise(r => setTimeout(r, 2000))"
-$B screenshot "section-featured-collection" /tmp/section.png
+$B js "document.querySelectorAll('.shopify-section')[0].scrollIntoView({block:'start'})"
+$B js "await new Promise(r => setTimeout(r, 500))"
+$B screenshot /tmp/live-hero.png
+```
+This scrolls to the Nth section (0-indexed) and takes a viewport-sized screenshot focused on it. Change the index `[0]` for each section.
+
+**Technique 2: Section ID selector** (works on many themes):
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B screenshot "#shopify-section-template--header" /tmp/live-header.png
+```
+Section IDs follow the pattern `shopify-section-template--XXXXX--SECTION_NAME`. Check the page HTML for exact IDs.
+
+**Technique 3: Custom element tag** (for Horizon-style Shadow DOM themes):
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+$B screenshot "section-hero" /tmp/live-hero.png
 ```
 
-If element screenshots fail, fall back to full-page screenshots and note the section's vertical position.
+**If all element selectors fail:** Use scroll-to-section (Technique 1). Do NOT fall back to full-page screenshots for section comparison — the resolution is too low to catch real variances.
 
 ### Fallback (code-only mode)
 
@@ -384,8 +402,17 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. **Navigate to the live site** first (`$B goto <live_url>`), then take a **screenshot of this specific section** using an element selector. For gstack_browse: `$B screenshot ".shopify-section:nth-child(N)" /tmp/live-section.png`. If element selectors don't work, take a full-page screenshot and note the section's position. Read the screenshot file with the Read tool to visually inspect.
-2. **Navigate to the dev site** (`$B goto <dev_url>`), then take a **screenshot of the same section** at the same viewport width. Always navigate immediately before screenshotting — the browse tool can lose page context.
+1. **Navigate to the live site** first, then take a **screenshot of THIS SPECIFIC SECTION ONLY** — not the full page. Use the scroll-to-section technique from the Shadow DOM section above:
+   ```bash
+   B=$HOME/.claude/skills/gstack/browse/dist/browse
+   $B goto "<live_url>"
+   $B js "await new Promise(r => setTimeout(r, 2000))"
+   $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})"
+   $B js "await new Promise(r => setTimeout(r, 500))"
+   $B screenshot /tmp/live-section.png
+   ```
+   Or use element selectors (`$B screenshot "#shopify-section-ID" /tmp/live-section.png`). Read the screenshot file with the Read tool to visually inspect. **Never use full-page screenshots for section comparison** — they're too small to see real differences.
+2. **Navigate to the dev site** and screenshot the **same section** at the same viewport width. Always navigate immediately before screenshotting — the browse tool can lose page context. For Shadow DOM themes, include the hydration wait (`await new Promise(r => setTimeout(r, 3000))`).
 3. **Before reading any CSS**, list every visual difference you can see:
    - **Structural layout**: Which elements exist? Where are they positioned?
    - **Proportions**: How much space does each element take?
@@ -470,7 +497,7 @@ If the variance requires HTML/Liquid changes:
 ### Step 8: Verify the Fix
 
 1. Reload the dev site preview
-2. Take a new screenshot at the same viewport width as Step 4
+2. Take a **section-level screenshot** (not full-page) at the same viewport width as Step 4. Use the same scroll-to-section or element selector technique.
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
