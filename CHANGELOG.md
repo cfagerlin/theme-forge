@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.7 — 2026-04-09
+
+**Section-level screenshots + browse command chaining.** Two issues from the same migration session:
+
+1. **Full-page screenshots banned for section comparison.** The agent was screenshotting the entire page. At that resolution you can't see font-weight, letter-spacing, or overlay differences. Per-section screenshots are now the only accepted approach.
+
+2. **Browse commands must be chained in ONE Bash call.** The browse tool loses page state between separate Bash tool invocations (it restarts its server). The agent would `$B goto` in one call, then `$B screenshot` in the next, and find itself on `about:blank`. All examples now use `&&` chaining: `$B goto "<url>" && sleep 2 && $B screenshot`.
+
+- **"Never use full-page screenshots for section comparison"**: Explicit rule in Step 4 and the Shadow DOM section. Full-page is only for the final page-level review in pull-page, not for per-section work.
+- **Scroll-to-section technique**: Primary method for Shadow DOM themes — `scrollIntoView` + viewport screenshot. Works when element selectors fail because sections are custom elements with shadow roots.
+- **Three technique hierarchy**: (1) scroll-to-section + viewport screenshot, (2) section ID selector, (3) custom element tag. No fallback to full-page.
+- **Verification step updated**: Step 8 now explicitly says "section-level screenshot" instead of just "new screenshot."
+
 ## 0.5.6 — 2026-04-09
 
 **Image sourcing rule.** Prompted by an agent that told the user images "need to be set via Shopify admin" and would "remain placeholders until uploaded through the theme editor." Wrong — the images already exist on Shopify's CDN.
