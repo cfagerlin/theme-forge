@@ -59,21 +59,19 @@ Before pulling any sections, verify that global theme settings are correct. Thes
 
 ### Step 0.5: Verify Browse Tool
 
-Before pulling any sections, verify the browse tool is actually reachable if it was configured during onboard.
+Before pulling any sections, verify the browse tool is available. **The browse tool is a CLI binary you run via Bash — it is NOT a named tool in your tool list.** You will not see "browse" listed in your tools. That's normal.
 
-If `capabilities.browse: true` in config, test the connection:
-- **`gstack_browse`**: Run `$B url 2>/dev/null; echo $?` — exit code 0 means reachable
-- **`playwright_mcp`**: Attempt `mcp__playwright__browser_navigate` to `about:blank`
-- **`mcp_chrome`**: Attempt a simple navigation with the detected MCP tools
+**Run this via Bash:**
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE READY: $B" || echo "NOT FOUND"
+```
 
-**If the browse tool was configured but is NOT reachable: STOP.** Do not silently degrade to code-only mode. The entire methodology depends on visual comparison. Present these options:
+- **`BROWSE READY`**: The browse binary path is printed. Use this path (prefixed with `B=<path> &&`) in every Bash command that needs the browse tool — shell variables do not persist between Bash calls.
+- **`NOT FOUND`**: Check alternate location: `B="$(git rev-parse --show-toplevel)/.claude/skills/gstack/browse/dist/browse" && [ -x "$B" ] && echo "BROWSE READY: $B"`. If still not found, check for Playwright MCP tools (`mcp__playwright__*`). If nothing is available, proceed in code-only mode for all sections.
 
-- **A) Fall back to code-only analysis for this session.** All sections will be `completed_code_only`. Visual variances may go undetected.
-- **B) Troubleshoot the browse tool.** Show diagnostic commands for the detected `browse_method`.
+**Do NOT decide browse availability by inspecting your tool list.** The browse binary is a CLI, not a named tool. Always run the Bash check.
 
-Catching this once at the page level prevents repeated failures across every section.
-
-If `capabilities.browse: false` (user opted out during onboard), proceed with code-only analysis. No prompt needed.
+**Do NOT attempt visual verification with curl, WebFetch, or other non-browse tools.** These return HTML/markdown, not rendered pages.
 
 ### Step 1: Parse Template
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.4 — 2026-04-09
+
+**Browse tool discovery fix.** Prompted by an agent that couldn't find the browse tool even though it was installed. The agent checked its named tool list, didn't see "browse", and concluded it was unavailable — then thrashed with curl/WebFetch workarounds.
+
+- **"This is a Bash command" — explicit and prominent**: The browse tool is a CLI binary (`~/.claude/skills/gstack/browse/dist/browse`), not an MCP tool or a named tool. The agent will never see "browse" in its tool list. This is now stated clearly at the top of the Browse Tool section in both `pull-section` and `pull-page`, with a concrete Bash discovery command to run.
+- **Discovery via Bash check, not tool-list inspection**: Instead of "check your available tools", the skill now says "run this Bash command" with a one-liner that prints `BROWSE READY` or `NOT FOUND`. No ambiguity.
+- **Explicit "don't fake it" rule**: curl, WebFetch, and other non-browse tools cannot substitute for visual verification. These return HTML/markdown, not rendered pages.
+- **`$B` persistence warning**: Shell variables don't persist between Bash tool calls. Every code example now defines `B=<path>` at the start, so agents don't get `command not found` on the second Bash call.
+- **`$HOME` instead of `~`**: Tilde doesn't expand in all contexts. Discovery commands now use `$HOME` for robustness.
+- **Code-only fallback is automatic**: When the binary genuinely isn't installed, falls back to code-only without blocking.
+
 ## 0.5.3 — 2026-04-09
 
 **Base theme freshness and content sourcing.** Prompted by a migration where the agent pulled "Poetry you can wear" from a stale alternate template instead of "Most-Loved Gifts" from the live site.
