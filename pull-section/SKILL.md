@@ -230,6 +230,16 @@ Debug mode is active when ANY of these are true (checked in order):
 
 When debug is active, save a complete transcript and all artifacts so a human or another agent can review what happened without watching the session live.
 
+### Mandatory artifacts
+
+Every debug session MUST produce these files — a session missing any of them is incomplete:
+
+1. **`transcript.md`** — the step-by-step narrative. This is the MOST important artifact. Without it, screenshots and diffs lack context. Write to it incrementally at each step, not all at the end.
+2. **`screenshots/step4-live.png`** and **`screenshots/step4-dev.png`** — the "before" state. Without these, you can't see what the section looked like before fixes.
+3. **`screenshots/step8-verify.png`** — the "after" state. Must be a **section-level** screenshot, not full-page.
+4. **`summary.json`** — structured metadata with accurate counts.
+5. **`diffs/delta-table.md`** — final property comparison.
+
 ### Setup
 
 At the start of pull-section, if debug is active:
@@ -355,6 +365,18 @@ At the end of pull-section, write `$DEBUG_DIR/summary.json`:
   ]
 }
 ```
+
+**`final_status` rules — do not mark "completed" if variances remain:**
+
+| Condition | `final_status` |
+|-----------|---------------|
+| `variances_remaining == 0` | `"completed"` |
+| `variances_remaining > 0` and all remaining are accepted by user | `"completed_with_accepted_variances"` |
+| `variances_remaining > 0` and any are unresolved | `"incomplete"` |
+| Retry budget exhausted | `"failed"` |
+| No browse tool available | `"completed_code_only"` |
+
+**`variances_found` must equal `variances_fixed + variances_remaining`.** Count all variances when they're identified (Step 5), not when they're fixed. If you discover additional variances during fixing, increment `variances_found` too.
 
 ### When NOT in debug mode
 
@@ -529,11 +551,12 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. **Navigate to the live site** first, then take a **screenshot of THIS SPECIFIC SECTION ONLY** — not the full page. **Chain all commands in ONE Bash call** (the browse tool loses page state between separate calls):
+1. **Navigate to the live site** first, then take a **screenshot of THIS SPECIFIC SECTION ONLY** — not the full page. **Chain all commands in ONE Bash call** (the browse tool loses page state between separate calls).
+   **IMPORTANT: Dismiss popups/modals first.** Live Shopify stores often have email signup overlays, cookie banners, or age gates that block section content. Remove them before screenshotting:
    ```bash
-   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 2 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/live-section.png
+   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 3 && $B js "document.querySelectorAll('[class*=popup], [class*=modal], [class*=overlay], .klaviyo-form, .privy-popup, [class*=cookie], [data-testid*=popup]').forEach(el => el.remove()); document.body.style.overflow='auto'" && sleep 1 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/live-section.png
    ```
-   Or with element selector: `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 2 && $B screenshot "#shopify-section-ID" /tmp/live-section.png`. Read the screenshot file with the Read tool to visually inspect. **Never use full-page screenshots for section comparison** — they're too small to see real differences.
+   Or with element selector: `$B screenshot "#shopify-section-ID" /tmp/live-section.png`. Read the screenshot file with the Read tool to visually inspect. **If a popup/overlay is still visible in the screenshot, dismiss it and retake** — never compare against a popup-obscured screenshot. **Never use full-page screenshots for section comparison** — they're too small to see real differences.
 2. **Navigate to the dev site** and screenshot the **same section** — again, **all in ONE Bash call**:
    ```bash
    B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<dev_url>" && sleep 3 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/dev-section.png
@@ -623,7 +646,10 @@ If the variance requires HTML/Liquid changes:
 ### Step 8: Verify the Fix
 
 1. Reload the dev site preview
-2. Take a **section-level screenshot** (not full-page) at the same viewport width as Step 4. Use the same scroll-to-section or element selector technique.
+2. Take a **section-level screenshot** (not full-page) at the same viewport width as Step 4. Use the **exact same technique** — scroll-to-section + viewport screenshot, or element selector. **Do NOT take a full-page screenshot here** — a full-page screenshot at this step makes it impossible to verify the fix because details are too small. Example:
+   ```bash
+   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<dev_url>" && sleep 3 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/dev-verify.png
+   ```
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
