@@ -1,12 +1,12 @@
 # Learnings System
 
-theme-pull accumulates knowledge from every correction. When you fix a variance and the fix works (or when the user corrects your approach), that pattern gets captured as a learning. Future sections check learnings before writing any code, so the same mistake doesn't happen twice.
+theme-forge accumulates knowledge from every correction. When you fix a variance and the fix works (or when the user corrects your approach), that pattern gets captured as a learning. Future sections check learnings before writing any code, so the same mistake doesn't happen twice.
 
 ## How It Works
 
 ### 1. Storage
 
-Learnings live in `.theme-pull/learnings.json` in the project root:
+Learnings live in `.theme-forge/learnings.json` in the project root:
 
 ```json
 {
@@ -53,7 +53,7 @@ A learning is created when:
 
 At the START of pull-section (Step 1, after loading context), before any code is written:
 
-1. Load `.theme-pull/learnings.json`
+1. Load `.theme-forge/learnings.json`
 2. For each learning, evaluate whether its trigger matches the current section:
    - Does this section use the same property/pattern?
    - Is the scope relevant? (`target_theme` = applies everywhere, `section_type` = applies to similar sections only)
@@ -91,7 +91,7 @@ Confidence decreases when:
 
 ### 6. Capturing a Learning (for the AI agent)
 
-When you identify a pattern worth capturing, write it to `.theme-pull/learnings.json` with this structure:
+When you identify a pattern worth capturing, write it to `.theme-forge/learnings.json` with this structure:
 
 ```json
 {
@@ -134,7 +134,7 @@ When you identify a pattern worth capturing, write it to `.theme-pull/learnings.
 
 ### 8. Seeding Learnings
 
-On `onboard` or first `pull-section` run, seed `.theme-pull/learnings.json` with universal learnings that apply to any Shopify theme migration:
+On `onboard` or first `pull-section` run, seed `.theme-forge/learnings.json` with universal learnings that apply to any Shopify theme migration:
 
 ```json
 [
@@ -167,7 +167,7 @@ On `onboard` or first `pull-section` run, seed `.theme-pull/learnings.json` with
 Learnings with `scope: "universal"` are portable across projects. When starting a new migration, you can import universal learnings from a previous project:
 
 ```
-/theme-pull onboard --import-learnings ../other-project/.theme-pull/learnings.json
+/theme-forge onboard --import-learnings ../other-project/.theme-forge/learnings.json
 ```
 
 This copies only `universal` scope learnings, filtering out project-specific ones. Over time, the universal learnings become a shared knowledge base of Shopify theme migration best practices.

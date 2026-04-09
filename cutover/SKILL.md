@@ -2,7 +2,7 @@
 name: cutover
 description: >
   Display and manage the cutover checklist for production go-live. Shows all items that require manual action when switching to the new theme.
-  - MANDATORY TRIGGERS: theme-pull cutover, cutover checklist, go-live checklist
+  - MANDATORY TRIGGERS: theme-forge cutover, cutover checklist, go-live checklist
 ---
 
 # cutover — Production Go-Live Checklist
@@ -11,12 +11,12 @@ Display all items that require manual action when switching from the old theme t
 
 ## Prerequisites
 
-- `.theme-pull/cutover.json` must exist (populated by `pull-section` and `pull-page`)
+- `.theme-forge/cutover.json` must exist (populated by `pull-section` and `pull-page`)
 
 ## Arguments
 
 ```
-/theme-pull cutover [--verify]
+/theme-forge cutover [--verify]
 ```
 
 - `--verify` — Check that each referenced file exists in the target theme and is syntactically valid
@@ -25,7 +25,7 @@ Display all items that require manual action when switching from the old theme t
 
 ### Step 1: Load Checklist
 
-1. Read `.theme-pull/cutover.json`
+1. Read `.theme-forge/cutover.json`
 2. If the file does not exist or is empty, report: "No cutover items found. Run `pull-page` or `pull-section` to generate items."
 
 ### Step 2: Display Checklist
@@ -35,7 +35,7 @@ Group items by type and display:
 ```
 PRODUCTION CUTOVER CHECKLIST
 ════════════════════════════
-Generated from theme-pull migration data.
+Generated from theme-forge migration data.
 These items require manual action AFTER the new theme goes live.
 
 TEMPLATE ASSIGNMENTS (2)
@@ -75,9 +75,9 @@ Report pass/fail for each item.
 
 ### Step 4: Export (optional)
 
-If the user asks, export the checklist as a markdown file at `.theme-pull/CUTOVER.md` suitable for sharing with the team doing the production switchover.
+If the user asks, export the checklist as a markdown file at `.theme-forge/CUTOVER.md` suitable for sharing with the team doing the production switchover.
 
 ## Output
 
 - Terminal display of grouped checklist
-- Optional: `.theme-pull/CUTOVER.md` — Shareable cutover checklist
+- Optional: `.theme-forge/CUTOVER.md` — Shareable cutover checklist

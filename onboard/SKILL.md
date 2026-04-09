@@ -1,8 +1,8 @@
 ---
 name: onboard
 description: >
-  Configure a Shopify theme migration project. Collects live site URL, base theme path, target theme path, detects capabilities, and writes .theme-pull/config.json.
-  - MANDATORY TRIGGERS: theme-pull onboard, onboard theme, configure migration, setup theme-pull
+  Configure a Shopify theme migration project. Collects live site URL, base theme path, target theme path, detects capabilities, and writes .theme-forge/config.json.
+  - MANDATORY TRIGGERS: theme-forge onboard, onboard theme, configure migration, setup theme-forge
 ---
 
 # onboard — Configure Migration Project
@@ -69,7 +69,7 @@ capabilities:
 
 **If no browse tools are detected**, prompt the user to install one:
 
-> Visual comparison is the core of theme-pull. Without a browser tool, pull-section
+> Visual comparison is the core of theme-forge. Without a browser tool, pull-section
 > falls back to code-only analysis (no screenshots, no computed style diffs). This
 > works but misses visual issues that only show up in the rendered page.
 >
@@ -79,11 +79,11 @@ capabilities:
 >    ```
 >    claude mcp add playwright -- npx @playwright/mcp --headless
 >    ```
->    Then restart Claude Code and re-run `/theme-pull onboard`
+>    Then restart Claude Code and re-run `/theme-forge onboard`
 >
 > 2. **GStack browse tool** (if you have gstack installed):
 >    - The browse binary is included with gstack
->    - theme-pull will detect it automatically at `~/.claude/skills/gstack/browse/dist/browse`
+>    - theme-forge will detect it automatically at `~/.claude/skills/gstack/browse/dist/browse`
 >
 > Do you want to:
 > A) Install Playwright MCP now (I'll run the command for you)
@@ -118,7 +118,7 @@ If Shopify CLI is available and a dev store is configured:
 
 ### Step 5: Write Config
 
-Create `.theme-pull/config.json` in the target theme root:
+Create `.theme-forge/config.json` in the target theme root:
 
 ```json
 {
@@ -146,19 +146,19 @@ Create `.theme-pull/config.json` in the target theme root:
 1. Confirm the base theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
 2. Confirm the target theme path exists and contains Shopify theme files
 3. If a browse tool is available, verify the live URL is reachable
-4. Create `.theme-pull/mappings/sections/`, `.theme-pull/mappings/pages/`, `.theme-pull/reports/sections/`, `.theme-pull/reports/pages/` directories
-5. **Check `.gitignore`**: If `.theme-pull/` is not in the target theme's `.gitignore`, add it. The state directory contains session-specific data that should not be committed.
+4. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/` directories
+5. **Check `.gitignore`**: If `.theme-forge/` is not in the target theme's `.gitignore`, add it. The state directory contains session-specific data that should not be committed.
 6. Print a summary of the configuration
 
 ### Step 7: Suggest Next Step
 
 Tell the user:
-- Run `/theme-pull scan` to inventory the site and create a migration plan
-- Or run `/theme-pull map-section <name>` to assess a specific section
-- Or run `/theme-pull pull-section <name>` to start pulling immediately (will auto-map first)
+- Run `/theme-forge scan` to inventory the site and create a migration plan
+- Or run `/theme-forge map-section <name>` to assess a specific section
+- Or run `/theme-forge pull-section <name>` to start pulling immediately (will auto-map first)
 
 ## Output
 
-- `.theme-pull/config.json` — Project configuration file
-- `.theme-pull/` directory structure created
+- `.theme-forge/config.json` — Project configuration file
+- `.theme-forge/` directory structure created
 - Summary printed to conversation

@@ -2,7 +2,7 @@
 name: scan
 description: >
   Inventory all pages, layouts, sections, and settings in both the base and target Shopify themes. Produces a full site inventory and migration plan.
-  - MANDATORY TRIGGERS: theme-pull scan, scan theme, inventory theme, site inventory, migration plan
+  - MANDATORY TRIGGERS: theme-forge scan, scan theme, inventory theme, site inventory, migration plan
 ---
 
 # scan — Full Theme & Site Inventory
@@ -11,13 +11,13 @@ Crawl both the base theme and target theme to inventory every page, section, and
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist (run `onboard` first)
+- `.theme-forge/config.json` must exist (run `onboard` first)
 
 ## Workflow
 
 ### Step 1: Load Config
 
-Read `.theme-pull/config.json` to get base_theme, target_theme, and target_type paths.
+Read `.theme-forge/config.json` to get base_theme, target_theme, and target_type paths.
 
 ### Step 2: Inventory Base Theme
 
@@ -57,7 +57,7 @@ Repeat Step 2 for the target theme. Additionally:
 
 1. Identify which sections are **core** (part of the base target theme) vs **custom** (extension layer files matching the configured prefix)
 2. Note which templates already have sections assigned
-3. Identify any existing `.theme-pull/` state from prior runs
+3. Identify any existing `.theme-forge/` state from prior runs
 
 ### Step 4: Cross-Reference
 
@@ -132,7 +132,7 @@ Create a prioritized plan:
 
 ### Step 7: Write Output
 
-Save to `.theme-pull/`:
+Save to `.theme-forge/`:
 
 1. `site-inventory.json` — Full inventory of both themes
 2. `plan.json` — Migration plan with phases and effort estimates

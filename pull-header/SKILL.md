@@ -2,7 +2,7 @@
 name: pull-header
 description: >
   Pull the site header section. Convenience wrapper around pull-section for the most common shared section.
-  - MANDATORY TRIGGERS: theme-pull pull-header, pull header, match header, fix header
+  - MANDATORY TRIGGERS: theme-forge pull-header, pull header, match header, fix header
 ---
 
 # pull-header — Pull Site Header
@@ -11,7 +11,7 @@ Convenience command that runs `pull-section` on the site header. The header is a
 
 ## Workflow
 
-1. Read `.theme-pull/config.json`
+1. Read `.theme-forge/config.json`
 2. Identify the header section:
    - Check `{base_theme}/sections/header-group.json` for the header section reference
    - Or look for `sections/header.liquid` (most common name)

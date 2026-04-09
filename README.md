@@ -1,30 +1,30 @@
-# theme-pull
+# theme-forge
 
 AI-assisted Shopify theme migration. Point it at a live site and a target theme, and it systematically matches every section — like `git pull` for theme visuals.
 
 ## What It Does
 
-theme-pull automates the tedious work of migrating a Shopify store from one theme to another. It:
+theme-forge automates the tedious work of migrating a Shopify store from one theme to another. It:
 
 1. **Scans** both themes to inventory every page, section, and setting
 2. **Maps** each source section to the best target-theme equivalent
 3. **Pulls** sections one by one — comparing screenshots, computed styles, and code to match the live site pixel-by-pixel
 4. **Reviews** completed work to catch remaining variances
 
-All state is stored in `.theme-pull/` as JSON, so work is resumable across sessions. The pipeline tracks every section through a state machine, handles errors with structured classification, and resumes from where it left off after interruption.
+All state is stored in `.theme-forge/` as JSON, so work is resumable across sessions. The pipeline tracks every section through a state machine, handles errors with structured classification, and resumes from where it left off after interruption.
 
 ## Install
 
 **Global** (solo developer):
 ```bash
-git clone https://github.com/cfagerlin/theme-pull.git ~/.claude/skills/theme-pull
-cd ~/.claude/skills/theme-pull && ./setup
+git clone https://github.com/cfagerlin/theme-forge.git ~/.claude/skills/theme-forge
+cd ~/.claude/skills/theme-forge && ./setup
 ```
 
 **Project-level** (team):
 ```bash
-git clone https://github.com/cfagerlin/theme-pull.git .claude/skills/theme-pull
-cd .claude/skills/theme-pull && ./setup --project
+git clone https://github.com/cfagerlin/theme-forge.git .claude/skills/theme-forge
+cd .claude/skills/theme-forge && ./setup --project
 ```
 
 Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your platform.
@@ -33,32 +33,32 @@ Works with Claude Code, Cowork, and OpenClaw. The setup script auto-detects your
 
 | Command | What it does |
 |---------|-------------|
-| `/theme-pull onboard` | Configure live URL, theme paths, detect capabilities |
-| `/theme-pull scan` | Inventory both themes, generate migration plan |
-| `/theme-pull map-section <name>` | Assess one section's compatibility |
-| `/theme-pull map-page [page]` | Map all sections on a page |
-| `/theme-pull reconcile [--page <tpl>]` | Detect work already done, import into reports |
-| `/theme-pull pull-section <name> [--page <tpl>]` | Full compare→fix→verify loop on one section |
-| `/theme-pull pull-page [page]` | Pull all sections on a page |
-| `/theme-pull pull-header` | Pull the site header |
-| `/theme-pull pull-footer` | Pull the site footer |
-| `/theme-pull review [page]` | Post-work variance review |
-| `/theme-pull status` | Human-readable progress report |
-| `/theme-pull upgrade` | Check for and apply updates |
-| `/theme-pull --full` | Run all sections across all mapped pages |
-| `/theme-pull --full --reset-failed` | Retry all previously failed sections |
+| `/theme-forge onboard` | Configure live URL, theme paths, detect capabilities |
+| `/theme-forge scan` | Inventory both themes, generate migration plan |
+| `/theme-forge map-section <name>` | Assess one section's compatibility |
+| `/theme-forge map-page [page]` | Map all sections on a page |
+| `/theme-forge reconcile [--page <tpl>]` | Detect work already done, import into reports |
+| `/theme-forge pull-section <name> [--page <tpl>]` | Full compare→fix→verify loop on one section |
+| `/theme-forge pull-page [page]` | Pull all sections on a page |
+| `/theme-forge pull-header` | Pull the site header |
+| `/theme-forge pull-footer` | Pull the site footer |
+| `/theme-forge review [page]` | Post-work variance review |
+| `/theme-forge status` | Human-readable progress report |
+| `/theme-forge upgrade` | Check for and apply updates |
+| `/theme-forge --full` | Run all sections across all mapped pages |
+| `/theme-forge --full --reset-failed` | Retry all previously failed sections |
 
 ## Quick Start
 
 ```
-/theme-pull onboard
-/theme-pull scan
-/theme-pull reconcile          # if picking up existing work
-/theme-pull pull-header
-/theme-pull pull-footer
-/theme-pull pull-page
-/theme-pull review
-/theme-pull status
+/theme-forge onboard
+/theme-forge scan
+/theme-forge reconcile          # if picking up existing work
+/theme-forge pull-header
+/theme-forge pull-footer
+/theme-forge pull-page
+/theme-forge review
+/theme-forge status
 ```
 
 ## How Pull Works
@@ -79,15 +79,15 @@ The core methodology (in `pull-section`) follows an 11-step loop:
 
 ### Self-Learning
 
-theme-pull gets smarter with each section. When a fix requires retry or the user corrects an approach, the pattern is captured in `.theme-pull/learnings.json` and applied proactively on future sections. Over time, the ratio of "learnings applied" to "learnings created" should increase — meaning fewer surprises per section and more one-shot completions.
+theme-forge gets smarter with each section. When a fix requires retry or the user corrects an approach, the pattern is captured in `.theme-forge/learnings.json` and applied proactively on future sections. Over time, the ratio of "learnings applied" to "learnings created" should increase — meaning fewer surprises per section and more one-shot completions.
 
 Learnings have scopes (universal, project, theme-specific) and confidence levels. Universal learnings are portable across projects via `--import-learnings`.
 
 ## Architecture
 
 ```
-theme-pull/
-├── theme-pull/     # Orchestrator — routes /theme-pull <cmd> to sub-skills
+theme-forge/
+├── theme-forge/     # Orchestrator — routes /theme-forge <cmd> to sub-skills
 ├── onboard/        # Project setup & capability detection
 ├── scan/           # Full theme inventory & migration planning
 ├── map-section/    # Per-section compatibility assessment
@@ -109,10 +109,10 @@ theme-pull/
 
 ## Project State
 
-All state lives in `.theme-pull/` in your target theme:
+All state lives in `.theme-forge/` in your target theme:
 
 ```
-.theme-pull/
+.theme-forge/
 ├── config.json              # Project config (from onboard)
 ├── state.json               # Pipeline state machine (tracks section progress)
 ├── site-inventory.json      # Theme inventory (from scan)

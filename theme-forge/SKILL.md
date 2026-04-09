@@ -1,39 +1,39 @@
 ---
-name: theme-pull
+name: theme-forge
 description: >
   **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, review, cutover, status, upgrade.
-  - MANDATORY TRIGGERS: theme-pull, theme pull, migrate theme, pull section, pull page, pull header, pull footer, scan theme, map section, map page, theme migration, theme status, theme review
+  - MANDATORY TRIGGERS: theme-forge, theme pull, migrate theme, pull section, pull page, pull header, pull footer, scan theme, map section, map page, theme migration, theme status, theme review
 ---
 
-# theme-pull — Shopify Theme Migration Toolkit
+# theme-forge — Shopify Theme Migration Toolkit
 
 AI-assisted visual migration from any Shopify theme to any target theme. Think of it as `git pull` for theme visuals — you point it at a live site and a target theme, and it systematically matches every section.
 
 ## Quick Start
 
 ```
-/theme-pull onboard    — Configure a project for migration
-/theme-pull scan       — Inventory all pages, sections, and settings
-/theme-pull map-section <name>  — Assess compatibility of a single section
-/theme-pull map-page [path]    — Map all sections on a page
-/theme-pull reconcile [--page <template>]  — Detect work already done, create report stubs
-/theme-pull pull-section <name> [--page <template>] — Execute compare→fix→verify on a section
-/theme-pull pull-page [path]   — Pull all sections on a page
-/theme-pull pull-header        — Pull the site header
-/theme-pull pull-footer        — Pull the site footer
-/theme-pull review [path]      — Post-work variance review
-/theme-pull status             — Human-readable migration progress report
-/theme-pull cutover            — Show cutover checklist for production go-live
-/theme-pull upgrade            — Check for and apply updates
+/theme-forge onboard    — Configure a project for migration
+/theme-forge scan       — Inventory all pages, sections, and settings
+/theme-forge map-section <name>  — Assess compatibility of a single section
+/theme-forge map-page [path]    — Map all sections on a page
+/theme-forge reconcile [--page <template>]  — Detect work already done, create report stubs
+/theme-forge pull-section <name> [--page <template>] — Execute compare→fix→verify on a section
+/theme-forge pull-page [path]   — Pull all sections on a page
+/theme-forge pull-header        — Pull the site header
+/theme-forge pull-footer        — Pull the site footer
+/theme-forge review [path]      — Post-work variance review
+/theme-forge status             — Human-readable migration progress report
+/theme-forge cutover            — Show cutover checklist for production go-live
+/theme-forge upgrade            — Check for and apply updates
 ```
 
 ## How It Works
 
-theme-pull is a multi-skill repo. Each command above maps to a subdirectory with its own SKILL.md. This orchestrator routes commands to the right sub-skill.
+theme-forge is a multi-skill repo. Each command above maps to a subdirectory with its own SKILL.md. This orchestrator routes commands to the right sub-skill.
 
 ### Command Routing
 
-When invoked as `/theme-pull <command> [args]`:
+When invoked as `/theme-forge <command> [args]`:
 
 1. Parse the command name from the first argument
 2. Load the sub-skill SKILL.md from the corresponding directory
@@ -53,10 +53,10 @@ These flags modify pipeline behavior for batch operations (`pull-page`, `pull-he
 
 ### Configuration
 
-All project state lives in `.theme-pull/` in the target theme's root:
+All project state lives in `.theme-forge/` in the target theme's root:
 
 ```
-.theme-pull/
+.theme-forge/
 ├── config.json              # Project configuration (created by onboard)
 ├── state.json               # Pipeline state machine (created on first pull)
 ├── site-inventory.json      # Full site inventory (created by scan)
@@ -157,7 +157,7 @@ This means you can kill a run and restart it. It picks up where it left off. Fai
 
 ### Platform Detection
 
-theme-pull works across Claude Code, Cowork, and OpenClaw. It detects available capabilities on first run:
+theme-forge works across Claude Code, Cowork, and OpenClaw. It detects available capabilities on first run:
 
 | Capability | Claude Code | Cowork | OpenClaw |
 |-----------|-------------|--------|----------|
@@ -174,7 +174,7 @@ When no browse tool is available, visual comparison falls back to code-only anal
 1. **Theme-agnostic**: Works for any base→target Shopify theme migration, not just legacy→Horizon. Extension layer prefix is configurable.
 2. **Visual-first, code-capable**: Browse tools (gstack browse, Playwright MCP) enable pixel-level comparison; without them, falls back to schema/CSS/settings analysis.
 3. **Non-destructive**: `map-*` and `scan` never modify files. `pull-*` modifies only the target theme, never the base theme.
-4. **Resumable**: All state in `.theme-pull/`. Sessions can be interrupted and resumed.
+4. **Resumable**: All state in `.theme-forge/`. Sessions can be interrupted and resumed.
 5. **Composable**: Each command works independently. `scan` composes them into a pipeline, but you can `map-section` one section without a full migration.
 
 ### Extension Layer Convention

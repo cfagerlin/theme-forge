@@ -2,21 +2,21 @@
 name: pull-section
 description: >
   Execute the full compare→fix→verify loop on a single Shopify theme section. Takes screenshots, compares computed styles, applies fixes, and verifies visually.
-  - MANDATORY TRIGGERS: theme-pull pull-section, pull section, match section, fix section, pull-section
+  - MANDATORY TRIGGERS: theme-forge pull-section, pull section, match section, fix section, pull-section
 ---
 
 # pull-section — Visual Section Matching
 
-Execute the full compare→fix→verify methodology on a single section. This is the core workhorse of theme-pull — it does the actual pixel-matching work.
+Execute the full compare→fix→verify methodology on a single section. This is the core workhorse of theme-forge — it does the actual pixel-matching work.
 
 ## Prerequisites
 
-- `.theme-pull/config.json` must exist (run `onboard` first)
-- Ideally, a mapping exists at `.theme-pull/mappings/sections/{section-name}.json` (will auto-run `map-section` if not)
+- `.theme-forge/config.json` must exist (run `onboard` first)
+- Ideally, a mapping exists at `.theme-forge/mappings/sections/{section-name}.json` (will auto-run `map-section` if not)
 
 ## State Integration
 
-When `.theme-pull/state.json` exists, pull-section reads and writes it (whether invoked standalone or as part of a pipeline):
+When `.theme-forge/state.json` exists, pull-section reads and writes it (whether invoked standalone or as part of a pipeline):
 
 1. **On start**: Set section status to `in_progress` with `last_updated` timestamp
 2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no browse tool)
@@ -108,7 +108,7 @@ This is a graceful degradation for users who chose not to set up a browse tool. 
 ## Arguments
 
 ```
-/theme-pull pull-section <section-name> [--page <template>] [--url <live-page-url>]
+/theme-forge pull-section <section-name> [--page <template>] [--url <live-page-url>]
 ```
 
 - `<section-name>` — The section type name (e.g., `featured-collection`, `slideshow`, `custom-trust-bar`)
@@ -154,12 +154,12 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 ### Step 1: Load Context
 
-1. Read `.theme-pull/config.json` for paths, URLs, and capabilities
+1. Read `.theme-forge/config.json` for paths, URLs, and capabilities
 2. Resolve the page context (see "How the page is resolved" above)
-3. Check for existing mapping at `.theme-pull/mappings/sections/{section-name}.json`
+3. Check for existing mapping at `.theme-forge/mappings/sections/{section-name}.json`
    - If missing, run `map-section` first to find the target section and assess compatibility
 4. Load the mapping to determine the approach (JSON-only, JSON+CSS, extension section, custom section)
-5. **Load learnings** from `.theme-pull/learnings.json` (see `references/learnings.md`)
+5. **Load learnings** from `.theme-forge/learnings.json` (see `references/learnings.md`)
    - Filter to learnings whose trigger matches the current section or has `target_theme`/`universal` scope
    - These will be applied proactively in Steps 3, 6, and 7 — before writing code, not after it fails
 6. **Find the target theme's CSS loading mechanism.** Search for how the theme includes stylesheets:
@@ -170,7 +170,7 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 ### Step 2: Read Both Sections
 
-1. Check if `scan` has already been run — look for this section in `.theme-pull/site-inventory.json`
+1. Check if `scan` has already been run — look for this section in `.theme-forge/site-inventory.json`
    - If present, use the **resolved CSS** from the inventory (all Liquid variables already substituted with actual values). This saves significant time vs manual cross-referencing.
    - If not present, fall back to manual resolution (below)
 2. Read the **base theme's section `.liquid` file** — this is the PRIMARY code reference. Extract:
@@ -333,7 +333,7 @@ A "global theme setting" or "theme default" is NOT a platform limitation. If the
 - Does a learning say to use a specific approach for this pattern? Follow it.
 - Does a learning say this variance is acceptable? Mark it accepted.
 
-This is how theme-pull one-shots sections: learnings from prior sections prevent re-discovering the same issues.
+This is how theme-forge one-shots sections: learnings from prior sections prevent re-discovering the same issues.
 
 **Address structural variances FIRST.** Do not start CSS work until the HTML structure matches.
 
@@ -376,7 +376,7 @@ If the variance requires HTML/Liquid changes:
    - Record what was tried first (the anti-pattern)
    - Record what eventually worked (the correct pattern)
    - Determine the trigger condition (why the first approach failed)
-   - Write a learning to `.theme-pull/learnings.json` so future sections get it right on the first try
+   - Write a learning to `.theme-forge/learnings.json` so future sections get it right on the first try
    - Example: tried `font-family: 'Spectral', serif;` → didn't apply → added `!important` → worked → learning: "target theme inline styles override font-family, use !important"
 
 #### Rendered Output Validation Checklist
@@ -543,7 +543,7 @@ bbox[h2] width          | 600px         | 600px         | 0        | PASS
 
 ### Step 11: Write Report
 
-Save to `.theme-pull/reports/sections/{state-key}.json` (where state-key matches the `state.json` key, e.g., `featured-collection-1:index`). Use the state key, not the bare section name, to prevent report collisions when the same section type appears multiple times:
+Save to `.theme-forge/reports/sections/{state-key}.json` (where state-key matches the `state.json` key, e.g., `featured-collection-1:index`). Use the state key, not the bare section name, to prevent report collisions when the same section type appears multiple times:
 
 ```json
 {
@@ -603,7 +603,7 @@ Save to `.theme-pull/reports/sections/{state-key}.json` (where state-key matches
 
 #### Cutover Checklist
 
-When any file created during this section requires manual action during the production cutover, auto-append an entry to `.theme-pull/cutover.json`:
+When any file created during this section requires manual action during the production cutover, auto-append an entry to `.theme-forge/cutover.json`:
 
 ```json
 {
@@ -623,7 +623,7 @@ Common cutover item types:
 - **`color_scheme`** — Custom color scheme added to `settings_data.json`. Verify it persists after theme publish.
 - **`asset_upload`** — Image or font referenced but not yet in the store's files. Must be uploaded before cutover.
 
-Create `.theme-pull/cutover.json` as an array if it does not exist. Append entries, never overwrite. Also add the items to the section report's `cutover_items` array.
+Create `.theme-forge/cutover.json` as an array if it does not exist. Append entries, never overwrite. Also add the items to the section report's `cutover_items` array.
 
 The report tracks which learnings were applied proactively (`learnings_applied`) and which new learnings were discovered during this section (`learnings_created`). Over time, the ratio of applied-to-created should increase — meaning fewer surprises per section.
 
@@ -711,4 +711,4 @@ When a section fails, add an entry to the section's `error_history` in `state.js
 }
 ```
 
-And write a structured error report to `.theme-pull/reports/sections/{section-name}.json` with `"status": "failed"` and the full `error_history` array. This enables `status` to show actionable failure summaries and `--reset-failed` to know which sections to retry.
+And write a structured error report to `.theme-forge/reports/sections/{section-name}.json` with `"status": "failed"` and the full `error_history` array. This enables `status` to show actionable failure summaries and `--reset-failed` to know which sections to retry.
