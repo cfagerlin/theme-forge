@@ -25,85 +25,86 @@ When `.theme-forge/state.json` exists, pull-section reads and writes it (whether
 
 State keys use the format `{section-type}-{index}:{page}` to prevent collisions when the same section type appears multiple times on a page (e.g., `featured-collection-1:index`, `featured-collection-2:index`).
 
-### Browse Tool Usage
+### Browse Tool — IMPORTANT: This is a Bash Command
 
-Read `capabilities.browse_method` from config to determine how to take screenshots and run JavaScript:
+The browse tool is a **CLI binary** you run via the **Bash tool**. It is NOT an MCP tool, NOT a named tool in your tool list, and NOT WebFetch. You will not see "browse" in your tool list — that's expected. You use it by running Bash commands.
 
-#### `gstack_browse` — GStack browse binary
-
-The browse binary is a CLI tool that persists browser state between calls. Locate it:
-
+**Discovery — run this first:**
 ```bash
-# Check both locations, use the first that exists
-B=""
-[ -x "$HOME/.claude/skills/gstack/browse/dist/browse" ] && B="$HOME/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && _ROOT=$(git rev-parse --show-toplevel 2>/dev/null) && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE READY: $B" || echo "NOT FOUND"
 ```
 
-**Navigate and screenshot:**
+If `BROWSE READY`: you have the browse tool. The path is printed — use it in all subsequent commands.
+If `NOT FOUND`: check the alternate location:
 ```bash
+B="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/skills/gstack/browse/dist/browse" && [ -x "$B" ] && echo "BROWSE READY: $B" || echo "NOT FOUND"
+```
+
+If neither location has it, fall back to code-only mode (see Fallback below).
+
+**IMPORTANT: Shell variables do not persist between Bash tool calls.** Every Bash command runs in a fresh shell. You must define `B=<path>` at the start of every Bash command that uses it, or inline the full path. For example:
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && $B screenshot /tmp/live-section.png
+```
+
+**Navigate and screenshot** (all via Bash tool — always define B first):
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
 $B goto "https://livesite.com"
 $B screenshot /tmp/live-section.png
+```
 
+```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
 $B goto "http://127.0.0.1:9292"
 $B screenshot /tmp/dev-section.png
 ```
 
 **Screenshot a specific element:**
 ```bash
-$B screenshot ".section-hero" /tmp/hero-live.png
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B screenshot ".section-hero" /tmp/hero-live.png
 ```
 
 **Run JavaScript (for computed style extraction):**
 ```bash
+B=$HOME/.claude/skills/gstack/browse/dist/browse
 $B js "document.querySelector('.hero').getBoundingClientRect().height"
 $B js "JSON.stringify(window.getComputedStyle(document.querySelector('.hero')))"
 ```
 
 **Responsive screenshots:**
 ```bash
-$B responsive /tmp/section    # Creates mobile, tablet, desktop screenshots
+B=$HOME/.claude/skills/gstack/browse/dist/browse && $B responsive /tmp/section
 ```
 
-**Read the screenshot file** using the Read tool to visually inspect it.
+**View screenshots:** Use the Read tool on the output PNG to visually inspect it.
 
-#### `playwright_mcp` — Playwright MCP server
+#### Alternative: Playwright MCP (if gstack browse binary is not installed)
 
-Use `mcp__playwright__*` tools:
+If you have `mcp__playwright__*` tools in your tool list, use those instead:
 - `mcp__playwright__browser_navigate` to go to a URL
 - `mcp__playwright__browser_screenshot` to capture the page
 - `mcp__playwright__browser_evaluate` to run JavaScript
 
-#### `mcp_chrome` — Chrome MCP or other MCP browse tools
-
-Use the detected `mcp__*` tool prefix for navigation, screenshots, and JS execution.
-
 ### Runtime Browse Verification
 
-**Before starting Step 4**, verify the browse tool is actually reachable — not just configured.
+**Before starting Step 4**, run the browse discovery command above via Bash. This takes 1 second and tells you definitively whether the binary exists.
 
-If `capabilities.browse: true` in config, test the connection:
-- **`gstack_browse`**: Run `$B url 2>/dev/null; echo $?` — exit code 0 means reachable
-- **`playwright_mcp`**: Attempt `mcp__playwright__browser_navigate` to `about:blank`
-- **`mcp_chrome`**: Attempt a simple navigation with the detected MCP tools
+**Do NOT decide browse availability by inspecting your tool list.** The browse binary is a CLI, not a named tool. If you don't see "browse" in your tools, that means nothing — run the Bash check.
 
-**If the browse tool was configured but is NOT reachable: STOP.** Do not silently degrade. The user set up browse-enabled mode during onboard because the methodology depends on visual comparison. Present these options:
+If the binary exists but fails (e.g., `$B url` returns an error), present these options:
+- **A) Fall back to code-only analysis for this session.** Final status will be `completed_code_only`.
+- **B) Troubleshoot.** Run `ls -la $HOME/.claude/skills/gstack/browse/dist/browse` and `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B url` to diagnose.
 
-- **A) Fall back to code-only analysis for this session.** Proceeds without screenshots or computed style diffs. Final status will be `completed_code_only`. The user accepts that visual variances may go undetected.
-- **B) Troubleshoot the browse tool.** Show diagnostic commands:
-  - `gstack_browse`: `ls -la ~/.claude/skills/gstack/browse/dist/browse` and `$B url`
-  - `playwright_mcp`: `npx @playwright/mcp --help` and check `claude mcp list`
-  - `mcp_chrome`: Check MCP server registration with `claude mcp list`
+### Fallback (code-only mode)
 
-### Fallback (no browse tool configured)
-
-When no browse tool was configured during onboard (`capabilities.browse: false` in config):
+When the browse binary is not installed and no Playwright MCP tools are available:
 - Skip Steps 4.1-4.4 (screenshot and computed style diff)
 - Perform code-only analysis: compare CSS, schema, and settings between base and target
 - Set final status to `completed_code_only` instead of `completed`
-- Log a note in the report: "Visual verification skipped, no browse tool configured"
+- Log a note in the report: "Visual verification skipped — browse binary not found"
 
-This is a graceful degradation for users who chose not to set up a browse tool. It is NOT the same as a browse tool that was configured but stopped working — that case is handled by Runtime Browse Verification above.
+**Do NOT attempt visual verification with curl, WebFetch, or other non-browse tools.** These return HTML/markdown, not rendered pages. Visual comparison requires an actual browser.
 
 ## Arguments
 
