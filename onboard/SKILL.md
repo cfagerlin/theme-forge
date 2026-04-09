@@ -108,6 +108,20 @@ Use this to:
 
 Store the target theme ID in config as `target_theme_id`.
 
+### Step 3.6: Record Base Theme Freshness
+
+Record when the base theme was exported so future steps can detect staleness:
+
+1. Check the most recent file modification time in the base theme directory:
+   ```bash
+   find <base_theme_path> -type f -name "*.json" -o -name "*.liquid" | xargs stat -f "%m" | sort -rn | head -1
+   ```
+   Convert to ISO 8601 and store as `base_theme_exported_at` in config.
+
+2. If Shopify CLI is available, record the live theme's ID from `shopify theme list` output (the theme with `role: "live"`). Store as `live_theme_id` in config. This lets future runs check if the base theme matches what's currently live.
+
+3. Record which template file is the **active index template** in the base theme. Check `config/settings_data.json` for the current template assignments, not alternate `index.sl-*.json` files. The base theme export may contain dozens of old/unused alternate templates — only the active ones matter.
+
 ### Step 4: Detect Dev URL
 
 If Shopify CLI is available and a dev store is configured:
@@ -131,6 +145,8 @@ Create `.theme-forge/config.json` in the target theme root:
   "dev_store": "store.myshopify.com",
   "dev_url": "http://127.0.0.1:9292",
   "extension_prefix": "custom-",
+  "live_theme_id": 131911450755,
+  "base_theme_exported_at": "2026-04-08T12:00:00Z",
   "capabilities": {
     "browse": true,
     "browse_method": "gstack_browse",
