@@ -49,6 +49,37 @@ These flags modify pipeline behavior for batch operations (`pull-page`, `pull-he
 --force                Break a stale lock and resume (requires lock age > 30 min)
 --reset                Reset all sections to pending (asks for confirmation first)
 --reset-failed         Reset only failed sections to pending for retry
+--debug                Save full transcript, screenshots, and diffs to .theme-forge/debug/
+```
+
+### `--debug` Mode
+
+When `--debug` is passed (with any command or with `--full`), **thread it through to every sub-skill invocation.** Each pull-section call creates its own debug directory at `.theme-forge/debug/{timestamp}-{section-key}/` with a transcript, screenshots, computed style diffs, and a summary.
+
+After all sections complete, the debug directory contains a full audit trail. A human or another agent can review `.theme-forge/debug/` to diagnose issues without having watched the session live.
+
+```
+.theme-forge/debug/
+├── 20260409-142000-featured-collection-1:index/
+│   ├── transcript.md
+│   ├── summary.json
+│   ├── base-settings.json
+│   ├── target-settings-before.json
+│   ├── target-settings-after.json
+│   ├── computed-values.json
+│   ├── variances.json
+│   ├── screenshots/
+│   │   ├── step4-live.png
+│   │   ├── step4-dev.png
+│   │   └── step8-verify.png
+│   └── diffs/
+│       ├── computed-live.json
+│       ├── computed-dev.json
+│       ├── computed-dev-after.json
+│       └── delta-table.md
+├── 20260409-143500-slideshow-1:index/
+│   └── ...
+└── ...
 ```
 
 ### `--full` Workflow

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.8 — 2026-04-09
+
+**Debug mode (`--debug`).** Saves a complete transcript, all screenshots, computed style diffs, and a summary for every section. Review what happened without watching the session live.
+
+- **`--debug` flag**: Pass to `pull-section`, `pull-page`, or `--full`. Creates `.theme-forge/debug/{timestamp}-{section-key}/` per section.
+- **Transcript**: `transcript.md` with every step, decision, command, and output. A reviewer reading only the transcript should understand the full story.
+- **Screenshots**: Saved to `debug/screenshots/` with step-prefixed names (`step4-live.png`, `step8-verify.png`). No more lost `/tmp/` files.
+- **Computed style diffs**: Live and dev extraction results saved as JSON. Delta tables saved as markdown.
+- **Summary**: `summary.json` with structured metadata — status, variance counts, errors, files modified.
+- **Zero overhead when off**: No ambient logging. No debug directory. No transcript. Only activated by `--debug`.
+
 ## 0.5.7 — 2026-04-09
 
 **Section-level screenshots + browse command chaining.** Two issues from the same migration session:
