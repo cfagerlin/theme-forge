@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.13 — 2026-04-09
+
+**Reverse-lookup for live site section names.** Users naturally refer to sections by their live site name (e.g., "pull anatomy"), but pull-section only resolved target theme names. The agent would fail to find the section and burn context trying to figure out the mapping.
+
+- **Step 6 in section resolution**: When a section name isn't found in the target theme's template files, reverse-lookup through `.theme-forge/mappings/sections/*.json` and `site-inventory.json` for a matching `base_section` name.
+- **User feedback**: "The live site's 'home_anatomy' is mapped to 'custom-brand-story' in the target theme. Pulling 'custom-brand-story'."
+- Example: `home_anatomy` (live) → `custom-brand-story` (target) found via mapping file.
+
 ## 0.5.12 — 2026-04-09
 
 **Anti-rationalization rules + live section verification.** The agent marked a section "completed" with zero files modified and 2 unresolved variances by rationalizing them as "intentional" and "better."
