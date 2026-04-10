@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.8 — 2026-04-10
+
+**Playwright MCP support as primary browser tool.** Complete rewrite of the capture skill with dual-path architecture: Playwright MCP (preferred) with gstack browse as fallback.
+
+- **Playwright MCP (Path A)**: Stable browser sessions across tool calls, no daemon timeout issues, inline screenshot results, clean JS evaluation without shell escaping. Tested and verified on gldn.com.
+- **gstack browse (Path B)**: Preserved as fallback with all existing workarounds (JS-based waits, scroll-triggered dismiss, Attentive/Klaviyo/Privy removal).
+- **Install prompt**: When no browser tool is detected, suggests `claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors`.
+- **Fixed dismiss selector**: Removed `[class*=overlay]` which was too aggressive and deleted legitimate footer/header overlay elements. Now targets only specific popup providers by name/src (Attentive, Klaviyo, Privy).
+- **Detection priority flipped**: Onboard now checks for Playwright MCP first, gstack browse second.
+
 ## 0.8.7 — 2026-04-10
 
 **Third-party form integration gotcha.** Agent replaced a Klaviyo email signup form (`manage.kmail-lists.com`) with Horizon's native `email-signup` block (Shopify email marketing). Silently breaks all email flows.

@@ -14,10 +14,14 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 
 1. **NEVER take a full-page screenshot.** Every screenshot targets a single section. If the section can't be found, FAIL. Do not fall back to full-page.
 2. **ALWAYS capture all three breakpoints.** Desktop (1280), tablet (768), mobile (375). No "desktop only" option.
-3. **Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout (~2-3 seconds) and shuts down during shell sleeps. Use JS-based waits instead: `$B js "new Promise(function(r){setTimeout(function(){r('waited')},3000)})"`. This keeps the daemon alive during the wait.
-3b. **Do not use `wait --networkidle` on live Shopify sites.** Third-party scripts (Klaviyo, Attentive, Gorgias) make continuous network requests that prevent networkidle from completing. Use JS `setTimeout` waits instead. `--networkidle` is fine for dev server URLs only.
+3. **Prefer Playwright MCP over gstack browse.** Playwright MCP has stable browser sessions, no daemon timeout issues, and inline screenshot results. Use gstack browse only as a fallback.
 4. **ALWAYS verify the desktop screenshot** by reading it with the Read tool after capture. If it's blank or broken, retry once. If still broken, FAIL.
 5. **Follow the exact commands below.** Do not improvise browse tool usage. Do not add extra steps. Do not skip steps.
+
+### gstack browse-specific rules (only when using gstack browse fallback)
+
+- **Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout (~2-3 seconds) and shuts down during shell sleeps. Use JS-based waits instead: `$B js "new Promise(function(r){setTimeout(function(){r('waited')},3000)})"`.
+- **Do not use `wait --networkidle` on live Shopify sites.** Third-party scripts (Klaviyo, Attentive, Gorgias) make continuous network requests that prevent networkidle from completing. `--networkidle` is fine for dev server URLs only.
 
 ## Arguments
 
@@ -49,30 +53,153 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 ## Prerequisites
 
 - `.theme-forge/config.json` must exist (run `onboard` first)
-- Browse tool must be available (detected during `onboard`)
+- A browser tool must be available (Playwright MCP or gstack browse)
 
 ## Workflow
 
-### Step 1: Discover Browse Tool
+### Step 1: Discover Browser Tool
 
+Check for available browser tools in priority order:
+
+**1a. Check for Playwright MCP** — look for `mcp__playwright__browser_navigate` in your available tools.
+
+If available, set `BROWSER_TOOL=playwright` and skip to **Step 2A (Playwright MCP)**.
+
+**1b. Check for gstack browse:**
 ```bash
 B=$HOME/.claude/skills/gstack/browse/dist/browse
 [ -x "$B" ] && echo "BROWSE: $B" || { B="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/skills/gstack/browse/dist/browse"; [ -x "$B" ] && echo "BROWSE: $B" || echo "BROWSE: NOT FOUND"; }
 ```
 
-If `NOT FOUND`: STOP. Tell the user: "No browse tool available. Run `/theme-forge onboard` to detect capabilities or install Playwright MCP."
+If found, set `BROWSER_TOOL=gstack` and skip to **Step 2B (gstack browse)**.
+
+**1c. Neither tool available — STOP.** Tell the user:
+
+> **No browser tool available.** Install Playwright MCP for the best screenshot experience:
+>
+> ```bash
+> claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors
+> ```
+>
+> Then restart the conversation. Playwright MCP gives stable browser sessions with no daemon timeout issues.
 
 Create the output directory:
 ```bash
 mkdir -p <output>
 ```
 
-### Step 2: Navigate + Wait for Load
+---
+
+## Path A: Playwright MCP (preferred)
+
+Use this path when `mcp__playwright__browser_navigate` is available.
+
+### Step 2A: Navigate
+
+```
+mcp__playwright__browser_navigate url="<url>"
+```
+
+### Step 3A: Scroll to Section + Dismiss Popups
+
+**Scroll to the section:**
+
+Use `mcp__playwright__browser_evaluate` to scroll:
+
+If `--section` is a CSS selector:
+```
+mcp__playwright__browser_evaluate function="() => { document.querySelector('<selector>').scrollIntoView({block:'start'}); return 'scrolled'; }"
+```
+
+If `--section` is a numeric index:
+```
+mcp__playwright__browser_evaluate function="() => { document.querySelectorAll('.shopify-section')[<N>].scrollIntoView({block:'start'}); return 'scrolled'; }"
+```
+
+**Wait for lazy images + popup injection** (live site URLs only):
+```
+mcp__playwright__browser_evaluate function="() => new Promise(r => setTimeout(() => r('waited'), 3000))"
+```
+
+**Dismiss popups** (live site URLs only — skip for `127.0.0.1` or `localhost`):
+```
+mcp__playwright__browser_evaluate function="() => { let c = 0; document.querySelectorAll('iframe[src*=\"attn.tv\"],iframe[src*=\"attentive\"],iframe[src*=\"klaviyo\"]').forEach(el => { const p = el.parentElement; if (p && p.tagName !== 'BODY' && p.tagName !== 'HTML') { p.remove(); } else { el.remove(); } c++; }); document.querySelectorAll('.klaviyo-form,.klaviyo-close-form,.privy-popup,[data-testid*=popup]').forEach(el => { el.remove(); c++; }); document.querySelectorAll('script[src*=attentive],script[src*=klaviyo],script[src*=privy]').forEach(el => { el.remove(); c++; }); document.body.style.overflow = 'auto'; return 'dismissed ' + c + ' elements'; }"
+```
+
+**IMPORTANT: Do NOT use `[class*=overlay]` in the dismiss selector.** This is too aggressive and matches legitimate page elements (footer backgrounds, image overlays, header transparency). Only target specific popup providers by name/src.
+
+### Step 4A: Capture All Three Breakpoints
+
+#### Desktop (1280px):
+
+Playwright MCP defaults to 1280x720 viewport. Take screenshot to file:
+```
+mcp__playwright__browser_take_screenshot type="png" filename="<output>/desktop.png"
+```
+
+**Verify immediately:** Read `<output>/desktop.png` with the Read tool. Check:
+- Image is visible and shows the section content
+- Not blank/white/grey
+- If blank or broken, retry navigate + scroll + screenshot once
+- If still blank: **FAIL**
+
+#### Tablet (768px):
+
+Resize viewport, navigate, scroll, dismiss, and capture:
+```
+mcp__playwright__browser_evaluate function="() => 'ready for tablet'"
+```
+```
+mcp__playwright__browser_resize width=768 height=1024
+```
+Then re-navigate to the URL (viewport resize may require a fresh load):
+```
+mcp__playwright__browser_navigate url="<url>"
+```
+Repeat scroll + wait + dismiss from Step 3A, then:
+```
+mcp__playwright__browser_take_screenshot type="png" filename="<output>/tablet.png"
+```
+
+#### Mobile (375px):
+
+```
+mcp__playwright__browser_resize width=375 height=812
+```
+```
+mcp__playwright__browser_navigate url="<url>"
+```
+Repeat scroll + wait + dismiss from Step 3A, then:
+```
+mcp__playwright__browser_take_screenshot type="png" filename="<output>/mobile.png"
+```
+
+After mobile capture, restore desktop viewport:
+```
+mcp__playwright__browser_resize width=1280 height=720
+```
+
+### Step 5A: Extract Computed Styles (if `--extract-styles`)
+
+Use `mcp__playwright__browser_evaluate` to run the extraction script. Unlike gstack browse, Playwright MCP handles long JS cleanly — no shell escaping issues.
+
+```
+mcp__playwright__browser_evaluate function="() => { function dq(root, sel) { let r = root.querySelector(sel); if (r) return r; for (const el of root.querySelectorAll('*')) { if (el.shadowRoot) { r = dq(el.shadowRoot, sel); if (r) return r; } } return null; } function dqAll(root, sel) { let results = [...root.querySelectorAll(sel)]; for (const el of root.querySelectorAll('*')) { if (el.shadowRoot) { results = results.concat(dqAll(el.shadowRoot, sel)); } } return results; } const s = document.querySelector('<selector>') || document.querySelectorAll('.shopify-section')[<N>]; if (!s) return JSON.stringify({error: 'Section not found'}); const cs = getComputedStyle(s); const h = dq(s, 'h1,h2,h3'); const p = dq(s, 'p'); const btn = dq(s, '.button,a[class*=button]'); const imgs = dqAll(s, 'img'); return JSON.stringify({ bg: cs.backgroundColor, fg: cs.color, padding: { top: cs.paddingTop, bottom: cs.paddingBottom }, height: s.getBoundingClientRect().height, heading: h ? { fontFamily: getComputedStyle(h).fontFamily, fontWeight: getComputedStyle(h).fontWeight, fontSize: getComputedStyle(h).fontSize, letterSpacing: getComputedStyle(h).letterSpacing, textAlign: getComputedStyle(h).textAlign } : null, body: p ? { fontFamily: getComputedStyle(p).fontFamily, fontSize: getComputedStyle(p).fontSize, letterSpacing: getComputedStyle(p).letterSpacing, lineHeight: getComputedStyle(p).lineHeight } : null, button: btn ? { classes: btn.className.toString(), bg: getComputedStyle(btn).backgroundColor, color: getComputedStyle(btn).color, borderRadius: getComputedStyle(btn).borderRadius, padding: getComputedStyle(btn).padding } : null, images: imgs.slice(0, 10).map(img => { const ics = getComputedStyle(img); const ir = img.getBoundingClientRect(); const parent = img.parentElement; const pr = parent.getBoundingClientRect(); const pcs = getComputedStyle(parent); return { src: img.src.split('/').pop().split('?')[0], alt: (img.alt || '').substring(0, 40), imgWidth: Math.round(ir.width), imgHeight: Math.round(ir.height), containerWidth: Math.round(pr.width), containerHeight: Math.round(pr.height), objectFit: ics.objectFit, objectPosition: ics.objectPosition, aspectRatio: pcs.aspectRatio, overflow: pcs.overflow }; }), liquidErrors: s.innerHTML.includes('Liquid error'), boundingBoxes: (() => { const sectionRect = s.getBoundingClientRect(); const els = dqAll(s, 'h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]'); return els.slice(0, 20).map(el => { const r = el.getBoundingClientRect(); return { tag: el.tagName, classes: el.className.toString().substring(0, 60), text: el.textContent ? el.textContent.trim().substring(0, 30) : null, x: Math.round(r.x), relativeY: Math.round(r.y - sectionRect.y), width: Math.round(r.width), height: Math.round(r.height) }; }); })() }); }"
+```
+
+Replace `<selector>` and `<N>` with actual values. Save the result as `<output>/<breakpoint>.styles.json`.
+
+Run this for each breakpoint (resize viewport, navigate, scroll, then extract).
+
+---
+
+## Path B: gstack browse (fallback)
+
+Use this path only when Playwright MCP is not available.
+
+### Step 2B: Navigate + Wait for Load
 
 **CRITICAL: Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout and will shut down during shell sleeps. Use JS `Promise` with `setTimeout` for all waits:
-```js
-$B js "new Promise(function(r){setTimeout(function(){r('waited')},3000)})"
-```
 
 **For all URLs:**
 
@@ -81,15 +208,24 @@ B=<path> && $B goto "<url>" && \
 $B js "new Promise(function(r){setTimeout(function(){r('page loaded')},3000)})"
 ```
 
-**For dev site URLs** (`127.0.0.1` or `localhost`), you can optionally use `$B wait --networkidle` after the initial wait. Dev sites don't have third-party scripts that break networkidle.
+**For dev site URLs** (`127.0.0.1` or `localhost`), you can optionally use `$B wait --networkidle` after the initial wait.
 
-### Step 3: Scroll to Section + Dismiss Popups
+### Step 3B: Scroll to Section + Dismiss Popups
 
 **Scroll first, THEN dismiss.** Many popups (especially Attentive/`attn.tv`) are scroll-triggered — they don't exist in the DOM until you scroll. Dismissing before scroll misses them.
 
 **Popup dismissal JS** (assign to a shell variable for reuse):
 ```bash
-DISMISS='document.querySelectorAll("[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.klaviyo-close-form,.privy-popup,[class*=cookie],[data-testid*=popup],iframe[src*=klaviyo],iframe[src*=\"attn.tv\"],iframe[src*=attentive]").forEach(function(el){el.parentElement&&el.parentElement.tagName!=="BODY"?el.parentElement.remove():el.remove()});document.querySelectorAll("script[src*=klaviyo],script[src*=privy],script[src*=attentive]").forEach(function(el){el.remove()});document.body.style.overflow="auto"'
+DISMISS='var c=0;document.querySelectorAll("iframe[src*=\"attn.tv\"],iframe[src*=attentive],iframe[src*=klaviyo]").forEach(function(el){var p=el.parentElement;if(p&&p.tagName!=="BODY"&&p.tagName!=="HTML"){p.remove()}else{el.remove()}c++});document.querySelectorAll(".klaviyo-form,.klaviyo-close-form,.privy-popup,[data-testid*=popup]").forEach(function(el){el.remove();c++});document.querySelectorAll("script[src*=attentive],script[src*=klaviyo],script[src*=privy]").forEach(function(el){el.remove();c++});document.body.style.overflow="auto";"dismissed "+c'
+```
+
+**IMPORTANT: Do NOT use `[class*=overlay]` in the dismiss selector.** This is too aggressive and matches legitimate page elements (footer backgrounds, image overlays, header transparency). Only target specific popup providers by name/src.
+
+**If `--section` is a CSS selector:**
+```bash
+$B js "document.querySelector('<selector>').scrollIntoView({block:'start'})" && \
+$B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + popups')},2000)})" && \
+$B js "$DISMISS"
 ```
 
 **If `--section` is a numeric index:**
@@ -99,25 +235,16 @@ $B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + p
 $B js "$DISMISS"
 ```
 
-**If `--section` is a CSS selector:**
-```bash
-$B js "document.querySelector('<selector>').scrollIntoView({block:'start'})" && \
-$B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + popups')},2000)})" && \
-$B js "$DISMISS"
-```
-
 **Only dismiss on live site URLs** (skip the `$B js "$DISMISS"` line if URL contains `127.0.0.1` or `localhost`).
 
-### Step 4: Capture All Three Breakpoints
+### Step 4B: Capture All Three Breakpoints
 
-**IMPORTANT:** Steps 2-4 must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
-
-**Full command for each breakpoint** (run one complete Bash call per breakpoint).
+**IMPORTANT:** Steps 2B-4B must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
 
 #### Desktop (1280px):
 ```bash
 B=<path> && \
-DISMISS='<dismiss JS from Step 3>' && \
+DISMISS='<dismiss JS from Step 3B>' && \
 $B goto "<url>" && \
 $B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
 $B js "<scroll_command>" && \
@@ -136,7 +263,7 @@ If blank or broken, retry the entire command once. If still blank: **FAIL** with
 #### Tablet (768px):
 ```bash
 B=<path> && \
-DISMISS='<dismiss JS from Step 3>' && \
+DISMISS='<dismiss JS from Step 3B>' && \
 $B goto "<url>?viewport=768" && \
 $B js "Object.defineProperty(window,'innerWidth',{value:768,writable:true});Object.defineProperty(window,'innerHeight',{value:1024,writable:true});window.dispatchEvent(new Event('resize'))" && \
 $B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
@@ -149,7 +276,7 @@ $B screenshot "<selector_or_--viewport>" <output>/tablet.png
 #### Mobile (375px):
 ```bash
 B=<path> && \
-DISMISS='<dismiss JS from Step 3>' && \
+DISMISS='<dismiss JS from Step 3B>' && \
 $B goto "<url>?viewport=375" && \
 $B js "Object.defineProperty(window,'innerWidth',{value:375,writable:true});Object.defineProperty(window,'innerHeight',{value:812,writable:true});window.dispatchEvent(new Event('resize'))" && \
 $B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
@@ -163,7 +290,7 @@ $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 - If `--section` is a CSS selector: `$B screenshot "<selector>" <output>/<breakpoint>.png`
 - If `--section` is a numeric index: after scrolling to section, use `$B screenshot --viewport <output>/<breakpoint>.png`
 
-### Step 5: Extract Computed Styles (if `--extract-styles`)
+### Step 5B: Extract Computed Styles (if `--extract-styles`)
 
 For each breakpoint, after the screenshot, run the extraction script in the same Bash call (page is still loaded).
 
@@ -275,7 +402,11 @@ Save the output as `<output>/<breakpoint>.styles.json`.
 
 **Why file-based:** The extraction script is ~80 lines of JS. Passing it as a shell string causes escaping issues (quotes inside quotes, backslashes, regex). Writing to a file and reading it back avoids all shell escaping problems.
 
-### Step 6: Store Reference (if `--reference`)
+---
+
+## Step 6: Store Reference (if `--reference`)
+
+This step is the same for both paths.
 
 ```bash
 mkdir -p .theme-forge/references/<name>/
@@ -296,7 +427,8 @@ Write `meta.json`:
 {
   "captured_at": "<current ISO timestamp>",
   "url": "<url>",
-  "selector": "<selector>"
+  "selector": "<selector>",
+  "browser_tool": "<playwright|gstack>"
 }
 ```
 
@@ -339,4 +471,10 @@ This overwrites the stored reference. No automatic staleness detection.
 
 ## Fallback: No Browse Tool
 
-If no browse tool is available, capture cannot run. pull-section falls back to code-only analysis with `status: "completed_code_only"` in the report. This is explicitly a degraded mode — the user should install a browse tool for real visual comparison.
+If no browser tool is available, capture cannot run. pull-section falls back to code-only analysis with `status: "completed_code_only"` in the report. This is explicitly a degraded mode — the user should install Playwright MCP:
+
+```bash
+claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors
+```
+
+Then restart the conversation.
