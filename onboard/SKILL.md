@@ -177,32 +177,38 @@ Note: A full base theme export is no longer needed. Sessions pull just what they
 
 ### Step 4: Detect Dev Server
 
-Check if `shopify theme dev` is already running:
+A dev server on port 9292 might belong to a different project. Do NOT assume any running server is for this theme.
+
+**Find the right port:**
+
+Scan common ports (9292-9295) for a Shopify dev server serving THIS theme:
 
 ```bash
-lsof -i :9292 -sTCP:LISTEN 2>/dev/null | head -5
+for port in 9292 9293 9294 9295; do
+  if lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
+    echo "Port $port: occupied"
+  else
+    echo "Port $port: available"
+  fi
+done
 ```
 
-**If a process is listening on 9292:**
-- Verify it responds: `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9292`
-- If 200 or 3xx → set `dev_url: "http://127.0.0.1:9292"` in config
-- Tell the user: "Detected dev server running at http://127.0.0.1:9292"
+**If all common ports are occupied**, pick the first available port starting at 9292.
 
-**If nothing on 9292**, try common alternative ports (9293, 9294):
-```bash
-lsof -i :9293 -sTCP:LISTEN 2>/dev/null | head -1
-lsof -i :9294 -sTCP:LISTEN 2>/dev/null | head -1
-```
+**Set `dev_url: null` in config** (no dev server is running for this theme yet) and tell the user:
 
-**If no dev server found:**
-- Set `dev_url: null` in config
-- Tell the user:
-
-> No dev server detected. You can start one in a separate terminal:
+> No dev server running for this theme yet. Start one in a separate terminal:
 > ```
-> shopify theme dev --store <dev_store> --theme <target_theme_id>
+> shopify theme dev --store <dev_store> --theme <target_theme_id> --port <first_available_port>
 > ```
 > theme-forge will detect it automatically on the next pull-section run.
+> Use `--port` if the default 9292 is already taken by another project.
+
+**If the user says a dev server IS running for this theme**, ask which port and verify:
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:<port>
+```
+If it responds, set `dev_url: "http://127.0.0.1:<port>"` in config.
 
 ### Step 5: Write Config
 
