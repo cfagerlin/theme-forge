@@ -26,7 +26,9 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
    git commit -m "pull: footer — completed"
    git push
    ```
-5. **Additional footer-specific checks:**
+5. **⛔ MERGE POINT after both header + footer are done.** These shared sections appear on every page. Tell the user:
+   > **Header and footer are done. Merge this branch to main before starting page pulls.** Every page branch needs header/footer as its baseline. Without this merge, parallel page sessions will be missing the header and footer.
+6. **Additional footer-specific checks:**
    - Multi-column link layout
    - Newsletter signup form
    - Social media icons

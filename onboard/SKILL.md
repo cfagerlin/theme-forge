@@ -306,7 +306,7 @@ Create `.theme-forge/learnings.json`:
    Do NOT gitignore all of `.theme-forge/`. Config, mappings, reports, learnings, and mapping rules must be committed so parallel sessions share them.
 5. Print a summary of the configuration
 
-### Step 7: Commit + Suggest Next Step
+### Step 7: Commit + Merge to Main
 
 Commit the onboarding artifacts:
 
@@ -320,11 +320,20 @@ git commit -m "theme-forge: onboard project"
 git push
 ```
 
+**⛔ MERGE POINT: Merge to main before proceeding.** The base theme import + onboard config is the foundation every future branch starts from. Without this on main, parallel sessions have no shared baseline.
+
 Tell the user:
-- Run `/theme-forge pull-page index` to start pulling the homepage (scan + map happens automatically)
-- Or run `/theme-forge scan` to inventory the full site first
+
+> **Action needed: merge this branch to main.** The base theme + config must be on main so future work (scan, header, pages) branches from a correct starting point. Create a PR and merge it now, or I can merge directly if you prefer.
+
+Wait for the user to confirm the merge before suggesting next steps.
+
+### Step 8: Suggest Next Step
+
+Tell the user:
+- Run `/theme-forge scan` to inventory the full site and apply global settings
+- Or run `/theme-forge pull-page index` to start pulling the homepage (scan + map happens automatically)
 - Or run `/theme-forge pull-section <name>` to start pulling immediately (will auto-map first)
-- **For parallel sessions:** Open additional sessions and run `/theme-forge pull-page <page>` in each. Each session is self-sufficient after onboarding.
 
 ## Output
 
