@@ -23,29 +23,40 @@ Defaults to `index` (homepage) if omitted.
 
 ## Workflow
 
-### Step -1: Base Theme Freshness Check
+### Step -1: Git Pull + Globals Check
 
-Before any work, verify the base theme export is current:
+1. **`git pull`** to get the latest committed state from the repo.
+2. **Check globals:** Look for `.theme-forge/reports/sections/header.json` and `footer.json` with `status: "completed"`. If both exist, globals are done. If not, ask: "Header/footer haven't been pulled yet. Run them now before starting page sections?" If yes, run `pull-header` and `pull-footer`, commit changes, and push.
+3. **Read global standards:** Load `.theme-forge/mapping-rules.json`, `.theme-forge/learnings.json`, and `.theme-forge/conventions.json` (if they exist).
 
-1. Read `base_theme_exported_at` from `.theme-forge/config.json`. If it's more than 24 hours old, warn the user:
-   > "The base theme export is from {date} ({N days ago}). The live site may have changed since then. Content like hero headlines, section ordering, and settings are stored in Shopify and update independently of theme code."
-   >
-   > A) Re-export the base theme now (`shopify theme pull --store <store> --theme <live_theme_id> --path <base_theme_path>`)
-   > B) Continue with the existing export (I know it's current)
+### Step 0: Targeted Base Pull
 
-2. If `base_theme_exported_at` is missing from config (older project), check file timestamps:
-   ```bash
-   stat -f "%Sm" -t "%Y-%m-%dT%H:%M:%S" <base_theme_path>/config/settings_data.json
-   ```
-   If older than 24 hours, show the same warning.
+Pull just templates and settings from the live theme (~5 seconds, always fresh):
 
-3. If the user chooses A, re-export and update `base_theme_exported_at` in config.
+```bash
+shopify theme pull --theme <live_theme_id> \
+  --only templates/ --only config/ \
+  --path .theme-forge/base-cache/
+```
 
-### Step 0: Global Settings (first run only)
+The `live_theme_id` comes from `.theme-forge/config.json`. The base-cache directory is gitignored (session-local).
+
+### Step 0.3: Scoped Scan + Map
+
+Check if `.theme-forge/mappings/pages/{page}.json` exists. If not, run a scoped scan:
+
+1. Read `templates/{page}.json` from the target theme
+2. Read `templates/{page}.json` from `.theme-forge/base-cache/`
+3. Cross-reference sections, applying rules from `.theme-forge/mapping-rules.json`
+4. Write `mappings/pages/{page}.json` and `mappings/sections/*.json` for each new section
+5. Add any new mapping rules to `mapping-rules.json`
+6. Commit the mappings and push
+
+### Step 0.5: Global Settings (first run only)
 
 Before pulling any sections, verify that global theme settings are correct. These affect every section and must be set first:
 
-1. **Logo**: Check `settings_data.json` for the logo image field. Copy the logo reference from the base theme's `settings_data.json`. If the field name differs between themes, find the equivalent field in the target theme's `config/settings_schema.json`.
+1. **Logo**: Check `settings_data.json` for the logo image field. Copy the logo reference from the base theme's `settings_data.json` (in `.theme-forge/base-cache/config/settings_data.json`). If the field name differs between themes, find the equivalent field in the target theme's `config/settings_schema.json`.
 2. **Favicon**: Extract the favicon from the live site's HTML using the browse tool:
    ```javascript
    document.querySelector('link[rel="icon"], link[rel="shortcut icon"]')?.href
@@ -55,11 +66,11 @@ Before pulling any sections, verify that global theme settings are correct. Thes
 4. **Global color schemes**: Read the live site's color schemes from `settings_data.json`. For each scheme used by sections on this page, ensure a matching scheme exists in the target theme (matched by RGB values, not by name). Create new named schemes if needed.
 5. **Body text size**: Compare the base paragraph font size between themes. Set the target's paragraph size setting to match.
 
-**IMAGE SOURCING RULE**: Images do NOT need to be uploaded or set via the Shopify admin. The store's images already exist on Shopify's CDN. Copy image references (`shopify://shop_images/filename.ext`) from the **base theme's** `config/settings_data.json` to the **target theme's** `config/settings_data.json`. These URLs resolve to the store's CDN automatically — they work in any theme on the same store. **Never tell the user images need to be uploaded manually.** If an image shows a placeholder, go back and copy the correct URL from the base theme.
+**IMAGE SOURCING RULE**: Images do NOT need to be uploaded or set via the Shopify admin. The store's images already exist on Shopify's CDN. Copy image references (`shopify://shop_images/filename.ext`) from the **base theme's** `config/settings_data.json` (`.theme-forge/base-cache/config/settings_data.json`) to the **target theme's** `config/settings_data.json`. These URLs resolve to the store's CDN automatically — they work in any theme on the same store. **Never tell the user images need to be uploaded manually.** If an image shows a placeholder, go back and copy the correct URL from the base theme.
 
 **Save global settings locally** — write the updated `settings_data.json` to the target theme directory. If `shopify theme dev` is running, it will hot-reload the changes automatically. **Do NOT run `shopify theme push`** — all changes stay local until the user explicitly approves a push. The dev preview server (`shopify theme dev`) serves files from the local directory, so pushing is unnecessary for development work.
 
-### Step 0.5: Verify Browse Tool
+### Step 0.6: Verify Browse Tool
 
 Before pulling any sections, verify the browse tool is available. **The browse tool is a CLI binary you run via Bash — it is NOT a named tool in your tool list.** You will not see "browse" listed in your tools. That's normal.
 
@@ -75,21 +86,24 @@ B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE 
 
 **Do NOT attempt visual verification with curl, WebFetch, or other non-browse tools.** These return HTML/markdown, not rendered pages.
 
+### Step 0.8: Start Dev Server
+
+Start the Shopify dev server with a page-specific environment and unique port:
+
+```bash
+shopify theme dev --environment page-{page} --port {port} --path . &
+```
+
+Port assignment: 9292 for index, 9293 for product, 9294 for collection, etc. The `--environment` flag gives each session its own development theme on the Shopify store, preventing conflicts between parallel sessions.
+
+Wait for the dev server to print its preview URL before proceeding. The dev server runs in the background for the duration of the session and hot-reloads local file changes automatically.
+
 ### Step 1: Parse Template
 
 1. Load config and read the page's template JSON from the **target theme** (since we're modifying the target)
-2. Cross-reference with the **base theme's** template to identify the source section for each. **IMPORTANT**: Use only the active template file (e.g., `templates/index.json`), never alternate templates like `index.sl-*.json` or `index.*.json`. The base theme export may contain dozens of old/unused alternate templates with stale content. The active template is the one without a suffix, or the one referenced in `config/settings_data.json`.
+2. Cross-reference with the **base theme's** template (in `.theme-forge/base-cache/`) to identify the source section for each. **IMPORTANT**: Use only the active template file (e.g., `templates/index.json`), never alternate templates like `index.sl-*.json` or `index.*.json`. The base theme export may contain dozens of old/unused alternate templates with stale content. The active template is the one without a suffix, or the one referenced in `config/settings_data.json`.
 3. **Content comes from `settings_data.json`**: Many themes store section content (headlines, descriptions, button text) in `config/settings_data.json` under the section's key, not in the template JSON. Always check `settings_data.json` first for content values. The template JSON defines structure; `settings_data.json` defines content.
-4. If a page mapping exists at `.theme-forge/mappings/pages/{page-path}.json`, use it for ordering
-
-### Step 1.5: Find CSS Loading Mechanism
-
-Before pulling sections, identify how the target theme loads CSS:
-1. Search for the stylesheets snippet (e.g., `snippets/stylesheets.liquid`)
-2. Check `layout/theme.liquid` for stylesheet loading patterns
-3. Record the path where a custom CSS file can be added (e.g., add `{{ 'custom-migration.css' | asset_url | stylesheet_tag }}` to the stylesheets snippet)
-
-You will need this when sections require CSS overrides that can't be achieved through JSON settings alone. Finding it now saves time later.
+4. Use the page mapping at `.theme-forge/mappings/pages/{page-path}.json` for ordering (created during scoped scan in Step 0.3)
 
 ### Step 2: Determine Section Order
 
@@ -105,10 +119,22 @@ Within each group, maintain the top-to-bottom page order.
 
 For each section:
 
-1. Check if a report already exists at `.theme-forge/reports/sections/{section-type}.json`
-   - If yes and `status` is `complete`, skip (unless `--force`)
-2. Run `pull-section` on it. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
-3. After each section completes, log progress
+1. **`git pull`** to get the latest state (another session may have completed sections since we started)
+2. Check if a report already exists at `.theme-forge/reports/sections/{section-type}.json`
+   - If yes and `status` is `completed` or `completed_code_only`, skip
+   - If yes and `status` is `failed`, skip (use `--retry-failed` to delete failed reports first)
+   - If yes and `status` is `skipped`, skip
+3. Run `pull-section` on it. **Pass `--css-file assets/custom-migration-{page}.css`** so CSS overrides go to the per-page file. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
+4. After each section completes, **commit and push**:
+   ```bash
+   git add .theme-forge/reports/sections/{section}.json \
+           .theme-forge/learnings.json \
+           .theme-forge/mapping-rules.json \
+           sections/ templates/ assets/ snippets/ config/
+   git commit -m "pull: {section} on {page} — completed"
+   git push
+   ```
+   This makes the completion visible to other sessions immediately.
 
 ### Step 4: Full-Page Comparison
 
@@ -164,9 +190,20 @@ CUTOVER ITEMS (2):
 Run /theme-forge cutover for the full checklist.
 ```
 
+### Step 6: Final Commit + Push
+
+Commit the page report and any remaining changes:
+
+```bash
+git add .theme-forge/reports/pages/{page}.json \
+        .theme-forge/cutover.json
+git commit -m "pull: {page} page complete — {N} sections pulled"
+git push
+```
+
 ## Output
 
-- `.theme-forge/reports/pages/{page-path}.json` — Page pull report
-- Individual section reports in `.theme-forge/reports/sections/`
+- `.theme-forge/reports/pages/{page-path}.json` — Page pull report (committed)
+- Individual section reports in `.theme-forge/reports/sections/` (committed after each section)
 - `.theme-forge/cutover.json` — Running cutover checklist (appended to)
-- Modified target theme files
+- Modified target theme files (committed after each section)

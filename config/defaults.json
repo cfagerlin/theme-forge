@@ -1,12 +1,11 @@
 {
-  "version": "0.5.0",
+  "version": "0.7.0",
   "live_url": "",
-  "base_theme": "",
   "target_theme": ".",
   "target_type": "auto",
   "dev_store": "",
-  "dev_url": "",
   "extension_prefix": "custom-",
+  "live_theme_id": null,
   "capabilities": {
     "browse": false,
     "browse_method": null,
