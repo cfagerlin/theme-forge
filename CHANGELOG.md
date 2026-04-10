@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.2 — 2026-04-10
+
+**Tool-enforced compliance gates.** The agent can no longer skip screenshots, accept variances, or declare completion without user confirmation. Based on architectural review comparing theme-forge's text-based enforcement with gstack's tool-gated enforcement model.
+
+- **AskUserQuestion gates in pull-section**: Three mandatory tool-enforced stops:
+  - Step 4.4: User confirms captures look correct before code changes begin
+  - Step 8 escalation: After 2 failed fix attempts, user must choose next action (no silent acceptance)
+  - Step 10.5: User approves final result before section is marked complete
+- **Escalation protocol**: Agent MUST escalate to user after 2 failed attempts. Only the user can approve a variance (`user_approved: true`). Agent cannot set this flag itself.
+- **Report quality validation in pull-page**: After each section, pull-page validates the report (non-empty files_modified, non-empty screenshots, variance math, user-approved acceptances). Flags failures via AskUserQuestion.
+- **Batch mode auto-proceed**: In pull-page or --full runs, AskUserQuestion gates auto-select the default option and log the decision. User can review batch-approved sections in the page report.
+
 ## 0.8.1 — 2026-04-10
 
 **First-run fixes from real onboarding + pull session.**

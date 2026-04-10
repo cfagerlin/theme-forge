@@ -86,6 +86,159 @@ Compare theme-level settings between base and target:
 3. **Spacing** — Padding/margin conventions, responsive breakpoints
 4. **Features** — Theme-level features that exist in base but not target (e.g., announcement bar variants, mega-menu styles)
 
+### Step 5.5: Build Global Settings Map
+
+Cross-reference the global theme settings between base and target. This map is used by every pull-section to translate settings without rediscovering mappings.
+
+For each category, compare the base theme's `settings_schema.json` + `settings_data.json` against the target theme's equivalents:
+
+1. **Typography** — Map font family settings, weight settings, size settings, letter-spacing, line-height.
+   - Resolve the base theme's current values (e.g., `type_heading_font` → `Spectral`, weight `200`, letter-spacing `-0.02em`)
+   - Find the target theme's equivalent settings (may use different names, e.g., `--font-heading-family`, `--font-heading--weight`)
+   - Record both the setting key mapping AND the resolved values
+
+2. **Colors** — Map color settings, color schemes, named colors.
+   - For each base theme color, find the closest target theme color scheme or custom property
+   - Record hex values for both so sections can match by value, not just name
+   - Map base theme background + text color pairs to target theme color schemes
+
+3. **Spacing** — Map padding/margin conventions, section spacing settings.
+   - Record base theme section padding defaults and target theme equivalents
+
+4. **Features** — Map theme-level toggles (e.g., `show_announcement_bar`, `enable_sticky_header`)
+
+Save to `.theme-forge/settings-map.json`:
+
+```json
+{
+  "generated_at": "<ISO timestamp>",
+  "typography": {
+    "heading_font": {
+      "base_setting": "type_heading_font",
+      "base_value": "Spectral",
+      "target_setting": "--font-heading-family",
+      "target_value": "var(--font-heading-family)",
+      "notes": "Set via theme editor Typography > Headings"
+    },
+    "heading_weight": {
+      "base_setting": "heading_font_weight",
+      "base_value": "200",
+      "target_setting": "--font-heading--weight",
+      "target_value": "400",
+      "override_needed": true,
+      "notes": "Target defaults to 400, base uses 200. CSS override required."
+    },
+    "heading_letter_spacing": {
+      "base_setting": "heading_letter_spacing",
+      "base_value": "-0.02em",
+      "target_setting": "heading_letter_spacing",
+      "target_value": "0.06em",
+      "override_needed": true
+    }
+  },
+  "colors": {
+    "schemes": [
+      {
+        "base_bg": "#ffffff",
+        "base_text": "#333333",
+        "target_scheme": "scheme-1",
+        "target_bg": "#ffffff",
+        "target_text": "#121212",
+        "notes": "Default light scheme. Text color differs — CSS override needed."
+      },
+      {
+        "base_bg": "#4c544c",
+        "base_text": "#ffffff",
+        "target_scheme": "scheme-3",
+        "target_bg": "#4c544c",
+        "target_text": "#ffffff",
+        "notes": "Dark green scheme. Exact match."
+      }
+    ],
+    "named_colors": {
+      "base_primary": "#614731",
+      "target_closest": "--color-accent",
+      "target_value": "#614731"
+    }
+  },
+  "spacing": {
+    "section_padding_top": { "base_default": "36px", "target_default": "40px", "override_needed": true },
+    "section_padding_bottom": { "base_default": "36px", "target_default": "40px", "override_needed": true }
+  },
+  "features": {
+    "sticky_header": { "base": true, "target": true, "setting": "header_sticky" },
+    "announcement_bar": { "base": true, "target": true, "setting": "announcement_bar_enabled" }
+  }
+}
+```
+
+### Step 5.6: Build CSS Class Map
+
+Cross-reference CSS classes, custom properties, and component patterns between the two themes. This prevents every pull-section from independently rediscovering that base `.btn` maps to target `.button`.
+
+**Method:**
+
+1. **Extract base theme classes** — Parse all `sections/*.liquid` and `assets/*.css` files. Collect every CSS class used in HTML (`class="..."`) and defined in stylesheets (`.class-name { ... }`).
+
+2. **Extract target theme classes** — Same for the target theme. For Shadow DOM themes (Horizon), also check web component template HTML inside `<template>` tags and any `adoptedStyleSheets` in JS.
+
+3. **Cross-reference** — For each major base theme class, find the target theme equivalent by:
+   - Name similarity (e.g., `.btn` → `.button`, `.heading` → `h2`)
+   - Functional equivalence (e.g., both are CTA buttons, both are grid containers)
+   - DOM role (e.g., both are the primary product image container)
+
+4. **Custom properties** — Map CSS custom properties (`--var-name`) between themes. These are especially important for Horizon which uses custom properties heavily.
+
+5. **Component patterns** — Map higher-level patterns (e.g., "slider with Flickity" → "slider with `<slide-show>` web component").
+
+Save to `.theme-forge/class-map.json`:
+
+```json
+{
+  "generated_at": "<ISO timestamp>",
+  "classes": {
+    "buttons": {
+      ".btn": ".button",
+      ".btn--primary": ".button--primary",
+      ".btn--secondary": ".button--secondary",
+      ".btn--outline": ".button--outline"
+    },
+    "typography": {
+      ".heading": "h2 (no wrapper class)",
+      ".subheading": ".subtitle",
+      ".rte": ".rich-text__content"
+    },
+    "layout": {
+      ".grid": ".grid",
+      ".grid__item": ".grid > *",
+      ".container": ".page-width",
+      ".row": ".grid"
+    },
+    "sections": {
+      ".shopify-section": ".shopify-section (same)",
+      ".section-header": "section heading inside Shadow DOM"
+    }
+  },
+  "custom_properties": {
+    "--color-primary": "--color-foreground",
+    "--color-secondary": "--color-accent",
+    "--color-bg": "--color-background",
+    "--font-heading": "--font-heading-family",
+    "--font-body": "--font-body-family",
+    "--spacing-section": "--section-padding"
+  },
+  "component_patterns": {
+    "flickity-slider": "<slide-show> web component with Declarative Shadow DOM",
+    "jquery-accordion": "<details>/<summary> native HTML",
+    "modal-popup": "<dialog> element or <modal-opener>/<modal-dialog> components",
+    "tabs-widget": "<tab-group> web component"
+  },
+  "shadow_dom_notes": "Horizon uses Declarative Shadow DOM. Sections render inside shadow roots. querySelector() won't penetrate — use deepQuery (dq/dqAll) from the capture skill. Classes inside shadow roots are scoped and not accessible from outside."
+}
+```
+
+**This map is committed to git** so all parallel sessions share it.
+
 ### Step 6: Generate Migration Plan
 
 Create a prioritized plan:
@@ -137,7 +290,67 @@ Create a prioritized plan:
 Save to `.theme-forge/`:
 
 1. `site-inventory.json` — Full inventory of both themes
-2. `plan.json` — Migration plan with phases and effort estimates
+2. `settings-map.json` — Global settings cross-reference (typography, colors, spacing, features)
+3. `class-map.json` — CSS class, custom property, and component pattern cross-reference
+4. `plan.json` — Migration plan with phases and effort estimates
+
+Commit all four files to git.
+
+### Step 8: Apply Global Settings (`--apply-globals`)
+
+**This step runs automatically at the end of scan** unless `--no-apply-globals` is passed.
+
+Using the `settings-map.json` generated in Step 5.5, apply the base theme's global settings to the target theme's `config/settings_data.json`. This ensures every section starts from the correct baseline instead of each pull-section overriding the same defaults with CSS `!important`.
+
+**What to apply:**
+
+1. **Typography** — For each typography setting where `override_needed: true`:
+   - Set the target theme's font family, weight, size, letter-spacing to match base values
+   - Use the target theme's setting key from the map (e.g., set `--font-heading--weight` to `200`)
+
+2. **Colors** — For each color scheme mapping:
+   - Set the target theme's color scheme values to match the base theme's colors
+   - Create new color schemes if needed for base colors that don't have a close match
+
+3. **Spacing** — Set section padding defaults to match base theme
+
+4. **Features** — Enable/disable feature toggles to match base theme (sticky header, announcement bar, etc.)
+
+**What NOT to apply:**
+- Section-level settings (those are per-section, handled by pull-section)
+- Content (text, images, links — handled by pull-section)
+- Layout choices that depend on section structure
+
+**After applying, present a summary:**
+
+> **Global settings applied to target theme:**
+> - Typography: heading font set to Spectral 200, letter-spacing -0.02em
+> - Colors: scheme-1 text updated #333 → matches base, scheme-3 created for #4c544c backgrounds
+> - Spacing: section padding set to 36px top/bottom
+> - Features: sticky header enabled, announcement bar enabled
+>
+> {N} settings changed in `config/settings_data.json`.
+
+Commit the changes:
+```bash
+git add config/settings_data.json
+git commit -m "theme-forge: apply global settings from base theme"
+```
+
+### Step 9: Recommend Next Steps
+
+After scan completes, present the recommended workflow:
+
+> **Scan complete.** Here's the recommended order:
+>
+> 1. ~~Apply global settings~~ ✓ Done (fonts, colors, spacing applied)
+> 2. `/theme-forge pull-header` — Pull the site header (appears on every page)
+> 3. `/theme-forge pull-footer` — Pull the site footer (appears on every page)
+> 4. `/theme-forge pull-page index` — Start pulling the homepage
+>
+> Global settings are applied. Header and footer come next because they appear on every page — getting them right first means every subsequent page pull starts from a correct baseline.
+>
+> For parallel sessions: after header/footer are done, open additional sessions and run `/theme-forge pull-page <page>` in each.
 
 ## Output Schema
 

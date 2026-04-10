@@ -13,19 +13,33 @@ Execute the full compare→fix→verify methodology on a single section. This is
 
 These rules are non-negotiable. They override everything else in this document. If you find yourself about to violate one, stop and re-read it.
 
-### Screenshots
+### Screenshots are MANDATORY before code changes
+- **You MUST capture live site screenshots BEFORE making any code changes.** No exceptions. The capture step (Step 4) must run before Steps 5-7. If you skip capture and go straight to code, you are flying blind. STOP and go back.
 - **ALL screenshots are taken by the `capture` skill.** Do not run browse tool commands directly. Invoke `capture/SKILL.md` for every screenshot. This ensures section-scoped capture, proper `wait --networkidle`, popup dismissal, and all three breakpoints (desktop, tablet, mobile).
 - **NEVER take a full-page screenshot.** The capture skill enforces this. If you find yourself writing `$B screenshot` commands directly, stop. Use capture instead.
+- **Live reference screenshots MUST be stored** in `.theme-forge/references/`. If the references directory for this section is empty after Step 4, something went wrong. Fix it before proceeding.
 
 ### Debug mode
 - **`transcript.md` is mandatory.** Write to it incrementally at every step, not at the end. A debug session without a transcript is a failed debug session. Do not skip it.
 - **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
+- **Write transcript FIRST at each step, THEN do the work.** This ensures crashes leave partial transcripts, not empty ones.
+
+### No accepted variances without user approval
+- **You may NEVER mark a variance as "accepted" on your own.** Not for Shadow DOM. Not for "theme limitations." Not for "close approximation." Not for "not a visual difference." If a property differs between live and dev, fix it or escalate to the user.
+- **Escalation uses `AskUserQuestion`** (MCP tool `mcp__conductor__AskUserQuestion`). This is a tool call that blocks your execution until the user responds. It is not optional. After 2 failed fix attempts, you MUST call this tool. See Step 8 escalation protocol.
+- **Only the user can approve a variance.** The report field `user_approved: true` can ONLY be set after the user explicitly selects "Accept this variance" via AskUserQuestion. You cannot set it yourself.
+- **"Shadow DOM prevents CSS override" is almost always wrong.** CSS custom properties (`--var-name`) cascade through Shadow DOM boundaries. If the target theme uses custom properties for a value (font-size, letter-spacing, border-radius, colors), you CAN override it from outside the shadow root. Check the theme's CSS before claiming Shadow DOM blocks the fix.
+- **Height differences are ALWAYS visual.** A 109px height difference (480px vs 371px) is visible. Do not rationalize it as "header offset calculation." Match the live height.
+- **Text alignment differences are ALWAYS visual.** Left-aligned vs centered text is obvious. Match the live alignment.
 
 ### Status honesty
 - **Never mark `final_status: "completed"` when `variances_remaining > 0`.** Use `"incomplete"`.
 - **Never mark `final_status: "completed"` when `files_modified` is empty and variances were found.** That means you did no work.
 - **Never rationalize a variance as "intentional" or "better."** The live site is the spec. Your job is to match it, not improve it.
 - **`variances_found` must equal `variances_fixed + variances_remaining`.** Always.
+
+### Commit after each section
+- **Always commit and push after completing a section.** Code changes, reports, debug artifacts, and learnings must be committed. Uncommitted work is invisible to parallel sessions and lost on crash.
 
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
@@ -324,13 +338,21 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 8. **Always run the extraction script, never skip it.** The JavaScript extraction script (in Step 8 / Rendered Output Validation Checklist) MUST be executed on both live and dev sites. Do not skip it because "the screenshots look close enough." The extraction catches differences invisible in screenshots (1px font-size, letter-spacing, object-position). If the browse tool is available, there is no excuse for not running it.
 
-9. **Never accept a variance without user approval.** You may not mark any difference as "accepted" or "known limitation" or "global theme setting." If a property differs between live and dev, fix it with CSS. If you truly cannot fix it (e.g., Shopify Liquid doesn't support the operation), escalate to the user. Do not silently accept it.
+9. **Never accept a variance without user approval.** You may not mark any difference as "accepted" or "known limitation" or "global theme setting" or "Shadow DOM limitation." If a property differs between live and dev, fix it with CSS. If you truly cannot fix it after trying, escalate to the user and wait for their decision. Do not silently accept it.
+
+   **Common false "limitations" that are actually fixable:**
+   - "Shadow DOM prevents CSS override" → CSS custom properties cascade through Shadow DOM. Override `--var-name` on `:root` or the host element.
+   - "No isolated setting exists" → Add a CSS override with `!important`. You don't need a theme setting for every property.
+   - "Close approximation" → Not good enough. Match the exact value.
+   - "Not a visual difference" → If the numbers differ, it IS visual. A 109px height difference is obvious.
 
 10. **Never rationalize variances as "intentional" or "better."** Common failure modes to watch for:
     - Calling a 128px height difference "intentional because dev accommodates more content" — NO. Match the live site.
     - Calling `object-fit: cover` "better for responsive" when the live site uses `fill` — NO. You are replicating, not redesigning.
     - Claiming a variance "doesn't apply" to the current slide/state — NO. If the mapping says this section maps to that live section, fix it.
     - Marking `final_status: "completed"` with `files_modified: []` and `variances_remaining > 0` — this is **never valid**. If you found variances and modified zero files, you didn't do any work.
+    - Centering text when the live site has it left-aligned (or vice versa) — NO. Text alignment is one of the most visible properties. Match it exactly.
+    - Accepting a shorter/taller section height as "header offset calculation" — NO. If the rendered section is 109px shorter, fix it.
     The live site is the spec. Your job is to match it, not improve it.
 
 11. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
@@ -348,12 +370,23 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 3. Check for existing mapping at `.theme-forge/mappings/sections/{section-name}.json`
    - If missing, run `map-section` first to find the target section and assess compatibility
 4. Load the mapping to determine the approach (JSON-only, JSON+CSS, extension section, custom section)
-5. **Load and apply learnings** from `.theme-forge/learnings.json` (see `references/learnings.md`)
+5. **Load global maps** (generated by scan):
+   - Read `.theme-forge/settings-map.json` — global theme settings cross-reference (typography, colors, spacing). Use this to translate base theme settings to target theme equivalents without guessing.
+   - Read `.theme-forge/class-map.json` — CSS class cross-reference (buttons, typography, layout, custom properties, component patterns). Use this to write correct CSS selectors from the start.
+   - **If either file is missing, STOP and recommend scan first:**
+
+     > **Global maps not found.** Running pull-section without global maps means every section independently rediscovers theme settings and CSS class mappings. This is slower and more error-prone.
+     >
+     > A) Run `/theme-forge scan` first (recommended) — generates global maps and applies global settings (~2 min)
+     > B) Continue without maps — I'll figure it out per-section
+
+     **Wait for the user's choice.** If A, run scan (which includes `--apply-globals`), then resume this pull-section from Step 1. If B, continue without maps.
+6. **Load and apply learnings** from `.theme-forge/learnings.json` (see `references/learnings.md`)
    - Filter to learnings whose trigger matches the current section or has `target_theme`/`universal` scope
    - **List the matching learnings by ID in the transcript** so it's clear which are being applied
    - These MUST be applied proactively in Steps 5, 6, and 7 — before writing code, not after it fails
    - Example: if a learning says the target theme uses `text-wrap: balance` on headings, include `text-wrap: wrap !important` in your FIRST CSS pass — don't wait to discover it again
-6. **Find the target theme's CSS loading mechanism.** Search for how the theme includes stylesheets:
+7. **Find the target theme's CSS loading mechanism.** Search for how the theme includes stylesheets:
    - Check `snippets/stylesheets.liquid` or similar snippet
    - Check `layout/theme.liquid` for `{{ 'base.css' | asset_url | stylesheet_tag }}`
    - Identify where a custom CSS file can be loaded (e.g., add a line to the stylesheets snippet)
@@ -484,7 +517,14 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 ### Step 4: Capture & Compare (all breakpoints)
 
-**CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
+**⛔ BLOCKING GATE: No code changes are allowed until this step completes successfully.**
+
+You MUST have:
+1. Live site screenshots at all 3 breakpoints (stored in `.theme-forge/references/`)
+2. Dev site screenshots at all 3 breakpoints
+3. Visual comparison documented (what looks different?)
+
+If the browse tool is unavailable or crashes, you may proceed with code-only analysis — but you MUST note this in the transcript and set `browse_tool_available: false` in the report. Do NOT silently skip screenshots and pretend you did visual comparison.
 
 **Use the `capture` skill for all screenshots.** Read `capture/SKILL.md` and follow its workflow inline. Do NOT write browse commands directly.
 
@@ -529,6 +569,29 @@ For **desktop, tablet, and mobile**:
 
 These are tracked separately and may require breakpoint-specific CSS overrides (`@media` queries).
 
+#### 4.4 ⛔ USER GATE: Confirm captures before code changes
+
+**This is a tool-enforced gate, not a suggestion.** After completing Steps 4.1-4.3, you MUST present the captures and variance list to the user using `AskUserQuestion` (MCP tool `mcp__conductor__AskUserQuestion`) before proceeding to Step 5.
+
+Present:
+```
+Section: {section-name} on {page}
+
+Live reference (desktop): [Read desktop.png]
+Dev current (desktop):    [Read desktop.png]
+
+Variances found: {count}
+- {variance 1}
+- {variance 2}
+...
+
+A) Proceed to fix these variances
+B) Recapture (screenshots look wrong)
+C) Skip this section
+```
+
+**Do NOT proceed to Step 5 until the user responds.** In batch mode (`pull-page` or `--full`), auto-select A and log "batch mode: auto-proceeding" in the transcript.
+
 ### Step 5: Identify Variances
 
 **ZERO TOLERANCE: Every measurable difference between the live and dev rendering is a defect that MUST be fixed.** There is no category of "acceptable" variance based on size or severity. If it can be measured (font weight, letter spacing, container width, padding, color), it must be corrected. "Could add if needed" is not a valid resolution.
@@ -572,6 +635,11 @@ This is how theme-forge one-shots sections: learnings from prior sections preven
 
 ### Step 6: Apply CSS Overrides
 
+**Before writing any CSS, consult the global maps loaded in Step 1:**
+- Check `class-map.json` for the correct target theme class names (e.g., base `.btn` → target `.button`)
+- Check `settings-map.json` for typography/color overrides already identified (e.g., heading weight 200 vs 400)
+- Check `class-map.json` → `custom_properties` for the correct CSS variable names
+
 For CSS variances, apply fixes in order of preference:
 
 1. **Section's own `{% stylesheet %}` block** — for custom sections we control
@@ -604,7 +672,30 @@ If the variance requires HTML/Liquid changes:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
 4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. If any property differs (font weight, font size, letter spacing, container width, image object-fit, image container size, padding, colors), the fix is NOT complete. Go back and fix it.
-5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
+5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
+
+#### ⛔ Escalation protocol (retries exhausted)
+
+**After 2 failed fix attempts**, you MUST escalate to the user using `AskUserQuestion`. Do NOT silently accept the variance. Do NOT mark it as "accepted" or "theme limitation."
+
+Present via `AskUserQuestion`:
+```
+Section: {section-name} — variance not resolved after {N} attempts
+
+Property: {property name}
+Live: {live value}
+Dev: {dev value}
+Attempted fixes: {list what was tried}
+
+A) Try a different approach (describe what you'd try)
+B) Accept this variance (user approves)
+C) Skip this section entirely
+D) I'll fix it manually — move on
+```
+
+**Only option B creates an accepted variance**, and it sets `user_approved: true` in the report. The agent CANNOT set `user_approved: true` on its own.
+
+If all retries are exhausted without escalation (should not happen), classify the error (see Error Classification) and log as outstanding.
 6. **Capture learnings — on EVERY successful fix, not just retries.**
    After verification passes, review each CSS override or settings change you made. For each fix, ask: *"Would this same issue appear in other sections?"* If yes, write a learning to `.theme-forge/learnings.json`.
 
@@ -718,7 +809,7 @@ Read each screenshot with the Read tool and present them:
 2. Read `.theme-forge/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
 3. Read `.theme-forge/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
 
-Present them with a brief summary:
+Present them via `AskUserQuestion` (tool-enforced gate):
 ```
 Section: {section-name} on {page} — final result
 
@@ -728,11 +819,14 @@ Mobile (375px):   [Read mobile.png]
 
 Delta table: all properties PASS at all breakpoints.
 Files modified: {list}
+Variances fixed: {count}
 
-Any issues with these screenshots?
+A) Looks good — mark as completed
+B) I see an issue — go back to fix (describe what's wrong)
+C) Acceptable — mark as completed with notes
 ```
 
-**Wait for user feedback** if the session is interactive (not a batch `pull-page` or `--full` run). If the user flags an issue, return to Step 6 to fix it. If they confirm it looks good (or don't respond in a batch run), proceed to Step 11.
+**Do NOT proceed to Step 11 until the user responds.** This is the final quality gate. In batch mode (`pull-page` or `--full`), auto-select A and log "batch mode: auto-approved" in the transcript. The user can review batch-approved sections later via the page report.
 
 ### Step 11: Write Report
 
@@ -793,6 +887,23 @@ Save to `.theme-forge/reports/sections/{section-key}.json` (e.g., `featured-coll
 ```
 
 **`outstanding_issues`** should contain ONLY items genuinely blocked by a platform limitation or requiring user decision. If an item is fixable with CSS or JSON, it should not appear here — it should have been fixed. "Could add CSS override" is not an outstanding issue, it's unfinished work.
+
+### Step 12: Commit and Push
+
+**This step is mandatory.** Uncommitted work is invisible to parallel sessions and lost on crash.
+
+```bash
+git add .theme-forge/reports/sections/{section-key}.json \
+        .theme-forge/learnings.json \
+        .theme-forge/mapping-rules.json \
+        .theme-forge/references/ \
+        templates/ sections/ assets/ snippets/ config/ \
+        .theme-forge/debug/
+git commit -m "pull: {section-name} on {page} — {status}"
+git push
+```
+
+Replace `{status}` with the report's `final_status` (e.g., `completed`, `incomplete`, `failed`).
 
 #### Cutover Checklist
 
