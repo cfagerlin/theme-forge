@@ -216,6 +216,11 @@ When the browse binary is not installed and no Playwright MCP tools are availabl
 3. If found in exactly one location, use that
 4. If found in multiple locations, list them and ask which one to work on
 5. If found in a section group (e.g., `footer-group.json`), no `--page` is needed — section groups appear on every page
+6. **If NOT found by target section name**, the user may be referring to a **base/live site section name**. Reverse-lookup:
+   - Search `.theme-forge/mappings/sections/*.json` for any mapping where `base_section` contains the name (e.g., `"base_section": "home_anatomy"` matches "anatomy")
+   - Search `.theme-forge/site-inventory.json` for the base section name in the section list or mapping entries
+   - If a match is found, use the corresponding `target_section` from the mapping and tell the user: "The live site's '{base_name}' section is mapped to '{target_name}' in the target theme. Pulling '{target_name}'."
+   - If no match is found, tell the user the section name wasn't found in either theme and ask for clarification
 
 The page context matters because:
 - The section's **configured settings** (content, colors, padding) live in the template JSON, not the section `.liquid` file
