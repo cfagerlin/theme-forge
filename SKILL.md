@@ -231,11 +231,18 @@ Multiple sessions can work on different pages simultaneously. **Git is the coord
 
 Sessions do NOT need a full base theme export. The agent only needs templates and settings from the live theme for mapping and comparison.
 
+**The base-cache directory must be a git repo** (Shopify CLI requires it):
+
 ```bash
+mkdir -p .theme-forge/base-cache && git -C .theme-forge/base-cache init 2>/dev/null
 shopify theme pull --theme <live_theme_id> \
-  --only templates/ --only config/ \
+  --only 'templates/*' --only 'config/*' \
   --path .theme-forge/base-cache/
 ```
+
+**Note on `--only` patterns:** Use quoted globs (`'templates/*'`), not directory paths (`templates/`). The Shopify CLI `--only` flag uses glob matching, not directory filtering.
+
+**Legacy themes (liquid-only templates):** If the base theme uses `.liquid` templates instead of `.json` templates, the pull will still work — but section composition lives in `config/settings_data.json` under the `current` key, not in template JSON files. See "Legacy Theme Support" in the scan skill.
 
 This takes ~5 seconds and is always fresh. Each session runs it independently. The results are gitignored (session-local).
 

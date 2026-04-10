@@ -24,11 +24,13 @@ Read `.theme-forge/config.json` to get base_theme, target_theme, and target_type
 Parse the base (live/exported) theme:
 
 1. **Layouts** — Read `layout/*.liquid`. List each layout file and what it includes.
-2. **Templates** — Read `templates/*.json` (and any `.liquid` templates). For each template:
+2. **Templates** — Read `templates/*.json` and `templates/*.liquid`. For each template:
    - Record the template name (maps to a page type: `index`, `product`, `collection`, `cart`, `page`, `blog`, `article`, `404`, `search`, `password`, `gift_card`, `customers/*`)
-   - For JSON templates: parse the `sections` and `order` keys to get the section list
-   - Record each section's type (the `type` key) and its configured settings
+   - **JSON templates** (`.json`): parse the `sections` and `order` keys to get the section list. Record each section's `type` key and configured settings.
+   - **Liquid templates** (`.liquid`, legacy themes): sections are NOT listed in the template file. Instead, the section composition lives in `config/settings_data.json` under the `current` key. For each page type, find the corresponding entry and extract the sections from its `content_for_index` or similar keys.
    - Note any template alternates (e.g., `page.bridal.json`)
+
+   **Legacy Theme Detection:** If `templates/index.liquid` exists but `templates/index.json` does not, this is a legacy theme. All section-to-page mappings must come from `config/settings_data.json` → `current` → `content_for_index` (for homepage) and similar keys for other pages. Sections in `settings_data.json` are keyed by a unique ID and have a `type` field pointing to the section file in `sections/`.
 3. **Sections** — Read `sections/*.liquid`. For each:
    - Record section name, schema settings, blocks schema
    - Identify section groups (header-group, footer-group, overlay-group)
