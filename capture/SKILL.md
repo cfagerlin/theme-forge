@@ -14,7 +14,7 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 
 1. **NEVER take a full-page screenshot.** Every screenshot targets a single section. If the section can't be found, FAIL. Do not fall back to full-page.
 2. **ALWAYS capture all three breakpoints.** Desktop (1280), tablet (768), mobile (375). No "desktop only" option.
-3. **ALWAYS use `wait --networkidle`** for page load. Never use `sleep` as a substitute.
+3. **Try `wait --networkidle` first.** If the browse tool crashes or disconnects (`forLoadState`, `Target page, context or browser has been closed`), retry with `sleep 3` instead. Some live sites with aggressive redirects or analytics kill the idle detection.
 4. **ALWAYS verify the desktop screenshot** by reading it with the Read tool after capture. If it's blank or broken, retry once. If still broken, FAIL.
 5. **Follow the exact commands below.** Do not improvise browse tool usage. Do not add extra steps. Do not skip steps.
 
@@ -74,6 +74,14 @@ B=<path> && $B goto "<url>" && $B wait --networkidle
 
 This handles lazy-loaded images, deferred scripts, and Shadow DOM hydration. `wait --networkidle` waits until network activity ceases (15 second timeout).
 
+**If the browse tool crashes** (`forLoadState`, `Target page, context or browser has been closed`, or any exit code 1 during navigation):
+
+```bash
+B=<path> && $B goto "<url>" && sleep 3
+```
+
+This is the fallback. Some live sites with heavy analytics, cookie consent redirects, or bot protection break `--networkidle`. Use `sleep 3` for the rest of this capture run (all breakpoints).
+
 ### Step 3: Dismiss Overlays
 
 **Only for live site URLs** (skip if URL contains `127.0.0.1` or `localhost`):
@@ -100,7 +108,9 @@ The second `wait --networkidle` catches lazy images that load when the section e
 
 **IMPORTANT:** Steps 2-5 must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
 
-**Full command for each breakpoint** (run one complete Bash call per breakpoint):
+**Full command for each breakpoint** (run one complete Bash call per breakpoint).
+
+Use `$B wait --networkidle` if Step 2 succeeded with it. Use `sleep 3` if Step 2 crashed with `--networkidle`.
 
 #### Desktop (1280px):
 ```bash
@@ -212,7 +222,7 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 If the live site changes, the user recaptures manually:
 
 ```
-/theme-forge capture https://gldn.com --section "#shopify-section-hero" --reference hero-index --extract-styles
+/theme-forge capture https://example.com --section "#shopify-section-hero" --reference hero-index --extract-styles
 ```
 
 This overwrites the stored reference. No automatic staleness detection.

@@ -13,15 +13,32 @@ Set up a Shopify theme migration project by collecting configuration and detecti
 
 ### Step 1: Collect Project Info
 
-Ask the user for (or detect from context):
-
-1. **Live site URL** — The production storefront to match (e.g., `https://gldn.com`)
-2. **Dev store** — Shopify dev store domain (e.g., `store.myshopify.com`)
-3. **Extension prefix** — Namespace for custom files (default: `custom-`)
+**Ask one question at a time.** Do not dump all questions at once. Wait for each answer before asking the next. Try to infer values from CLAUDE.md or project files before asking.
 
 Note: A full base theme export is NOT needed. Sessions pull just templates and settings from the live theme on demand (~5 seconds). See Targeted Base Pull in the orchestrator SKILL.md.
 
-If a CLAUDE.md or project instructions file exists in the target theme, try to infer these values before asking.
+**Step 1a: Live site URL**
+
+First, check for any existing project config (CLAUDE.md, package.json, etc.) that might contain the live URL. If found, confirm it:
+
+> I found `https://example.com` in your project config. Is this the live site to match?
+> A) Yes, use that
+> B) No, I'll provide a different URL
+
+If not found, ask:
+
+> What's the production storefront URL I should match? (e.g., `https://example.com`)
+
+**Step 1b: Dev store**
+
+> What's your Shopify dev store domain?
+> (e.g., `my-store.myshopify.com`)
+
+**Step 1c: Extension prefix**
+
+> What namespace prefix should I use for custom files? This keeps your migration files separate from the theme's core files.
+> A) `custom-` (recommended)
+> B) Something else (tell me what prefix)
 
 ### Step 1.5: Set Up Git Repository
 
@@ -158,13 +175,40 @@ If Shopify CLI is available, record the live theme's ID from `shopify theme list
 
 Note: A full base theme export is no longer needed. Sessions pull just what they need (~5 seconds) into the gitignored `.theme-forge/base-cache/` directory.
 
-### Step 4: Detect Dev URL
+### Step 4: Detect Dev Server
 
-If Shopify CLI is available and a dev store is configured:
+A dev server on port 9292 might belong to a different project. Do NOT assume any running server is for this theme.
 
-1. Check if `shopify theme dev` is already running (look for a process or recent port)
-2. If running, capture the dev URL (typically `http://127.0.0.1:9292`)
-3. If not running, note it as unavailable — the user can start it later
+**Find the right port:**
+
+Scan common ports (9292-9295) for a Shopify dev server serving THIS theme:
+
+```bash
+for port in 9292 9293 9294 9295; do
+  if lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
+    echo "Port $port: occupied"
+  else
+    echo "Port $port: available"
+  fi
+done
+```
+
+**If all common ports are occupied**, pick the first available port starting at 9292.
+
+**Set `dev_url: null` in config** (no dev server is running for this theme yet) and tell the user:
+
+> No dev server running for this theme yet. Start one in a separate terminal:
+> ```
+> shopify theme dev --store <dev_store> --theme <target_theme_id> --port <first_available_port>
+> ```
+> theme-forge will detect it automatically on the next pull-section run.
+> Use `--port` if the default 9292 is already taken by another project.
+
+**If the user says a dev server IS running for this theme**, ask which port and verify:
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:<port>
+```
+If it responds, set `dev_url: "http://127.0.0.1:<port>"` in config.
 
 ### Step 5: Write Config
 
@@ -172,7 +216,7 @@ Create `.theme-forge/config.json` in the target theme root:
 
 ```json
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "live_url": "https://example.com",
   "target_theme": ".",
   "target_type": "horizon",
