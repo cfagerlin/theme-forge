@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.4 — 2026-04-10
+
+**Blank capture hard stop + footer group gotchas.** Found when bangalore workspace completed pull-footer with a blank live screenshot and skeleton output — the agent silently continued without ever seeing the live site.
+
+- **Operational rule #11**: Blank live screenshot is a hard stop. Must retry once, then escalate. Never proceed without a valid live baseline.
+- **Gotcha: Blank or white live capture**: Detailed recovery steps (retry with longer wait, try different selector, escalate via AskUserQuestion)
+- **Gotcha: Footer groups have multiple base sections**: Base themes often split footer content across `footer` + `footer_top`. ALL base sections must be mapped and pulled — not just the obvious one.
+
 ## 0.8.3 — 2026-04-10
 
 **Dev server startup in pull-header and pull-footer.** Both skills silently fell back to code-only mode (no visual verification) because they never started a dev server. Only pull-page had a dev server step.
