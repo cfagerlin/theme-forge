@@ -126,11 +126,13 @@ Debug mode is active when ANY of these are true (checked in order):
 
 When debug is active, save a complete transcript and all artifacts so a human or another agent can review what happened without watching the session live.
 
+**CRITICAL: Write to debug files incrementally as you go — NOT all at the end.** The primary value of debug mode is understanding what happened when something goes wrong. If you wait until the end to write everything, a crash or error means zero debug output.
+
 ### Mandatory artifacts
 
 Every debug session MUST produce these files — a session missing any of them is incomplete:
 
-1. **`transcript.md`** — the step-by-step narrative. This is the MOST important artifact. Without it, screenshots and diffs lack context. Write to it incrementally at each step, not all at the end.
+1. **`transcript.md`** — the step-by-step narrative. This is the MOST important artifact. Without it, screenshots and diffs lack context. **Write to it at EVERY step as you complete it.** Append each step's entry immediately after finishing that step, not later.
 2. **`screenshots/step4-live.png`** and **`screenshots/step4-dev.png`** — the "before" state. Without these, you can't see what the section looked like before fixes.
 3. **`screenshots/step8-verify.png`** — the "after" state. Must be a **section-level** screenshot, not full-page.
 4. **`summary.json`** — structured metadata with accurate counts.
@@ -146,6 +148,27 @@ mkdir -p "$DEBUG_DIR/screenshots" "$DEBUG_DIR/diffs"
 ```
 
 Replace `${SECTION_NAME}` with the section's state key (e.g., `featured-collection-1:index`).
+
+**Immediately write the initial transcript entry:**
+
+```bash
+cat > "$DEBUG_DIR/transcript.md" << 'EOF'
+# Pull-Section Debug Transcript
+**Section:** ${SECTION_NAME}
+**Started:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+**Debug dir:** $DEBUG_DIR
+EOF
+```
+
+**Also log errors.** If any command fails (browse tool crash, extraction error, file write error), append the error to the transcript immediately:
+
+```markdown
+### Error at Step N
+**Command:** <the command that failed>
+**Exit code:** <code>
+**Output:** <error output>
+**Recovery:** <what you did instead>
+```
 
 ### What to capture
 
@@ -193,15 +216,15 @@ Replace `${SECTION_NAME}` with the section's state key (e.g., `featured-collecti
 When debug mode is on, copy capture output to `$DEBUG_DIR/screenshots/` for the permanent record:
 
 ```bash
-cp /tmp/capture-live/desktop.png $DEBUG_DIR/screenshots/step4-live.png
-cp /tmp/capture-dev/desktop.png $DEBUG_DIR/screenshots/step4-dev.png
-cp /tmp/capture-verify/desktop.png $DEBUG_DIR/screenshots/step8-verify.png
+cp .theme-forge/tmp/capture-live/desktop.png $DEBUG_DIR/screenshots/step4-live.png
+cp .theme-forge/tmp/capture-dev/desktop.png $DEBUG_DIR/screenshots/step4-dev.png
+cp .theme-forge/tmp/capture-verify/desktop.png $DEBUG_DIR/screenshots/step8-verify.png
 ```
 
 Also copy tablet and mobile screenshots:
 ```bash
-cp /tmp/capture-live/tablet.png $DEBUG_DIR/screenshots/step4-live-tablet.png
-cp /tmp/capture-live/mobile.png $DEBUG_DIR/screenshots/step4-live-mobile.png
+cp .theme-forge/tmp/capture-live/tablet.png $DEBUG_DIR/screenshots/step4-live-tablet.png
+cp .theme-forge/tmp/capture-live/mobile.png $DEBUG_DIR/screenshots/step4-live-mobile.png
 ```
 
 ### Transcript format
@@ -279,7 +302,7 @@ At the end of pull-section, write `$DEBUG_DIR/summary.json`:
 
 ### When NOT in debug mode
 
-When `--debug` is NOT passed, behavior is unchanged. Screenshots go to `/tmp/`, no transcript is written, no debug directory is created. Debug mode has zero overhead when disabled.
+When `--debug` is NOT passed, behavior is unchanged. Screenshots go to `.theme-forge/tmp/`, no transcript is written, no debug directory is created. Debug mode has zero overhead when disabled.
 
 ## Operational Rules
 
@@ -483,7 +506,7 @@ After capture, **read `desktop.png`** with the Read tool. Verify the screenshot 
 Run the capture workflow with `--extract-styles`:
 - URL: the dev server URL (e.g., `http://127.0.0.1:9292`)
 - Section: same selector as live site
-- Output: `/tmp/capture-dev/`
+- Output: `.theme-forge/tmp/capture-dev/`
 
 #### 4.3 Compare at each breakpoint
 
@@ -575,7 +598,7 @@ If the variance requires HTML/Liquid changes:
 
 ### Step 8: Verify the Fix
 
-1. Run the `capture` workflow on the dev URL with `--extract-styles`. Output to `/tmp/capture-verify/`. This produces screenshots at all three breakpoints (desktop, tablet, mobile).
+1. Run the `capture` workflow on the dev URL with `--extract-styles`. Output to `.theme-forge/tmp/capture-verify/`. This produces screenshots at all three breakpoints (desktop, tablet, mobile).
 2. For each breakpoint, read the dev screenshot and compare against the stored live reference in `.theme-forge/references/{section}-{page}/`. The live reference is NOT re-captured.
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
@@ -691,9 +714,9 @@ mobile     | padding top             | 16px          | 16px          | 0        
 
 Read each screenshot with the Read tool and present them:
 
-1. Read `/tmp/capture-verify/desktop.png` — "**Desktop (1280px):**"
-2. Read `/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
-3. Read `/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
+1. Read `.theme-forge/tmp/capture-verify/desktop.png` — "**Desktop (1280px):**"
+2. Read `.theme-forge/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
+3. Read `.theme-forge/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
 
 Present them with a brief summary:
 ```

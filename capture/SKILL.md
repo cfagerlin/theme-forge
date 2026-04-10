@@ -28,7 +28,7 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 - `--section <selector>` — **Required.** One of:
   - CSS selector: `#shopify-section-hero`, `section-hero`, `.shopify-section:nth-child(3)`
   - Numeric index: `0`, `1`, `2` (0-indexed position among `.shopify-section` elements)
-- `--output <dir>` — Output directory (default: `/tmp/capture/`)
+- `--output <dir>` — Output directory (default: `.theme-forge/tmp/capture/`). **Always use `.theme-forge/tmp/` instead of `/tmp/`** — workspace sandboxing may block writes outside the project directory.
 - `--extract-styles` — Run computed style extraction at each breakpoint
 - `--reference <name>` — Store results in `.theme-forge/references/<name>/` (committed to git)
 
@@ -149,21 +149,115 @@ $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 
 ### Step 6: Extract Computed Styles (if `--extract-styles`)
 
-For each breakpoint, after the screenshot, run the extraction script in the same Bash call (page is still loaded):
+For each breakpoint, after the screenshot, run the extraction script in the same Bash call (page is still loaded).
+
+**IMPORTANT: Do NOT pass the extraction script as an inline `$B js "..."` one-liner.** Long inline JS is corrupted by shell escaping (this causes `SyntaxError: Unexpected token 'var'` and similar errors). Instead, write the script to a file first, then execute it:
 
 ```bash
-$B js "JSON.stringify((function(){const s=document.querySelector('<selector>')||document.querySelectorAll('.shopify-section')[<N>];if(!s)return{error:'Section not found'};const cs=getComputedStyle(s);const h=s.querySelector('h1,h2,h3');const p=s.querySelector('p');const btn=s.querySelector('.button,a[class*=button]');return{bg:cs.backgroundColor,fg:cs.color,padding:{top:cs.paddingTop,bottom:cs.paddingBottom},height:s.getBoundingClientRect().height,heading:h?{fontFamily:getComputedStyle(h).fontFamily,fontWeight:getComputedStyle(h).fontWeight,fontSize:getComputedStyle(h).fontSize,letterSpacing:getComputedStyle(h).letterSpacing,textAlign:getComputedStyle(h).textAlign}:null,body:p?{fontFamily:getComputedStyle(p).fontFamily,fontSize:getComputedStyle(p).fontSize,letterSpacing:getComputedStyle(p).letterSpacing,lineHeight:getComputedStyle(p).lineHeight}:null,button:btn?{classes:btn.className,bg:getComputedStyle(btn).backgroundColor,color:getComputedStyle(btn).color,borderRadius:getComputedStyle(btn).borderRadius,padding:getComputedStyle(btn).padding}:null,images:(function(){const imgs=s.querySelectorAll('img');return[...imgs].slice(0,10).map(img=>{const ics=getComputedStyle(img);const ir=img.getBoundingClientRect();const parent=img.parentElement;const pr=parent.getBoundingClientRect();const pcs=getComputedStyle(parent);return{src:img.src.split('/').pop().split('?')[0],alt:(img.alt||'').substring(0,40),imgWidth:Math.round(ir.width),imgHeight:Math.round(ir.height),containerWidth:Math.round(pr.width),containerHeight:Math.round(pr.height),objectFit:ics.objectFit,objectPosition:ics.objectPosition,aspectRatio:pcs.aspectRatio,overflow:pcs.overflow}})})(),liquidErrors:s.innerHTML.includes('Liquid error'),emptyRgb:(s.outerHTML.match(/rgb\\(\\)/g)||[]).length,boundingBoxes:(function(){const sectionRect=s.getBoundingClientRect();const els=s.querySelectorAll('h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]');return[...els].slice(0,20).map(el=>{const r=el.getBoundingClientRect();return{tag:el.tagName,classes:el.className.toString().substring(0,60),text:el.textContent?el.textContent.trim().substring(0,30):null,x:Math.round(r.x),relativeY:Math.round(r.y-sectionRect.y),width:Math.round(r.width),height:Math.round(r.height)}})})()}})())"
+cat > .theme-forge/tmp/extract.js << 'EXTRACTJS'
+(function(){
+  // Deep query — works for both regular DOM and Shadow DOM (Horizon)
+  function dq(root, sel) {
+    let r = root.querySelector(sel);
+    if (r) return r;
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) { r = dq(el.shadowRoot, sel); if (r) return r; }
+    }
+    return null;
+  }
+  function dqAll(root, sel) {
+    let results = [...root.querySelectorAll(sel)];
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) { results = results.concat(dqAll(el.shadowRoot, sel)); }
+    }
+    return results;
+  }
+
+  const s = document.querySelector('<selector>') || document.querySelectorAll('.shopify-section')[<N>];
+  if (!s) return JSON.stringify({error: 'Section not found'});
+
+  const cs = getComputedStyle(s);
+  const h = dq(s, 'h1,h2,h3');
+  const p = dq(s, 'p');
+  const btn = dq(s, '.button,a[class*=button]');
+  const imgs = dqAll(s, 'img');
+
+  return JSON.stringify({
+    bg: cs.backgroundColor,
+    fg: cs.color,
+    padding: { top: cs.paddingTop, bottom: cs.paddingBottom },
+    height: s.getBoundingClientRect().height,
+    heading: h ? {
+      fontFamily: getComputedStyle(h).fontFamily,
+      fontWeight: getComputedStyle(h).fontWeight,
+      fontSize: getComputedStyle(h).fontSize,
+      letterSpacing: getComputedStyle(h).letterSpacing,
+      textAlign: getComputedStyle(h).textAlign
+    } : null,
+    body: p ? {
+      fontFamily: getComputedStyle(p).fontFamily,
+      fontSize: getComputedStyle(p).fontSize,
+      letterSpacing: getComputedStyle(p).letterSpacing,
+      lineHeight: getComputedStyle(p).lineHeight
+    } : null,
+    button: btn ? {
+      classes: btn.className.toString(),
+      bg: getComputedStyle(btn).backgroundColor,
+      color: getComputedStyle(btn).color,
+      borderRadius: getComputedStyle(btn).borderRadius,
+      padding: getComputedStyle(btn).padding
+    } : null,
+    images: imgs.slice(0, 10).map(function(img) {
+      var ics = getComputedStyle(img);
+      var ir = img.getBoundingClientRect();
+      var parent = img.parentElement;
+      var pr = parent.getBoundingClientRect();
+      var pcs = getComputedStyle(parent);
+      return {
+        src: img.src.split('/').pop().split('?')[0],
+        alt: (img.alt || '').substring(0, 40),
+        imgWidth: Math.round(ir.width),
+        imgHeight: Math.round(ir.height),
+        containerWidth: Math.round(pr.width),
+        containerHeight: Math.round(pr.height),
+        objectFit: ics.objectFit,
+        objectPosition: ics.objectPosition,
+        aspectRatio: pcs.aspectRatio,
+        overflow: pcs.overflow
+      };
+    }),
+    liquidErrors: s.innerHTML.includes('Liquid error'),
+    boundingBoxes: (function() {
+      var sectionRect = s.getBoundingClientRect();
+      var els = dqAll(s, 'h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]');
+      return els.slice(0, 20).map(function(el) {
+        var r = el.getBoundingClientRect();
+        return {
+          tag: el.tagName,
+          classes: el.className.toString().substring(0, 60),
+          text: el.textContent ? el.textContent.trim().substring(0, 30) : null,
+          x: Math.round(r.x),
+          relativeY: Math.round(r.y - sectionRect.y),
+          width: Math.round(r.width),
+          height: Math.round(r.height)
+        };
+      });
+    })()
+  });
+})()
+EXTRACTJS
+```
+
+Replace `<selector>` and `<N>` with the actual values before writing the file.
+
+Then execute it:
+```bash
+$B js "$(cat .theme-forge/tmp/extract.js)"
 ```
 
 Save the output as `<output>/<breakpoint>.styles.json`.
 
-**Shadow DOM variant:** If the target theme uses Shadow DOM (Horizon), the extraction script needs `deepQuery` to find elements inside shadow roots. Replace `s.querySelector(...)` calls with:
-
-```javascript
-function dq(root,sel){let r=root.querySelector(sel);if(r)return r;for(const el of root.querySelectorAll('*')){if(el.shadowRoot){r=dq(el.shadowRoot,sel);if(r)return r;}}return null;}
-```
-
-Use `dq(s, 'h1,h2,h3')` instead of `s.querySelector('h1,h2,h3')`.
+**Why file-based:** The extraction script is ~80 lines of JS. Passing it as a shell string causes escaping issues (quotes inside quotes, backslashes, regex). Writing to a file and reading it back avoids all shell escaping problems.
 
 ### Step 7: Store Reference (if `--reference`)
 
@@ -206,7 +300,7 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 
 4.2 Dev site:
   Run capture workflow on dev URL with --extract-styles
-  Output to /tmp/capture-dev/
+  Output to .theme-forge/tmp/capture-dev/
 ```
 
 **Step 8 of pull-section (verify fix):**
