@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.6 — 2026-04-10
+
+**Fix popup blocking and browse daemon crashes on live Shopify sites.** Complete rewrite of capture timing and popup dismissal. Verified working on gldn.com — clean footer capture with full content visible.
+
+Three root causes fixed:
+1. **Shell `sleep` kills the browse daemon.** The daemon has a ~2-3 second idle timeout and shuts down during shell sleeps, producing blank screenshots on subsequent commands. All waits now use JS `Promise`+`setTimeout` to keep the daemon alive.
+2. **Popups are scroll-triggered.** Attentive (`attn.tv`) injects a full-viewport iframe only after the user scrolls. The previous flow dismissed popups before scroll, missing them entirely. Now: scroll first → wait for popup injection → dismiss.
+3. **The popup was Attentive, not Klaviyo.** The dismiss selector list didn't include `iframe[src*="attn.tv"]` or `iframe[src*="attentive"]`. Now targets Klaviyo, Privy, AND Attentive (the three most common Shopify popup providers).
+
+Changes:
+- **Hard rule 3**: Never use shell `sleep` between browse commands — use JS `setTimeout` waits
+- **Hard rule 3b**: Do not use `--networkidle` on live Shopify sites (third-party polling breaks it)
+- **Step 2**: Simplified to navigate + JS wait (no popup dismissal — moved to after scroll)
+- **Step 3**: Scroll to section → JS wait for lazy load + popup injection → dismiss all popups
+- **Dismiss selector**: Added `iframe[src*="attn.tv"]`, `iframe[src*="attentive"]`, `script[src*=attentive]`; removes parent elements for iframe-based popups
+- **All breakpoint commands**: Rewritten with JS-only waits, dismiss-after-scroll pattern
+
 ## 0.8.4 — 2026-04-10
 
 **Blank capture hard stop + footer group gotchas.** Found when bangalore workspace completed pull-footer with a blank live screenshot and skeleton output — the agent silently continued without ever seeing the live site.
