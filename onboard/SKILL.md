@@ -16,12 +16,56 @@ Set up a Shopify theme migration project by collecting configuration and detecti
 Ask the user for (or detect from context):
 
 1. **Live site URL** — The production storefront to match (e.g., `https://gldn.com`)
-2. **Base theme path** — Path to the exported live theme files (read-only reference)
-3. **Target theme path** — Path to the theme being built (this is where changes go)
-4. **Dev store** — Shopify dev store domain (e.g., `store.myshopify.com`) — optional
-5. **Extension prefix** — Namespace for custom files (default: `custom-`)
+2. **Dev store** — Shopify dev store domain (e.g., `store.myshopify.com`)
+3. **Extension prefix** — Namespace for custom files (default: `custom-`)
+
+Note: A full base theme export is NOT needed. Sessions pull just templates and settings from the live theme on demand (~5 seconds). See Targeted Base Pull in the orchestrator SKILL.md.
 
 If a CLAUDE.md or project instructions file exists in the target theme, try to infer these values before asking.
+
+### Step 1.5: Set Up Git Repository
+
+The target theme must be in a git repo with a remote on GitHub (or similar). This is how parallel sessions coordinate and how work is persisted. Walk the user through this:
+
+**Check current state:**
+```bash
+git remote -v
+```
+
+**If no remote exists**, or the remote is the upstream theme vendor (e.g., `Shopify/horizon`):
+
+Ask the user:
+
+> "theme-forge uses git as its coordination layer. Your work needs to live in a GitHub repo you control. This keeps your migration state safe and enables parallel sessions.
+>
+> Your target theme is currently [describe: no remote / pointing at upstream vendor repo].
+>
+> A) **Create a new private repo** — I'll create `{user}/{suggested-name}` on GitHub and set it as origin. The upstream theme stays as a separate remote for pulling updates. Your customizations and client data stay private.
+>
+> B) **Use an existing repo** — Tell me the repo URL and I'll set it up.
+>
+> C) **Skip for now** — Work locally without pushing. You can set up the remote later, but parallel sessions won't work until you do."
+
+**If the user chooses A:**
+```bash
+# Create private repo
+gh repo create {repo-name} --private --source=. --push
+
+# If the current origin is the theme vendor, keep it as upstream
+git remote rename origin upstream  # only if origin was vendor
+git remote add origin https://github.com/{user}/{repo-name}.git
+```
+
+**If the theme was cloned from a vendor (e.g., Shopify/horizon):**
+Explain the upgradability model:
+
+> "I've set up two remotes:
+> - `origin` → your private repo (where you push your work)
+> - `upstream` → the theme vendor (where you pull theme updates)
+>
+> Your custom sections (`custom-*.liquid`) and migration CSS never touch the vendor's core files. When the vendor releases an update, you run `git fetch upstream && git merge upstream/main`. Conflicts are rare because your changes are in separate files (the extension layer)."
+
+**Why private:** Migration state in `.theme-forge/` contains the client's store URL, theme IDs, and potentially proprietary section configurations. This should not be public.
 
 ### Step 2: Detect Target Theme Type
 
@@ -108,19 +152,11 @@ Use this to:
 
 Store the target theme ID in config as `target_theme_id`.
 
-### Step 3.6: Record Base Theme Freshness
+### Step 3.6: Record Live Theme ID
 
-Record when the base theme was exported so future steps can detect staleness:
+If Shopify CLI is available, record the live theme's ID from `shopify theme list` output (the theme with `role: "live"`). Store as `live_theme_id` in config. This is used by the targeted base pull (`shopify theme pull --theme <live_theme_id> --only templates/ --only config/`) to fetch fresh settings and templates on demand.
 
-1. Check the most recent file modification time in the base theme directory:
-   ```bash
-   find <base_theme_path> -type f -name "*.json" -o -name "*.liquid" | xargs stat -f "%m" | sort -rn | head -1
-   ```
-   Convert to ISO 8601 and store as `base_theme_exported_at` in config.
-
-2. If Shopify CLI is available, record the live theme's ID from `shopify theme list` output (the theme with `role: "live"`). Store as `live_theme_id` in config. This lets future runs check if the base theme matches what's currently live.
-
-3. Record which template file is the **active index template** in the base theme. Check `config/settings_data.json` for the current template assignments, not alternate `index.sl-*.json` files. The base theme export may contain dozens of old/unused alternate templates — only the active ones matter.
+Note: A full base theme export is no longer needed. Sessions pull just what they need (~5 seconds) into the gitignored `.theme-forge/base-cache/` directory.
 
 ### Step 4: Detect Dev URL
 
