@@ -124,7 +124,7 @@ For each section with detected work, write to `.theme-forge/reports/sections/{se
   "generated_at": "2026-04-07T22:00:00Z",
   "source": "reconcile",
   "section": "custom-dynamic-collections",
-  "base_section": "sections/gldn-dynamic-collections.liquid",
+  "base_section": "sections/legacy-dynamic-collections.liquid",
   "target_section": "sections/custom-dynamic-collections.liquid",
   "status": "imported",
   "completeness": {

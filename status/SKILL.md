@@ -65,8 +65,8 @@ Print a summary like:
 ```
 ═══════════════════════════════════════════
   theme-forge — Migration Status
-  Project: GLDN Legacy → Horizon
-  Live: https://gldn.com
+  Project: Legacy Theme → Horizon
+  Live: https://example.com
 ═══════════════════════════════════════════
 
   OVERALL PROGRESS

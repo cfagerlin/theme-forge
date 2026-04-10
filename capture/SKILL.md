@@ -212,7 +212,7 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 If the live site changes, the user recaptures manually:
 
 ```
-/theme-forge capture https://gldn.com --section "#shopify-section-hero" --reference hero-index --extract-styles
+/theme-forge capture https://example.com --section "#shopify-section-hero" --reference hero-index --extract-styles
 ```
 
 This overwrites the stored reference. No automatic staleness detection.

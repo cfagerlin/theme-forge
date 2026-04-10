@@ -70,7 +70,7 @@ At the START of pull-section (Step 1, after loading context), before any code is
 | `target_theme` | Applies to ALL sections in this target theme | "Horizon inline styles require !important for font overrides" |
 | `base_theme` | Applies to all sections from this base theme | "Base theme headings use Spectral 200 with -0.02em spacing" |
 | `section_type` | Applies to sections of a similar type | "Slideshow sections need custom overlay gradients" |
-| `project` | Project-specific (e.g., brand conventions) | "GLDN uses #333 for heading color, not pure black" |
+| `project` | Project-specific (e.g., brand conventions) | "Client uses #333 for heading color, not pure black" |
 | `universal` | Applies across all projects | "Never use opacity to simulate lighter text colors" |
 
 ### 5. Confidence Levels

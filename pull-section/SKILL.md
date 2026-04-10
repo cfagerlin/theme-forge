@@ -96,7 +96,7 @@ When the browse tool is not available:
 
 - `<section-name>` — The section type name (e.g., `featured-collection`, `slideshow`, `custom-trust-bar`)
 - `--page <template>` — Which template contains this section (e.g., `index`, `product`, `collection`). **Required** unless the section is in a section group (header-group, footer-group) or can be unambiguously found in exactly one template.
-- `--url <live-page-url>` — The specific live page URL to screenshot for comparison (e.g., `https://gldn.com/collections/necklaces`). Defaults to the live site root for `index`, or the first matching page for other templates.
+- `--url <live-page-url>` — The specific live page URL to screenshot for comparison (e.g., `https://example.com/collections/necklaces`). Defaults to the live site root for `index`, or the first matching page for other templates.
 - `--debug` — Enable debug mode for this run. Saves a full transcript, all screenshots, and computed style diffs to `.theme-forge/debug/`. See "Debug Mode" section below.
 - `--no-debug` — Disable debug mode for this run, even if the global setting is on.
 
@@ -218,7 +218,7 @@ Example transcript entry:
 ```markdown
 ## Step 4: Render & Inspect
 **Time:** 2026-04-09 14:23:15
-**Live URL:** https://gldn.com
+**Live URL:** https://example.com
 **Dev URL:** http://127.0.0.1:9292
 
 ### Screenshots
