@@ -131,17 +131,17 @@ capabilities:
 
 **Detection method (check in this order, use the first one found):**
 
-1. **GStack browse binary**: Check if the executable exists at either:
+1. **Playwright MCP** (preferred): Check if `mcp__playwright__browser_navigate` is available in the tool list. Playwright MCP has stable browser sessions, no daemon timeout issues, and inline screenshot results.
+
+   If found → set `browse: true`, `browse_method: "playwright_mcp"`
+
+2. **GStack browse binary**: Check if the executable exists at either:
    - `~/.claude/skills/gstack/browse/dist/browse`
    - `{project_root}/.claude/skills/gstack/browse/dist/browse`
 
    Test with: `~/.claude/skills/gstack/browse/dist/browse url 2>/dev/null`
 
    If found → set `browse: true`, `browse_method: "gstack_browse"`
-
-2. **Playwright MCP**: Check if `mcp__playwright__*` tools are available in the tool list.
-
-   If found → set `browse: true`, `browse_method: "playwright_mcp"`
 
 3. **Other MCP browse tools**: Check for `mcp__browser__*`, `mcp__browse__*`, or `mcp__Claude_in_Chrome__*` tool prefixes.
 
@@ -160,7 +160,7 @@ capabilities:
 >
 > 1. **Playwright MCP** (recommended, works everywhere):
 >    ```
->    claude mcp add playwright -- npx @playwright/mcp --headless
+>    claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors
 >    ```
 >    Then restart Claude Code and re-run `/theme-forge onboard`
 >
@@ -172,7 +172,7 @@ capabilities:
 > A) Install Playwright MCP now (I'll run the command for you)
 > B) Continue without visual comparison (code-only analysis)
 
-If the user chooses A, run `claude mcp add playwright -- npx @playwright/mcp --headless` and tell them to restart Claude Code and re-run onboard. If they choose B, set `browse: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing a browse tool and re-running onboard.
+If the user chooses A, run `claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors` and tell them to restart Claude Code and re-run onboard. If they choose B, set `browse: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing a browse tool and re-running onboard.
 
 ### Step 3.5: Detect Store Themes (if Shopify CLI available)
 
