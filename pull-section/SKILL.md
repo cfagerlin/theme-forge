@@ -404,6 +404,19 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 9. **Never accept a variance without user approval.** You may not mark any difference as "accepted" or "known limitation" or "global theme setting." If a property differs between live and dev, fix it with CSS. If you truly cannot fix it (e.g., Shopify Liquid doesn't support the operation), escalate to the user. Do not silently accept it.
 
+10. **Never rationalize variances as "intentional" or "better."** Common failure modes to watch for:
+    - Calling a 128px height difference "intentional because dev accommodates more content" — NO. Match the live site.
+    - Calling `object-fit: cover` "better for responsive" when the live site uses `fill` — NO. You are replicating, not redesigning.
+    - Claiming a variance "doesn't apply" to the current slide/state — NO. If the mapping says this section maps to that live section, fix it.
+    - Marking `final_status: "completed"` with `files_modified: []` and `variances_remaining > 0` — this is **never valid**. If you found variances and modified zero files, you didn't do any work.
+    The live site is the spec. Your job is to match it, not improve it.
+
+11. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
+    - The section's content (heading text, images) matches what the mapping describes
+    - The section's position on the page matches the expected order
+    - If the live page has changed since the mapping was created, update the mapping — don't compare against a different section
+    Log which live section selector/ID you used in the transcript so mismatches are auditable.
+
 ## Methodology
 
 ### Step 1: Load Context
@@ -598,6 +611,8 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 - Text alignment — override with `!important`
 
 A "global theme setting" or "theme default" is NOT a platform limitation. If the target theme defaults to font-weight 700 but the live site uses 400, you override it with CSS. That's what CSS overrides are for.
+
+**Self-test before marking any variance as "acceptable":** Would the user, looking at the live site and dev site side by side, notice the difference? If yes, it's a defect. A 128px height difference is obvious. A different `object-fit` changes how photos look. These are not acceptable. Fix them.
 
 **Start with the combined work list from Step 4.5.** Categorize each variance:
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.12 — 2026-04-09
+
+**Anti-rationalization rules + live section verification.** The agent marked a section "completed" with zero files modified and 2 unresolved variances by rationalizing them as "intentional" and "better."
+
+- **Rule 10 — Never rationalize variances**: Explicitly bans calling height differences "intentional," declaring `object-fit: cover` "better" than the live site's `fill`, and marking completed with zero work done. "The live site is the spec. Your job is to match it, not improve it."
+- **Rule 11 — Verify correct live section**: Agent compared against the wrong section on the live page (how-it-works carousel instead of testimonial). Must confirm section content matches the mapping before screenshotting, and log the selector used.
+- **Self-test for "acceptable" variances**: "Would the user notice the difference side by side? If yes, it's a defect."
+- **Zero-work guard**: `files_modified: []` with `variances_remaining > 0` is never a valid completed state.
+
 ## 0.5.11 — 2026-04-09
 
 **Debug quality + popup dismissal + honest status.** Four fixes from reviewing debug logs of the testimonial carousel run:
