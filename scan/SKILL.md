@@ -145,8 +145,8 @@ Save to `.theme-forge/`:
 {
   "generated_at": "2026-04-07T20:30:00Z",
   "base_theme": {
-    "name": "GLDN Legacy",
-    "path": "../gldn-theme-040626",
+    "name": "Legacy Theme",
+    "path": "../legacy-theme-export",
     "layouts": [...],
     "templates": [...],
     "sections": [...],

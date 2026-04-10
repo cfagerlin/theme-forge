@@ -13,15 +13,32 @@ Set up a Shopify theme migration project by collecting configuration and detecti
 
 ### Step 1: Collect Project Info
 
-Ask the user for (or detect from context):
-
-1. **Live site URL** — The production storefront to match (e.g., `https://gldn.com`)
-2. **Dev store** — Shopify dev store domain (e.g., `store.myshopify.com`)
-3. **Extension prefix** — Namespace for custom files (default: `custom-`)
+**Ask one question at a time.** Do not dump all questions at once. Wait for each answer before asking the next. Try to infer values from CLAUDE.md or project files before asking.
 
 Note: A full base theme export is NOT needed. Sessions pull just templates and settings from the live theme on demand (~5 seconds). See Targeted Base Pull in the orchestrator SKILL.md.
 
-If a CLAUDE.md or project instructions file exists in the target theme, try to infer these values before asking.
+**Step 1a: Live site URL**
+
+First, check for any existing project config (CLAUDE.md, package.json, etc.) that might contain the live URL. If found, confirm it:
+
+> I found `https://example.com` in your project config. Is this the live site to match?
+> A) Yes, use that
+> B) No, I'll provide a different URL
+
+If not found, ask:
+
+> What's the production storefront URL I should match? (e.g., `https://example.com`)
+
+**Step 1b: Dev store**
+
+> What's your Shopify dev store domain?
+> (e.g., `my-store.myshopify.com`)
+
+**Step 1c: Extension prefix**
+
+> What namespace prefix should I use for custom files? This keeps your migration files separate from the theme's core files.
+> A) `custom-` (recommended)
+> B) Something else (tell me what prefix)
 
 ### Step 1.5: Set Up Git Repository
 
@@ -172,7 +189,7 @@ Create `.theme-forge/config.json` in the target theme root:
 
 ```json
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "live_url": "https://example.com",
   "target_theme": ".",
   "target_type": "horizon",
