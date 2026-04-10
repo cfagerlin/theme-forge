@@ -13,19 +13,31 @@ Execute the full compare→fix→verify methodology on a single section. This is
 
 These rules are non-negotiable. They override everything else in this document. If you find yourself about to violate one, stop and re-read it.
 
-### Screenshots
+### Screenshots are MANDATORY before code changes
+- **You MUST capture live site screenshots BEFORE making any code changes.** No exceptions. The capture step (Step 4) must run before Steps 5-7. If you skip capture and go straight to code, you are flying blind. STOP and go back.
 - **ALL screenshots are taken by the `capture` skill.** Do not run browse tool commands directly. Invoke `capture/SKILL.md` for every screenshot. This ensures section-scoped capture, proper `wait --networkidle`, popup dismissal, and all three breakpoints (desktop, tablet, mobile).
 - **NEVER take a full-page screenshot.** The capture skill enforces this. If you find yourself writing `$B screenshot` commands directly, stop. Use capture instead.
+- **Live reference screenshots MUST be stored** in `.theme-forge/references/`. If the references directory for this section is empty after Step 4, something went wrong. Fix it before proceeding.
 
 ### Debug mode
 - **`transcript.md` is mandatory.** Write to it incrementally at every step, not at the end. A debug session without a transcript is a failed debug session. Do not skip it.
 - **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
+- **Write transcript FIRST at each step, THEN do the work.** This ensures crashes leave partial transcripts, not empty ones.
+
+### No accepted variances without user approval
+- **You may NEVER mark a variance as "accepted" on your own.** Not for Shadow DOM. Not for "theme limitations." Not for "close approximation." Not for "not a visual difference." If a property differs between live and dev, fix it or escalate to the user.
+- **"Shadow DOM prevents CSS override" is almost always wrong.** CSS custom properties (`--var-name`) cascade through Shadow DOM boundaries. If the target theme uses custom properties for a value (font-size, letter-spacing, border-radius, colors), you CAN override it from outside the shadow root. Check the theme's CSS before claiming Shadow DOM blocks the fix.
+- **Height differences are ALWAYS visual.** A 109px height difference (480px vs 371px) is visible. Do not rationalize it as "header offset calculation." Match the live height.
+- **Text alignment differences are ALWAYS visual.** Left-aligned vs centered text is obvious. Match the live alignment.
 
 ### Status honesty
 - **Never mark `final_status: "completed"` when `variances_remaining > 0`.** Use `"incomplete"`.
 - **Never mark `final_status: "completed"` when `files_modified` is empty and variances were found.** That means you did no work.
 - **Never rationalize a variance as "intentional" or "better."** The live site is the spec. Your job is to match it, not improve it.
 - **`variances_found` must equal `variances_fixed + variances_remaining`.** Always.
+
+### Commit after each section
+- **Always commit and push after completing a section.** Code changes, reports, debug artifacts, and learnings must be committed. Uncommitted work is invisible to parallel sessions and lost on crash.
 
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
@@ -301,13 +313,21 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 8. **Always run the extraction script, never skip it.** The JavaScript extraction script (in Step 8 / Rendered Output Validation Checklist) MUST be executed on both live and dev sites. Do not skip it because "the screenshots look close enough." The extraction catches differences invisible in screenshots (1px font-size, letter-spacing, object-position). If the browse tool is available, there is no excuse for not running it.
 
-9. **Never accept a variance without user approval.** You may not mark any difference as "accepted" or "known limitation" or "global theme setting." If a property differs between live and dev, fix it with CSS. If you truly cannot fix it (e.g., Shopify Liquid doesn't support the operation), escalate to the user. Do not silently accept it.
+9. **Never accept a variance without user approval.** You may not mark any difference as "accepted" or "known limitation" or "global theme setting" or "Shadow DOM limitation." If a property differs between live and dev, fix it with CSS. If you truly cannot fix it after trying, escalate to the user and wait for their decision. Do not silently accept it.
+
+   **Common false "limitations" that are actually fixable:**
+   - "Shadow DOM prevents CSS override" → CSS custom properties cascade through Shadow DOM. Override `--var-name` on `:root` or the host element.
+   - "No isolated setting exists" → Add a CSS override with `!important`. You don't need a theme setting for every property.
+   - "Close approximation" → Not good enough. Match the exact value.
+   - "Not a visual difference" → If the numbers differ, it IS visual. A 109px height difference is obvious.
 
 10. **Never rationalize variances as "intentional" or "better."** Common failure modes to watch for:
     - Calling a 128px height difference "intentional because dev accommodates more content" — NO. Match the live site.
     - Calling `object-fit: cover` "better for responsive" when the live site uses `fill` — NO. You are replicating, not redesigning.
     - Claiming a variance "doesn't apply" to the current slide/state — NO. If the mapping says this section maps to that live section, fix it.
     - Marking `final_status: "completed"` with `files_modified: []` and `variances_remaining > 0` — this is **never valid**. If you found variances and modified zero files, you didn't do any work.
+    - Centering text when the live site has it left-aligned (or vice versa) — NO. Text alignment is one of the most visible properties. Match it exactly.
+    - Accepting a shorter/taller section height as "header offset calculation" — NO. If the rendered section is 109px shorter, fix it.
     The live site is the spec. Your job is to match it, not improve it.
 
 11. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
@@ -472,7 +492,14 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 ### Step 4: Capture & Compare (all breakpoints)
 
-**CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
+**⛔ BLOCKING GATE: No code changes are allowed until this step completes successfully.**
+
+You MUST have:
+1. Live site screenshots at all 3 breakpoints (stored in `.theme-forge/references/`)
+2. Dev site screenshots at all 3 breakpoints
+3. Visual comparison documented (what looks different?)
+
+If the browse tool is unavailable or crashes, you may proceed with code-only analysis — but you MUST note this in the transcript and set `browse_tool_available: false` in the report. Do NOT silently skip screenshots and pretend you did visual comparison.
 
 **Use the `capture` skill for all screenshots.** Read `capture/SKILL.md` and follow its workflow inline. Do NOT write browse commands directly.
 
@@ -707,9 +734,9 @@ mobile     | padding top             | 16px          | 16px          | 0        
 
 Read each screenshot with the Read tool and present them:
 
-1. Read `/tmp/capture-verify/desktop.png` — "**Desktop (1280px):**"
-2. Read `/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
-3. Read `/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
+1. Read `.theme-forge/tmp/capture-verify/desktop.png` — "**Desktop (1280px):**"
+2. Read `.theme-forge/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
+3. Read `.theme-forge/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
 
 Present them with a brief summary:
 ```
@@ -786,6 +813,23 @@ Save to `.theme-forge/reports/sections/{section-key}.json` (e.g., `featured-coll
 ```
 
 **`outstanding_issues`** should contain ONLY items genuinely blocked by a platform limitation or requiring user decision. If an item is fixable with CSS or JSON, it should not appear here — it should have been fixed. "Could add CSS override" is not an outstanding issue, it's unfinished work.
+
+### Step 12: Commit and Push
+
+**This step is mandatory.** Uncommitted work is invisible to parallel sessions and lost on crash.
+
+```bash
+git add .theme-forge/reports/sections/{section-key}.json \
+        .theme-forge/learnings.json \
+        .theme-forge/mapping-rules.json \
+        .theme-forge/references/ \
+        templates/ sections/ assets/ snippets/ config/ \
+        .theme-forge/debug/
+git commit -m "pull: {section-name} on {page} — {status}"
+git push
+```
+
+Replace `{status}` with the report's `final_status` (e.g., `completed`, `incomplete`, `failed`).
 
 #### Cutover Checklist
 
