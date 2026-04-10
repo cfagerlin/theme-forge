@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1 — 2026-04-10
+
+**First-run fixes from real onboarding + pull session.**
+
+- **One-at-a-time onboarding**: Step 1 now asks questions sequentially with A/B multiple choice, not all at once
+- **Dev server detection**: Don't assume port 9292 belongs to this theme. Scan for available ports, suggest `--port` flag
+- **Base cache git init**: `shopify theme pull` requires a git repo — now runs `git init` before pulling
+- **`--only` glob syntax**: Use `'templates/*'` not `templates/`. Shopify CLI uses glob matching
+- **Browse tool crash fallback**: `wait --networkidle` kills the browser on some live sites. Falls back to `sleep 3` on `forLoadState` errors
+- **Legacy theme support**: Base themes with `.liquid` templates now documented — sections live in `settings_data.json` under `current`, not in JSON template files
+- **Client identity scrubbed**: All gldn.com/GLDN references replaced with generic examples
+- **Setup script**: Added missing `capture` and `cutover` skills, improved post-install guidance
+- **Install hint**: Root SKILL.md now shows clone command for agents encountering the skill before install
+
 ## 0.8.0 — 2026-04-10
 
 **Deterministic screenshot capture at all breakpoints.** Extracts screenshot logic from pull-section into a dedicated `capture` skill. Adds mandatory responsive comparison (desktop, tablet, mobile) throughout the entire fix loop, not just final review.
