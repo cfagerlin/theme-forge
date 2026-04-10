@@ -221,6 +221,7 @@ done
 
 > No dev server running for this theme yet. Start one in a separate terminal:
 > ```
+> cd <absolute_path_to_target_theme>
 > shopify theme dev --store <dev_store> --theme <target_theme_id> --port <first_available_port>
 > ```
 > theme-forge will detect it automatically on the next pull-section run.
