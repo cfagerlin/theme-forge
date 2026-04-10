@@ -14,7 +14,8 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 
 1. **NEVER take a full-page screenshot.** Every screenshot targets a single section. If the section can't be found, FAIL. Do not fall back to full-page.
 2. **ALWAYS capture all three breakpoints.** Desktop (1280), tablet (768), mobile (375). No "desktop only" option.
-3. **Try `wait --networkidle` first.** If the browse tool crashes or disconnects (`forLoadState`, `Target page, context or browser has been closed`), retry with `sleep 3` instead. Some live sites with aggressive redirects or analytics kill the idle detection.
+3. **Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout (~2-3 seconds) and shuts down during shell sleeps. Use JS-based waits instead: `$B js "new Promise(function(r){setTimeout(function(){r('waited')},3000)})"`. This keeps the daemon alive during the wait.
+3b. **Do not use `wait --networkidle` on live Shopify sites.** Third-party scripts (Klaviyo, Attentive, Gorgias) make continuous network requests that prevent networkidle from completing. Use JS `setTimeout` waits instead. `--networkidle` is fine for dev server URLs only.
 4. **ALWAYS verify the desktop screenshot** by reading it with the Read tool after capture. If it's blank or broken, retry once. If still broken, FAIL.
 5. **Follow the exact commands below.** Do not improvise browse tool usage. Do not add extra steps. Do not skip steps.
 
@@ -66,57 +67,62 @@ Create the output directory:
 mkdir -p <output>
 ```
 
-### Step 2: Navigate + Wait
+### Step 2: Navigate + Wait for Load
 
-```bash
-B=<path> && $B goto "<url>" && $B wait --networkidle
+**CRITICAL: Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout and will shut down during shell sleeps. Use JS `Promise` with `setTimeout` for all waits:
+```js
+$B js "new Promise(function(r){setTimeout(function(){r('waited')},3000)})"
 ```
 
-This handles lazy-loaded images, deferred scripts, and Shadow DOM hydration. `wait --networkidle` waits until network activity ceases (15 second timeout).
-
-**If the browse tool crashes** (`forLoadState`, `Target page, context or browser has been closed`, or any exit code 1 during navigation):
+**For all URLs:**
 
 ```bash
-B=<path> && $B goto "<url>" && sleep 3
+B=<path> && $B goto "<url>" && \
+$B js "new Promise(function(r){setTimeout(function(){r('page loaded')},3000)})"
 ```
 
-This is the fallback. Some live sites with heavy analytics, cookie consent redirects, or bot protection break `--networkidle`. Use `sleep 3` for the rest of this capture run (all breakpoints).
+**For dev site URLs** (`127.0.0.1` or `localhost`), you can optionally use `$B wait --networkidle` after the initial wait. Dev sites don't have third-party scripts that break networkidle.
 
-### Step 3: Dismiss Overlays
+### Step 3: Scroll to Section + Dismiss Popups
 
-**Only for live site URLs** (skip if URL contains `127.0.0.1` or `localhost`):
+**Scroll first, THEN dismiss.** Many popups (especially Attentive/`attn.tv`) are scroll-triggered — they don't exist in the DOM until you scroll. Dismissing before scroll misses them.
 
+**Popup dismissal JS** (assign to a shell variable for reuse):
 ```bash
-$B js "document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.privy-popup,[class*=cookie],[data-testid*=popup]').forEach(el=>el.remove());document.body.style.overflow='auto'"
+DISMISS='document.querySelectorAll("[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.klaviyo-close-form,.privy-popup,[class*=cookie],[data-testid*=popup],iframe[src*=klaviyo],iframe[src*=\"attn.tv\"],iframe[src*=attentive]").forEach(function(el){el.parentElement&&el.parentElement.tagName!=="BODY"?el.parentElement.remove():el.remove()});document.querySelectorAll("script[src*=klaviyo],script[src*=privy],script[src*=attentive]").forEach(function(el){el.remove()});document.body.style.overflow="auto"'
 ```
-
-### Step 4: Scroll to Section
 
 **If `--section` is a numeric index:**
 ```bash
-$B js "document.querySelectorAll('.shopify-section')[<N>].scrollIntoView({block:'start'})" && $B wait --networkidle
+$B js "document.querySelectorAll('.shopify-section')[<N>].scrollIntoView({block:'start'})" && \
+$B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + popups')},2000)})" && \
+$B js "$DISMISS"
 ```
 
 **If `--section` is a CSS selector:**
 ```bash
-$B js "document.querySelector('<selector>').scrollIntoView({block:'start'})" && $B wait --networkidle
+$B js "document.querySelector('<selector>').scrollIntoView({block:'start'})" && \
+$B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + popups')},2000)})" && \
+$B js "$DISMISS"
 ```
 
-The second `wait --networkidle` catches lazy images that load when the section enters the viewport.
+**Only dismiss on live site URLs** (skip the `$B js "$DISMISS"` line if URL contains `127.0.0.1` or `localhost`).
 
-### Step 5: Capture All Three Breakpoints
+### Step 4: Capture All Three Breakpoints
 
-**IMPORTANT:** Steps 2-5 must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
+**IMPORTANT:** Steps 2-4 must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
 
 **Full command for each breakpoint** (run one complete Bash call per breakpoint).
 
-Use `$B wait --networkidle` if Step 2 succeeded with it. Use `sleep 3` if Step 2 crashed with `--networkidle`.
-
 #### Desktop (1280px):
 ```bash
-B=<path> && $B goto "<url>" && $B wait --networkidle && \
-$B js "document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.privy-popup,[class*=cookie],[data-testid*=popup]').forEach(el=>el.remove());document.body.style.overflow='auto'" && \
-$B js "<scroll_command>" && $B wait --networkidle && \
+B=<path> && \
+DISMISS='<dismiss JS from Step 3>' && \
+$B goto "<url>" && \
+$B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
+$B js "<scroll_command>" && \
+$B js "new Promise(function(r){setTimeout(function(){r('waited')},2000)})" && \
+$B js "$DISMISS" && \
 $B screenshot "<selector_or_--viewport>" <output>/desktop.png
 ```
 
@@ -129,17 +135,27 @@ If blank or broken, retry the entire command once. If still blank: **FAIL** with
 
 #### Tablet (768px):
 ```bash
-B=<path> && $B goto "<url>?viewport=768" && $B js "Object.defineProperty(window,'innerWidth',{value:768,writable:true});Object.defineProperty(window,'innerHeight',{value:1024,writable:true});window.dispatchEvent(new Event('resize'))" && $B wait --networkidle && \
-$B js "<dismiss_overlays_if_live>" && \
-$B js "<scroll_command>" && $B wait --networkidle && \
+B=<path> && \
+DISMISS='<dismiss JS from Step 3>' && \
+$B goto "<url>?viewport=768" && \
+$B js "Object.defineProperty(window,'innerWidth',{value:768,writable:true});Object.defineProperty(window,'innerHeight',{value:1024,writable:true});window.dispatchEvent(new Event('resize'))" && \
+$B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
+$B js "<scroll_command>" && \
+$B js "new Promise(function(r){setTimeout(function(){r('waited')},2000)})" && \
+$B js "$DISMISS" && \
 $B screenshot "<selector_or_--viewport>" <output>/tablet.png
 ```
 
 #### Mobile (375px):
 ```bash
-B=<path> && $B goto "<url>?viewport=375" && $B js "Object.defineProperty(window,'innerWidth',{value:375,writable:true});Object.defineProperty(window,'innerHeight',{value:812,writable:true});window.dispatchEvent(new Event('resize'))" && $B wait --networkidle && \
-$B js "<dismiss_overlays_if_live>" && \
-$B js "<scroll_command>" && $B wait --networkidle && \
+B=<path> && \
+DISMISS='<dismiss JS from Step 3>' && \
+$B goto "<url>?viewport=375" && \
+$B js "Object.defineProperty(window,'innerWidth',{value:375,writable:true});Object.defineProperty(window,'innerHeight',{value:812,writable:true});window.dispatchEvent(new Event('resize'))" && \
+$B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
+$B js "<scroll_command>" && \
+$B js "new Promise(function(r){setTimeout(function(){r('waited')},2000)})" && \
+$B js "$DISMISS" && \
 $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 ```
 
@@ -147,7 +163,7 @@ $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 - If `--section` is a CSS selector: `$B screenshot "<selector>" <output>/<breakpoint>.png`
 - If `--section` is a numeric index: after scrolling to section, use `$B screenshot --viewport <output>/<breakpoint>.png`
 
-### Step 6: Extract Computed Styles (if `--extract-styles`)
+### Step 5: Extract Computed Styles (if `--extract-styles`)
 
 For each breakpoint, after the screenshot, run the extraction script in the same Bash call (page is still loaded).
 
@@ -259,7 +275,7 @@ Save the output as `<output>/<breakpoint>.styles.json`.
 
 **Why file-based:** The extraction script is ~80 lines of JS. Passing it as a shell string causes escaping issues (quotes inside quotes, backslashes, regex). Writing to a file and reading it back avoids all shell escaping problems.
 
-### Step 7: Store Reference (if `--reference`)
+### Step 6: Store Reference (if `--reference`)
 
 ```bash
 mkdir -p .theme-forge/references/<name>/
