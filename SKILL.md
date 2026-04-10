@@ -7,6 +7,12 @@ description: >
 
 # theme-forge — Shopify Theme Migration Toolkit
 
+> **Not installed?** Clone into your Claude Code skills directory:
+> ```
+> git clone https://github.com/cfagerlin/theme-forge.git ~/.claude/skills/theme-forge
+> ```
+> Then restart Claude Code. No setup script needed — cloning is the install.
+
 AI-assisted visual migration from any Shopify theme to any target theme. Think of it as `git pull` for theme visuals — you point it at a live site and a target theme, and it systematically matches every section.
 
 ## Quick Start
