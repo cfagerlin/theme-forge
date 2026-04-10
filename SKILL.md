@@ -23,6 +23,8 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-forge pull-footer        — Pull the site footer
 /theme-forge review [path]      — Post-work variance review
 /theme-forge status             — Human-readable migration progress report
+/theme-forge status --page <t>  — List all sections on a page with pull commands
+/theme-forge status --next      — Show the next section to pull
 /theme-forge cutover            — Show cutover checklist for production go-live
 /theme-forge upgrade            — Check for and apply updates
 /theme-forge --debug on         — Enable debug mode globally (persists in config.json)
@@ -41,6 +43,10 @@ When invoked as `/theme-forge <command> [args]`:
 2. Load the sub-skill SKILL.md from the corresponding directory
 3. Pass remaining arguments to the sub-skill
 4. If no command is given, show the quick start reference above
+5. **Natural language shortcuts** — route these to `status`:
+   - "what's next?" / "next section" / "what should I pull?" → `status --next`
+   - "list sections on [page]" / "show me the [page] sections" / "what's on the homepage?" → `status --page <template>`
+   - "what's left?" / "what sections are remaining?" → `status --detail`
 
 ### Pipeline Flags
 

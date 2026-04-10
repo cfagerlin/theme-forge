@@ -16,10 +16,12 @@ Read all JSON state in `.theme-forge/` and produce a clear, human-readable progr
 ## Arguments
 
 ```
-/theme-forge status [--detail]
+/theme-forge status [--detail] [--page <template>] [--next]
 ```
 
-`--detail` shows per-section breakdowns. Without it, shows summary only.
+- `--detail` shows per-section breakdowns. Without it, shows summary only.
+- `--page <template>` shows sections on a specific page with their pull commands (see Quick Query below).
+- `--next` shows just the next section to pull with a ready-to-run command.
 
 ## Workflow
 
@@ -134,6 +136,44 @@ If `--detail` is passed, additionally show:
        Root cause: Horizon spacing system minimum
        Status: Accepted variance
    ```
+
+### Quick Query: `--page <template>`
+
+When `--page` is provided, skip the full report. Instead, list every section on that page with its status and the exact `pull-section` command to run. Read the page mapping from `.theme-forge/mappings/pages/{template}.json` and cross-reference with `state.json`:
+
+```
+Homepage (index) — 5 sections
+─────────────────────────────
+ #  Status       Section Type                  Pull Command
+ 1  ✅ completed  hero                          /theme-forge pull-section hero --page index
+ 2  ✅ completed  custom-cta-gallery            /theme-forge pull-section custom-cta-gallery --page index
+ 3  ❌ incomplete custom-testimonial-carousel   /theme-forge pull-section custom-testimonial-carousel --page index
+ 4  ⬜ pending    product-list                  /theme-forge pull-section product-list --page index
+ 5  ⬜ pending    custom-brand-story            /theme-forge pull-section custom-brand-story --page index
+                  (live: home_anatomy)
+```
+
+**Include the base/live section name** in parentheses when it differs from the target section type (read from the section mapping's `base_section` field). This helps the user connect what they see on the live site with the command they need to run.
+
+### Quick Query: `--next`
+
+When `--next` is provided, skip the full report. Find the first section with status `pending` or `incomplete` (in page order: index first, then product, collection, remaining) and print:
+
+```
+Next section: custom-testimonial-carousel (live: how_it_works) on index
+
+  /theme-forge pull-section custom-testimonial-carousel --page index
+```
+
+If all sections are completed, say so and suggest running `review`.
+
+## Natural Language Routing
+
+The orchestrator should route these natural questions to `status`:
+
+- "what's next?" / "next section" → `status --next`
+- "list sections on homepage" / "show me the index sections" → `status --page index`
+- "what sections are left?" → `status --detail`
 
 ## Output
 

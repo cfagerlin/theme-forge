@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.14 — 2026-04-09
+
+**Quick section queries.** Users shouldn't have to memorize section type names. Two new quick-query modes for `status`:
+
+- **`/theme-forge status --page index`**: Lists every section on the page with its status, the exact `pull-section` command, and the live site section name in parentheses when it differs.
+- **`/theme-forge status --next`**: Shows just the next pending/incomplete section with a ready-to-run command.
+- **Natural language routing**: "what's next?", "show me the homepage sections", "what's left?" all route to the appropriate status query.
 ## 0.5.12 — 2026-04-09
 
 **Anti-rationalization rules + live section verification.** The agent marked a section "completed" with zero files modified and 2 unresolved variances by rationalizing them as "intentional" and "better."
