@@ -13,12 +13,20 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
 
 1. Read `.theme-forge/config.json`
 2. Identify the footer section:
-   - Check `{base_theme}/sections/footer-group.json` for the footer section reference
+   - Check `.theme-forge/base-cache/sections/footer-group.json` (or `{base_theme}/sections/footer-group.json`) for the footer section reference
    - Or look for `sections/footer.liquid`
    - Common names: `footer`, `footer-group`, `site-footer`
    - Note: footer groups often contain multiple sections (e.g., trust bar, newsletter signup, footer links, sub-footer)
-3. For footer **groups** with multiple sections, run `pull-section` on each section in the group, in order
-4. **Additional footer-specific checks:**
+3. For footer **groups** with multiple sections, run `pull-section` on each section in the group, in order. Pass `--css-file assets/custom-migration-global.css`.
+4. **After completion, commit and push:**
+   ```bash
+   git add .theme-forge/reports/sections/footer.json \
+           .theme-forge/learnings.json \
+           sections/ assets/ snippets/ config/
+   git commit -m "pull: footer — completed"
+   git push
+   ```
+5. **Additional footer-specific checks:**
    - Multi-column link layout
    - Newsletter signup form
    - Social media icons

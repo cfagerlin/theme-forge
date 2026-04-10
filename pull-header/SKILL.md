@@ -13,11 +13,19 @@ Convenience command that runs `pull-section` on the site header. The header is a
 
 1. Read `.theme-forge/config.json`
 2. Identify the header section:
-   - Check `{base_theme}/sections/header-group.json` for the header section reference
+   - Check `.theme-forge/base-cache/sections/header-group.json` (or `{base_theme}/sections/header-group.json`) for the header section reference
    - Or look for `sections/header.liquid` (most common name)
    - Common names: `header`, `header-group`, `site-header`, `main-header`
-3. Run `pull-section` on the identified header section
-4. **Additional header-specific checks:**
+3. Run `pull-section` on the identified header section with `--css-file assets/custom-migration-global.css`
+4. **After completion, commit and push:**
+   ```bash
+   git add .theme-forge/reports/sections/header.json \
+           .theme-forge/learnings.json \
+           sections/ assets/ snippets/ config/
+   git commit -m "pull: header — completed"
+   git push
+   ```
+5. **Additional header-specific checks:**
    - Sticky/fixed behavior (scroll states)
    - Mobile menu / hamburger behavior
    - Search overlay

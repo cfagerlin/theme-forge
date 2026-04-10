@@ -30,18 +30,22 @@ Read all JSON state in `.theme-forge/` and produce a clear, human-readable progr
 Read from `.theme-forge/`:
 
 1. `config.json` — Project configuration
-2. `state.json` — Pipeline state machine (if any pull has been run)
-3. `site-inventory.json` — Full inventory (if scan has been run)
-4. `plan.json` — Migration plan (if scan has been run)
-5. `mappings/sections/*.json` — All section mappings
-6. `mappings/pages/*.json` — All page mappings
-7. `reports/sections/*.json` — All section pull reports
-8. `reports/pages/*.json` — All page pull reports
-9. `reports/review-*.json` — All review reports
+2. `mappings/sections/*.json` — All section mappings
+3. `mappings/pages/*.json` — All page mappings
+4. `reports/sections/*.json` — All section pull reports
+5. `reports/pages/*.json` — All page pull reports
+6. `reports/review-*.json` — All review reports
+7. `site-inventory.json` — Full inventory (if full scan has been run, optional)
+8. `plan.json` — Migration plan (if full scan has been run, optional)
 
 ### Step 2: Compute Progress
 
-If `state.json` exists, use it as the primary source of truth for section status. Fall back to reports/ directory scanning only if state.json is missing (pre-0.4.0 projects).
+Section reports are the primary source of truth. A section's status is determined by its report file at `.theme-forge/reports/sections/{name}.json`:
+- Report exists with `status: "completed"` or `"completed_code_only"` → done
+- Report exists with `status: "failed"` → failed
+- Report exists with `status: "skipped"` → skipped
+- No report exists but mapping exists → pending (not started)
+- No mapping exists → not scanned yet
 
 For each page in the migration plan:
 
@@ -64,10 +68,6 @@ Print a summary like:
   Project: GLDN Legacy → Horizon
   Live: https://gldn.com
 ═══════════════════════════════════════════
-
-  PIPELINE STATE
-  ────────────────
-  Lock: none (or: locked by session-1712577600, 12 min ago)
 
   OVERALL PROGRESS
   ────────────────
@@ -109,7 +109,7 @@ Print a summary like:
   1. Run: /theme-forge pull-section product-gallery
   2. Run: /theme-forge pull-footer (1 sub-section remaining)
   3. Run: /theme-forge pull-page collection
-  4. Run: /theme-forge --full --reset-failed (retry all failures)
+  4. Run: /theme-forge --full --retry-failed (retry all failures)
 ═══════════════════════════════════════════
 ```
 
@@ -139,7 +139,7 @@ If `--detail` is passed, additionally show:
 
 ### Quick Query: `--page <template>`
 
-When `--page` is provided, skip the full report. Instead, list every section on that page with its status and the exact `pull-section` command to run. Read the page mapping from `.theme-forge/mappings/pages/{template}.json` and cross-reference with `state.json`:
+When `--page` is provided, skip the full report. Instead, list every section on that page with its status and the exact `pull-section` command to run. Read the page mapping from `.theme-forge/mappings/pages/{template}.json` and cross-reference with section reports in `.theme-forge/reports/sections/`:
 
 ```
 Homepage (index) — 5 sections

@@ -35,16 +35,17 @@ These rules are non-negotiable. They override everything else in this document. 
 - `.theme-forge/config.json` must exist (run `onboard` first)
 - Ideally, a mapping exists at `.theme-forge/mappings/sections/{section-name}.json` (will auto-run `map-section` if not)
 
-## State Integration
+## Report-Based Progress
 
-When `.theme-forge/state.json` exists, pull-section reads and writes it (whether invoked standalone or as part of a pipeline):
+Pull-section writes a report to `.theme-forge/reports/sections/{section-key}.json` on completion or failure. The report is the source of truth for whether a section is done.
 
-1. **On start**: Set section status to `in_progress` with `last_updated` timestamp
-2. **On success**: Set status to `completed` (visual verified) or `completed_code_only` (no browse tool)
-3. **On failure**: Set status to `failed` with `error_history` entry (see Error Classification below)
-4. **On skip**: If section is already `completed`, skip unless `--force` is passed
+- **On success**: Report with `status: "completed"` or `"completed_code_only"`
+- **On failure**: Report with `status: "failed"` and error details
+- **On skip**: Report with `status: "skipped"` (user explicitly skipped)
 
-State keys use the format `{section-type}-{index}:{page}` to prevent collisions when the same section type appears multiple times on a page (e.g., `featured-collection-1:index`, `featured-collection-2:index`).
+Section keys use the format `{section-type}-{index}:{page}` to prevent collisions when the same section type appears multiple times on a page (e.g., `featured-collection-1:index`, `featured-collection-2:index`).
+
+Before starting work, check if a report already exists. If `status` is `completed`, skip the section (another session may have finished it).
 
 ### Browse Tool — IMPORTANT: This is a Bash Command
 
@@ -887,7 +888,7 @@ bbox[h2] width          | 600px         | 600px         | 0        | PASS
 
 ### Step 11: Write Report
 
-Save to `.theme-forge/reports/sections/{state-key}.json` (where state-key matches the `state.json` key, e.g., `featured-collection-1:index`). Use the state key, not the bare section name, to prevent report collisions when the same section type appears multiple times:
+Save to `.theme-forge/reports/sections/{section-key}.json` (e.g., `featured-collection-1:index`). Use the section key, not the bare section name, to prevent report collisions when the same section type appears multiple times:
 
 ```json
 {
@@ -1042,17 +1043,21 @@ When a section fails (retries exhausted or unrecoverable error), classify the fa
 
 ### Error Report Format
 
-When a section fails, add an entry to the section's `error_history` in `state.json`:
+When a section fails, write a structured error report to `.theme-forge/reports/sections/{section-name}.json` with `"status": "failed"` and the error details:
 
 ```json
 {
+  "status": "failed",
   "error_class": "css_override_failed",
-  "attempt": 3,
-  "timestamp": "2026-04-08T12:15:00Z",
-  "description": "font-weight override not applying despite !important",
-  "suggested_remediation": "Try creating extension section to control font-weight directly",
-  "files_modified_before_failure": ["assets/custom.css"]
+  "attempts": 3,
+  "last_error": {
+    "timestamp": "2026-04-08T12:15:00Z",
+    "description": "font-weight override not applying despite !important",
+    "suggested_remediation": "Try creating extension section to control font-weight directly",
+    "files_modified_before_failure": ["assets/custom.css"]
+  },
+  "error_history": [...]
 }
 ```
 
-And write a structured error report to `.theme-forge/reports/sections/{section-name}.json` with `"status": "failed"` and the full `error_history` array. This enables `status` to show actionable failure summaries and `--reset-failed` to know which sections to retry.
+This enables `status` to show actionable failure summaries and `--retry-failed` to identify which sections to re-attempt (by deleting their failed reports).

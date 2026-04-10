@@ -136,17 +136,14 @@ Create `.theme-forge/config.json` in the target theme root:
 
 ```json
 {
-  "version": "0.4.2",
+  "version": "0.7.0",
   "live_url": "https://example.com",
-  "base_theme": "../path-to-exported-theme",
   "target_theme": ".",
   "target_type": "horizon",
   "target_theme_id": 147980124204,
   "dev_store": "store.myshopify.com",
-  "dev_url": "http://127.0.0.1:9292",
   "extension_prefix": "custom-",
   "live_theme_id": 131911450755,
-  "base_theme_exported_at": "2026-04-08T12:00:00Z",
   "capabilities": {
     "browse": true,
     "browse_method": "gstack_browse",
@@ -157,24 +154,79 @@ Create `.theme-forge/config.json` in the target theme root:
 }
 ```
 
+Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) instead of a full theme export.
+
+### Step 5.5: Write Global Standards
+
+Create `.theme-forge/mapping-rules.json`:
+
+```json
+{
+  "rules": [],
+  "updated_at": "<current ISO timestamp>"
+}
+```
+
+Create `.theme-forge/conventions.json`:
+
+```json
+{
+  "css_first": true,
+  "extension_prefix": "custom-",
+  "never_modify_core_files": true,
+  "max_retry_attempts": 3,
+  "accepted_variance_threshold_px": 1,
+  "commit_after_each_section": true
+}
+```
+
+Create `.theme-forge/learnings.json`:
+
+```json
+{
+  "learnings": [],
+  "created_at": "<current ISO timestamp>"
+}
+```
+
 ### Step 6: Verify Setup
 
-1. Confirm the base theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
-2. Confirm the target theme path exists and contains Shopify theme files
-3. If a browse tool is available, verify the live URL is reachable
-4. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/` directories
-5. **Check `.gitignore`**: If `.theme-forge/` is not in the target theme's `.gitignore`, add it. The state directory contains session-specific data that should not be committed.
-6. Print a summary of the configuration
+1. Confirm the target theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
+2. If a browse tool is available, verify the live URL is reachable
+3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/` directories
+4. **Check `.gitignore`**: Add ONLY session-specific paths to `.gitignore`:
+   ```
+   .theme-forge/base-cache/
+   .theme-forge/debug/
+   ```
+   Do NOT gitignore all of `.theme-forge/`. Config, mappings, reports, learnings, and mapping rules must be committed so parallel sessions share them.
+5. Print a summary of the configuration
 
-### Step 7: Suggest Next Step
+### Step 7: Commit + Suggest Next Step
+
+Commit the onboarding artifacts:
+
+```bash
+git add .theme-forge/config.json \
+        .theme-forge/mapping-rules.json \
+        .theme-forge/conventions.json \
+        .theme-forge/learnings.json \
+        .gitignore
+git commit -m "theme-forge: onboard project"
+git push
+```
 
 Tell the user:
-- Run `/theme-forge scan` to inventory the site and create a migration plan
-- Or run `/theme-forge map-section <name>` to assess a specific section
+- Run `/theme-forge pull-page index` to start pulling the homepage (scan + map happens automatically)
+- Or run `/theme-forge scan` to inventory the full site first
 - Or run `/theme-forge pull-section <name>` to start pulling immediately (will auto-map first)
+- **For parallel sessions:** Open additional sessions and run `/theme-forge pull-page <page>` in each. Each session is self-sufficient after onboarding.
 
 ## Output
 
-- `.theme-forge/config.json` — Project configuration file
+- `.theme-forge/config.json` — Project configuration file (committed)
+- `.theme-forge/mapping-rules.json` — Global mapping registry (committed)
+- `.theme-forge/conventions.json` — Global standards (committed)
+- `.theme-forge/learnings.json` — Empty learnings file (committed)
 - `.theme-forge/` directory structure created
 - Summary printed to conversation

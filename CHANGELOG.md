@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0 — 2026-04-10
+
+**Git-centric parallel sessions.** Complete rethink of multi-session coordination. The repo is the coordination layer. No locks. No state machine. Zero-ceremony session start.
+
+- **Zero-ceremony sessions**: New sessions read `config.json` from the repo and start working immediately. No setup commands beyond initial `onboard`.
+- **Targeted base pull**: Sessions pull only `templates/` and `config/` from the live theme (~5 sec) instead of a full theme export. Always fresh, gitignored, session-local.
+- **Scoped scan + map**: `pull-page` scans only the page it needs, not the entire site. Creates mappings on demand. Full `scan` still available but not required.
+- **Git coordination**: Committed reports = section done. Sessions `git pull` before each section to see what other sessions have completed. No file locks, no state.json, no coordination protocol.
+- **Mapping rules registry** (`.theme-forge/mapping-rules.json`): Global "base X → target Y" rules committed to repo. Ensures all sessions use consistent mappings.
+- **Conventions file** (`.theme-forge/conventions.json`): Global standards (CSS-first, prefix, thresholds) committed to repo.
+- **Per-session dev server**: Each session runs `shopify theme dev --environment page-{name} --port {unique}`. Separate Shopify dev themes per environment, no conflicts.
+- **Commit after each section**: Code changes + reports committed and pushed after every section, making progress visible to other sessions immediately.
+- **`--globals-only` flag**: Replaces `--through-globals`. Runs scan→map→header→footer, commits, stops. Useful for CI or explicit first-step workflows.
+- **`--retry-failed` flag**: Replaces `--reset-failed`. Deletes failed reports so sections are re-attempted.
+- **Onboard commits config**: `.theme-forge/` is no longer fully gitignored. Only `base-cache/` and `debug/` are ignored. Config, mappings, reports, and learnings are committed.
+
+**Removed:**
+- `state.json` (entire state machine)
+- File-based locks (global and page)
+- `--through-globals` flag (replaced by `--globals-only`)
+- `--force` flag (no locks to break)
+- `--reset` / `--reset-failed` flags (replaced by `--retry-failed`)
+- Staleness detection (no in_progress state to go stale)
+- `base_theme` path in config (replaced by targeted base pull)
+
 ## 0.5.15 — 2026-04-09
 
 **Hard rules at the top.** The agent was ignoring section-level screenshot, mandatory transcript, and honest status rules despite them existing in the skill. Root cause: rules were scattered across a 1032-line file and getting lost.

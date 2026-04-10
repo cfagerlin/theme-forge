@@ -46,20 +46,29 @@ Optionally, run `./setup` to check dependencies (Shopify CLI, browse tools, Git)
 | `/theme-forge status` | Human-readable progress report |
 | `/theme-forge upgrade` | Check for and apply updates |
 | `/theme-forge --full` | Run all sections across all mapped pages |
-| `/theme-forge --full --reset-failed` | Retry all previously failed sections |
+| `/theme-forge --full --retry-failed` | Retry all previously failed sections |
 
 ## Quick Start
 
 ```
-/theme-forge onboard
-/theme-forge scan
-/theme-forge reconcile          # if picking up existing work
-/theme-forge pull-header
-/theme-forge pull-footer
-/theme-forge pull-page
+/theme-forge onboard              # one-time: config + commit
+/theme-forge pull-page index      # pulls homepage (auto-scans, auto-maps)
+/theme-forge pull-page product    # pulls product page (can run in parallel)
 /theme-forge review
 /theme-forge status
 ```
+
+### Parallel Sessions (Conductor / Multi-Agent)
+
+After onboarding, open multiple sessions and run one page per session:
+
+```
+Session 1: /theme-forge pull-page index
+Session 2: /theme-forge pull-page product
+Session 3: /theme-forge pull-page collection
+```
+
+Each session is self-sufficient. It pulls fresh base data, scans its page, handles globals if needed, and commits progress as it goes. Other sessions see completed work via `git pull`.
 
 ## How Pull Works
 
@@ -109,22 +118,25 @@ theme-forge/
 
 ## Project State
 
-All state lives in `.theme-forge/` in your target theme:
+All state lives in `.theme-forge/` in your target theme. Most files are **committed to the repo** so parallel sessions share them:
 
 ```
 .theme-forge/
-├── config.json              # Project config (from onboard)
-├── state.json               # Pipeline state machine (tracks section progress)
-├── site-inventory.json      # Theme inventory (from scan)
-├── learnings.json           # Accumulated learnings from retries
-├── plan.json                # Migration plan (from scan)
+├── config.json              # Project config (from onboard) — committed
+├── mapping-rules.json       # Global "base X → target Y" rules — committed
+├── conventions.json         # Global standards — committed
+├── learnings.json           # Accumulated learnings — committed
+├── site-inventory.json      # Full inventory (optional, from scan) — committed
+├── plan.json                # Migration plan (optional, from scan) — committed
+├── base-cache/              # Targeted base pull (templates + config) — gitignored
+├── debug/                   # Debug artifacts — gitignored
 ├── mappings/
-│   ├── sections/            # Per-section compatibility reports
-│   └── pages/               # Per-page mapping summaries
+│   ├── sections/            # Per-section compatibility reports — committed
+│   └── pages/               # Per-page mapping summaries — committed
 └── reports/
-    ├── sections/            # Per-section pull reports
-    ├── pages/               # Per-page pull reports
-    └── review-*.json        # Review reports
+    ├── sections/            # Per-section pull reports — committed
+    ├── pages/               # Per-page pull reports — committed
+    └── review-*.json        # Review reports — committed
 ```
 
 ## Principles
@@ -133,7 +145,8 @@ All state lives in `.theme-forge/` in your target theme:
 - **Visual-first** — Screenshots and computed styles, not just code diffing
 - **Non-destructive** — Never modifies the source/base theme
 - **Extension layer** — All target customizations in namespaced files (configurable prefix)
-- **Resumable** — State machine tracks every section; kill a run and restart it, picks up where it left off. Stale sections auto-recover after 10 minutes
+- **Git-native coordination** — The repo is the single source of truth. Committed reports = done. No locks, no state machine. Parallel sessions coordinate through git commits.
+- **Zero-ceremony sessions** — New session reads config, pulls base data (~5 sec), starts working. No setup commands.
 - **Composable** — Each command works independently
 
 ## Requirements
