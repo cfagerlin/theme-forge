@@ -912,6 +912,24 @@ The report tracks which learnings were applied proactively (`learnings_applied`)
 
 These patterns recur across sections. Check for them proactively:
 
+### Grid/Mosaic Sections Need Exact Proportions
+**This is a common regression.** When the base section uses a custom grid layout with asymmetric columns or variable heights (e.g., `layout: "right"`, `grid_height: "56%"`, or CSS Grid with `span 2`), the target must reproduce the exact proportions. Using equal-width columns or equal-height rows is NOT a fix. It produces a visibly different layout.
+
+**What to do:**
+- Extract the live grid's computed column/row sizes (`grid-template-columns`, `grid-template-rows`, `aspect-ratio`) via the browse tool
+- If the target theme's section type doesn't support asymmetric grids, use CSS Grid overrides or create a custom section
+- Never use `image_ratio: "square"` when the live site uses `image_ratio: "adaptive"` or variable aspect ratios. The image proportions ARE the layout.
+- A flat equal-size grid is never "close enough" to an asymmetric mosaic. If you can see the difference, it's wrong.
+
+### "Close Approximation" Is Not a Resolution
+**Never accept a variance as "close approximation."** This is the #1 way sections get marked "completed" while looking wrong. Common false resolutions:
+- "Images appear roughly square" — measure them. If live is 4:3 and dev is 1:1, that's a 25% height difference.
+- "Minor size differences due to theme presets" — override the preset. CSS custom properties cascade through Shadow DOM.
+- "Text renders correctly with [font]" — check font-size, line-height, letter-spacing, and weight. "Correct font" is necessary but not sufficient.
+- "Layout matches the structure" — structure is not layout. A 4+2 grid with equal cells is structurally correct but visually wrong if the live site has a mosaic.
+
+If the visual output doesn't match, the fix is incomplete. Period.
+
 ### CSS Variable Names Differ Between Themes
 **This is the #1 source of migration errors.** Never assume variable names match. Always resolve to final computed values.
 - Dawn `--font-heading-weight` vs Horizon `--font-heading--weight` (double dash)
