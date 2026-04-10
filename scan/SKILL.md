@@ -294,6 +294,64 @@ Save to `.theme-forge/`:
 3. `class-map.json` — CSS class, custom property, and component pattern cross-reference
 4. `plan.json` — Migration plan with phases and effort estimates
 
+Commit all four files to git.
+
+### Step 8: Apply Global Settings (`--apply-globals`)
+
+**This step runs automatically at the end of scan** unless `--no-apply-globals` is passed.
+
+Using the `settings-map.json` generated in Step 5.5, apply the base theme's global settings to the target theme's `config/settings_data.json`. This ensures every section starts from the correct baseline instead of each pull-section overriding the same defaults with CSS `!important`.
+
+**What to apply:**
+
+1. **Typography** — For each typography setting where `override_needed: true`:
+   - Set the target theme's font family, weight, size, letter-spacing to match base values
+   - Use the target theme's setting key from the map (e.g., set `--font-heading--weight` to `200`)
+
+2. **Colors** — For each color scheme mapping:
+   - Set the target theme's color scheme values to match the base theme's colors
+   - Create new color schemes if needed for base colors that don't have a close match
+
+3. **Spacing** — Set section padding defaults to match base theme
+
+4. **Features** — Enable/disable feature toggles to match base theme (sticky header, announcement bar, etc.)
+
+**What NOT to apply:**
+- Section-level settings (those are per-section, handled by pull-section)
+- Content (text, images, links — handled by pull-section)
+- Layout choices that depend on section structure
+
+**After applying, present a summary:**
+
+> **Global settings applied to target theme:**
+> - Typography: heading font set to Spectral 200, letter-spacing -0.02em
+> - Colors: scheme-1 text updated #333 → matches base, scheme-3 created for #4c544c backgrounds
+> - Spacing: section padding set to 36px top/bottom
+> - Features: sticky header enabled, announcement bar enabled
+>
+> {N} settings changed in `config/settings_data.json`.
+
+Commit the changes:
+```bash
+git add config/settings_data.json
+git commit -m "theme-forge: apply global settings from base theme"
+```
+
+### Step 9: Recommend Next Steps
+
+After scan completes, present the recommended workflow:
+
+> **Scan complete.** Here's the recommended order:
+>
+> 1. ~~Apply global settings~~ ✓ Done (fonts, colors, spacing applied)
+> 2. `/theme-forge pull-header` — Pull the site header (appears on every page)
+> 3. `/theme-forge pull-footer` — Pull the site footer (appears on every page)
+> 4. `/theme-forge pull-page index` — Start pulling the homepage
+>
+> Global settings are applied. Header and footer come next because they appear on every page — getting them right first means every subsequent page pull starts from a correct baseline.
+>
+> For parallel sessions: after header/footer are done, open additional sessions and run `/theme-forge pull-page <page>` in each.
+
 ## Output Schema
 
 ### site-inventory.json

@@ -26,8 +26,17 @@ Defaults to `index` (homepage) if omitted.
 ### Step -1: Git Pull + Globals Check
 
 1. **`git pull`** to get the latest committed state from the repo.
-2. **Check globals:** Look for `.theme-forge/reports/sections/header.json` and `footer.json` with `status: "completed"`. If both exist, globals are done. If not, ask: "Header/footer haven't been pulled yet. Run them now before starting page sections?" If yes, run `pull-header` and `pull-footer`, commit changes, and push.
-3. **Read global standards:** Load `.theme-forge/mapping-rules.json`, `.theme-forge/learnings.json`, and `.theme-forge/conventions.json` (if they exist).
+2. **Check global maps:** Look for `.theme-forge/settings-map.json` and `.theme-forge/class-map.json`. If either is missing, STOP and recommend scan first:
+
+   > **Global maps not found.** Running pull-page without global maps means every section independently rediscovers theme settings and CSS class mappings. This is slower and more error-prone.
+   >
+   > A) Run `/theme-forge scan` first (recommended) — generates global maps and applies global settings (~2 min)
+   > B) Continue without maps — I'll figure it out per-section
+
+   **Wait for the user's choice.** If A, run scan (which includes `--apply-globals`), then resume from here.
+
+3. **Check header/footer:** Look for `.theme-forge/reports/sections/header.json` and `footer.json` with `status: "completed"`. If both exist, globals are done. If not, ask: "Header/footer haven't been pulled yet. Run them now before starting page sections?" If yes, run `pull-header` and `pull-footer`, commit changes, and push.
+4. **Read global standards:** Load `.theme-forge/mapping-rules.json`, `.theme-forge/learnings.json`, and `.theme-forge/conventions.json` (if they exist).
 
 ### Step 0: Targeted Base Pull
 
