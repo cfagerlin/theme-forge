@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.5 — 2026-04-10
+
+**Fix Klaviyo popup blocking live captures.** Popup dismissal now runs BEFORE `--networkidle`, not after. Klaviyo's continuous polling prevented networkidle from ever completing, causing the browse tool to crash/timeout and producing blank screenshots.
+
+- **Capture skill reordered**: navigate → `sleep 2` → dismiss popups + remove Klaviyo/Privy scripts → `wait --networkidle`. Previously: navigate → networkidle (crash) → dismiss (never reached).
+- **Script source removal**: Now also removes `<script src*=klaviyo>` and `<script src*=privy>` elements, not just their popup DOM. This stops the polling that blocks networkidle.
+- **Klaviyo iframe removal**: Added `iframe[src*=klaviyo]` to the dismiss selector list.
+- **All breakpoint commands updated**: Desktop, tablet, and mobile captures all use the new dismiss-first flow.
+
 ## 0.8.4 — 2026-04-10
 
 **Blank capture hard stop + footer group gotchas.** Found when bangalore workspace completed pull-footer with a blank live screenshot and skeleton output — the agent silently continued without ever seeing the live site.

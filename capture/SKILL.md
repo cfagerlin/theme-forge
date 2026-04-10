@@ -66,31 +66,35 @@ Create the output directory:
 mkdir -p <output>
 ```
 
-### Step 2: Navigate + Wait
+### Step 2: Navigate + Dismiss Popups + Wait
+
+**For live site URLs** (not `127.0.0.1` or `localhost`), dismiss popups EARLY — before `--networkidle`. Klaviyo and similar popup scripts make continuous network requests that prevent `--networkidle` from completing.
+
+```bash
+B=<path> && $B goto "<url>" && sleep 2 && \
+$B js "document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.klaviyo-close-form,.privy-popup,[class*=cookie],[data-testid*=popup],iframe[src*=klaviyo]').forEach(el=>el.remove());document.querySelectorAll('script[src*=klaviyo],script[src*=privy]').forEach(el=>el.remove());document.body.style.overflow='auto'" && \
+$B wait --networkidle
+```
+
+The sequence is: navigate → short wait for popup to render → kill popup elements AND their script sources → then wait for networkidle (which now completes because the polling scripts are gone).
+
+**If the browse tool crashes** (`forLoadState`, `Target page, context or browser has been closed`, or any exit code 1 during wait):
+
+```bash
+B=<path> && $B goto "<url>" && sleep 3 && \
+$B js "document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.klaviyo-close-form,.privy-popup,[class*=cookie],[data-testid*=popup],iframe[src*=klaviyo]').forEach(el=>el.remove());document.querySelectorAll('script[src*=klaviyo],script[src*=privy]').forEach(el=>el.remove());document.body.style.overflow='auto'" && \
+sleep 2
+```
+
+This is the fallback. Use `sleep 3` + dismiss + `sleep 2` for the rest of this capture run (all breakpoints).
+
+**For dev site URLs** (`127.0.0.1` or `localhost`), skip popup dismissal:
 
 ```bash
 B=<path> && $B goto "<url>" && $B wait --networkidle
 ```
 
-This handles lazy-loaded images, deferred scripts, and Shadow DOM hydration. `wait --networkidle` waits until network activity ceases (15 second timeout).
-
-**If the browse tool crashes** (`forLoadState`, `Target page, context or browser has been closed`, or any exit code 1 during navigation):
-
-```bash
-B=<path> && $B goto "<url>" && sleep 3
-```
-
-This is the fallback. Some live sites with heavy analytics, cookie consent redirects, or bot protection break `--networkidle`. Use `sleep 3` for the rest of this capture run (all breakpoints).
-
-### Step 3: Dismiss Overlays
-
-**Only for live site URLs** (skip if URL contains `127.0.0.1` or `localhost`):
-
-```bash
-$B js "document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.privy-popup,[class*=cookie],[data-testid*=popup]').forEach(el=>el.remove());document.body.style.overflow='auto'"
-```
-
-### Step 4: Scroll to Section
+### Step 3: Scroll to Section
 
 **If `--section` is a numeric index:**
 ```bash
@@ -104,18 +108,24 @@ $B js "document.querySelector('<selector>').scrollIntoView({block:'start'})" && 
 
 The second `wait --networkidle` catches lazy images that load when the section enters the viewport.
 
-### Step 5: Capture All Three Breakpoints
+### Step 4: Capture All Three Breakpoints
 
-**IMPORTANT:** Steps 2-5 must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
+**IMPORTANT:** Steps 2-4 must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
 
 **Full command for each breakpoint** (run one complete Bash call per breakpoint).
 
-Use `$B wait --networkidle` if Step 2 succeeded with it. Use `sleep 3` if Step 2 crashed with `--networkidle`.
+Use the networkidle variant if Step 2 succeeded with it. Use the sleep fallback variant if Step 2 crashed.
+
+**Popup dismissal JS** (reuse this in every breakpoint command for live URLs):
+```
+DISMISS='document.querySelectorAll("[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.klaviyo-close-form,.privy-popup,[class*=cookie],[data-testid*=popup],iframe[src*=klaviyo]").forEach(el=>el.remove());document.querySelectorAll("script[src*=klaviyo],script[src*=privy]").forEach(el=>el.remove());document.body.style.overflow="auto"'
+```
 
 #### Desktop (1280px):
 ```bash
-B=<path> && $B goto "<url>" && $B wait --networkidle && \
-$B js "document.querySelectorAll('[class*=popup],[class*=modal],[class*=overlay],.klaviyo-form,.privy-popup,[class*=cookie],[data-testid*=popup]').forEach(el=>el.remove());document.body.style.overflow='auto'" && \
+B=<path> && $B goto "<url>" && sleep 2 && \
+$B js "$DISMISS" && \
+$B wait --networkidle && \
 $B js "<scroll_command>" && $B wait --networkidle && \
 $B screenshot "<selector_or_--viewport>" <output>/desktop.png
 ```
@@ -129,16 +139,17 @@ If blank or broken, retry the entire command once. If still blank: **FAIL** with
 
 #### Tablet (768px):
 ```bash
-B=<path> && $B goto "<url>?viewport=768" && $B js "Object.defineProperty(window,'innerWidth',{value:768,writable:true});Object.defineProperty(window,'innerHeight',{value:1024,writable:true});window.dispatchEvent(new Event('resize'))" && $B wait --networkidle && \
-$B js "<dismiss_overlays_if_live>" && \
+B=<path> && $B goto "<url>?viewport=768" && $B js "Object.defineProperty(window,'innerWidth',{value:768,writable:true});Object.defineProperty(window,'innerHeight',{value:1024,writable:true});window.dispatchEvent(new Event('resize'))" && sleep 2 && \
+$B js "$DISMISS" && \
+$B wait --networkidle && \
 $B js "<scroll_command>" && $B wait --networkidle && \
 $B screenshot "<selector_or_--viewport>" <output>/tablet.png
 ```
 
 #### Mobile (375px):
 ```bash
-B=<path> && $B goto "<url>?viewport=375" && $B js "Object.defineProperty(window,'innerWidth',{value:375,writable:true});Object.defineProperty(window,'innerHeight',{value:812,writable:true});window.dispatchEvent(new Event('resize'))" && $B wait --networkidle && \
-$B js "<dismiss_overlays_if_live>" && \
+B=<path> && $B goto "<url>?viewport=375" && $B js "Object.defineProperty(window,'innerWidth',{value:375,writable:true});Object.defineProperty(window,'innerHeight',{value:812,writable:true});window.dispatchEvent(new Event('resize'))" && sleep 2 && \
+$B js "$DISMISS" && \
 $B js "<scroll_command>" && $B wait --networkidle && \
 $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 ```
@@ -147,7 +158,7 @@ $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 - If `--section` is a CSS selector: `$B screenshot "<selector>" <output>/<breakpoint>.png`
 - If `--section` is a numeric index: after scrolling to section, use `$B screenshot --viewport <output>/<breakpoint>.png`
 
-### Step 6: Extract Computed Styles (if `--extract-styles`)
+### Step 5: Extract Computed Styles (if `--extract-styles`)
 
 For each breakpoint, after the screenshot, run the extraction script in the same Bash call (page is still loaded).
 
@@ -259,7 +270,7 @@ Save the output as `<output>/<breakpoint>.styles.json`.
 
 **Why file-based:** The extraction script is ~80 lines of JS. Passing it as a shell string causes escaping issues (quotes inside quotes, backslashes, regex). Writing to a file and reading it back avoids all shell escaping problems.
 
-### Step 7: Store Reference (if `--reference`)
+### Step 6: Store Reference (if `--reference`)
 
 ```bash
 mkdir -p .theme-forge/references/<name>/
