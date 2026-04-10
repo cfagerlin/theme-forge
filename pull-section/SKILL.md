@@ -14,8 +14,8 @@ Execute the full compare→fix→verify methodology on a single section. This is
 These rules are non-negotiable. They override everything else in this document. If you find yourself about to violate one, stop and re-read it.
 
 ### Screenshots
-- **NEVER take a full-page screenshot for section comparison.** Every screenshot must target a single section using scroll-to-section + viewport capture or an element selector. Full-page screenshots are too small to see real differences and make visual verification meaningless. This applies to Step 4 AND Step 8.
-- **Dismiss popups/modals before screenshotting the live site.** Email signup overlays, cookie banners, and age gates block section content. Remove them with JS before capturing.
+- **ALL screenshots are taken by the `capture` skill.** Do not run browse tool commands directly. Invoke `capture/SKILL.md` for every screenshot. This ensures section-scoped capture, proper `wait --networkidle`, popup dismissal, and all three breakpoints (desktop, tablet, mobile).
+- **NEVER take a full-page screenshot.** The capture skill enforces this. If you find yourself writing `$B screenshot` commands directly, stop. Use capture instead.
 
 ### Debug mode
 - **`transcript.md` is mandatory.** Write to it incrementally at every step, not at the end. A debug session without a transcript is a failed debug session. Do not skip it.
@@ -47,177 +47,46 @@ Section keys use the format `{section-type}-{index}:{page}` to prevent collision
 
 Before starting work, check if a report already exists. If `status` is `completed`, skip the section (another session may have finished it).
 
-### Browse Tool — IMPORTANT: This is a Bash Command
+### Screenshot Capture — Use the `capture` Skill
 
-The browse tool is a **CLI binary** you run via the **Bash tool**. It is NOT an MCP tool, NOT a named tool in your tool list, and NOT WebFetch. You will not see "browse" in your tool list — that's expected. You use it by running Bash commands.
+**Do NOT run browse tool commands (`$B goto`, `$B screenshot`, etc.) directly.** All screenshots are taken by reading and following the `capture/SKILL.md` workflow inline. This ensures:
+- Section-scoped screenshots (never full-page)
+- `wait --networkidle` (never `sleep`)
+- Popup dismissal on live sites
+- All three breakpoints: desktop (1280), tablet (768), mobile (375)
 
-**Discovery — run this first:**
+**Before Step 4**, verify the browse tool exists:
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE READY: $B" || echo "NOT FOUND"
+B=$HOME/.claude/skills/gstack/browse/dist/browse
+[ -x "$B" ] && echo "BROWSE: $B" || { B="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/skills/gstack/browse/dist/browse"; [ -x "$B" ] && echo "BROWSE: $B" || echo "BROWSE: NOT FOUND"; }
 ```
 
-If `BROWSE READY`: you have the browse tool. The path is printed — use it in all subsequent commands.
-If `NOT FOUND`: check the alternate location:
-```bash
-B="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/skills/gstack/browse/dist/browse" && [ -x "$B" ] && echo "BROWSE READY: $B" || echo "NOT FOUND"
-```
-
-If neither location has it, fall back to code-only mode (see Fallback below).
-
-**IMPORTANT: Chain ALL browse commands in a SINGLE Bash call.** The browse tool may lose page state between separate Bash tool invocations (it restarts its server). Always chain `goto`, `js`, and `screenshot` commands in one Bash call using `&&` or newlines. Also define `B=<path>` at the start of every call since shell variables don't persist.
-
-**Navigate, wait, and screenshot** (all in ONE Bash call):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B screenshot /tmp/live-section.png
-```
-
-**Navigate, run JavaScript, and screenshot** (all in ONE Bash call):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "http://127.0.0.1:9292" && sleep 3 && $B js "document.title" && $B screenshot /tmp/dev-section.png
-```
-
-**Screenshot a specific element:**
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B screenshot ".section-hero" /tmp/hero-live.png
-```
-
-**Run JavaScript for computed styles** (navigate + extract in ONE call):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B js "JSON.stringify(window.getComputedStyle(document.querySelector('.hero')))"
-```
-
-**Responsive screenshots:**
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "https://livesite.com" && sleep 2 && $B responsive /tmp/section
-```
-
-**NEVER split browse commands across separate Bash tool calls.** For example, do NOT run `$B goto` in one Bash call and `$B screenshot` in the next — the page will be lost. Everything that needs the same page must be in one call.
-
-**View screenshots:** Use the Read tool on the output PNG to visually inspect it.
-
-#### Alternative: Playwright MCP (if gstack browse binary is not installed)
-
-If you have `mcp__playwright__*` tools in your tool list, use those instead:
-- `mcp__playwright__browser_navigate` to go to a URL
-- `mcp__playwright__browser_screenshot` to capture the page
-- `mcp__playwright__browser_evaluate` to run JavaScript
-
-### Runtime Browse Verification
-
-**Before starting Step 4**, run the browse discovery command above via Bash. This takes 1 second and tells you definitively whether the binary exists.
-
-**Do NOT decide browse availability by inspecting your tool list.** The browse binary is a CLI, not a named tool. If you don't see "browse" in your tools, that means nothing — run the Bash check.
-
-If the binary exists but fails (e.g., `$B url` returns an error), present these options:
-- **A) Fall back to code-only analysis for this session.** Final status will be `completed_code_only`.
-- **B) Troubleshoot.** Run `ls -la $HOME/.claude/skills/gstack/browse/dist/browse` and `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B url` to diagnose.
+If `NOT FOUND`: fall back to code-only mode. Set final status to `completed_code_only`.
 
 ### Shadow DOM Handling (Horizon and modern themes)
 
-Some Shopify themes (notably **Horizon**) use **Declarative Shadow DOM** with web components. All page content lives inside shadow roots, not the regular DOM. This means:
+Some Shopify themes (notably **Horizon**) use **Declarative Shadow DOM**. Standard `querySelector()` cannot find elements inside shadow roots. Use deep query functions when extracting computed styles or finding elements:
 
-1. **`document.querySelector()` cannot find elements inside shadow roots.** You must use a deep query that recurses into `.shadowRoot` on each element.
-2. **`document.body.innerHTML` will appear empty** even though the page renders visually. This is normal for Shadow DOM themes.
-3. **Screenshots may be blank if taken too quickly.** Declarative Shadow DOM is parsed during HTML load, but custom element JS (which sets up interactivity and may lazy-load images) needs time to register.
-
-**How to detect Shadow DOM themes:**
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B goto "http://127.0.0.1:9292"
-$B js "document.querySelectorAll('*').length + ' elements, ' + (document.querySelector('[shadowrootmode], template[shadowroot]') ? 'HAS' : 'NO') + ' declarative shadow DOM, shadow hosts: ' + [...document.querySelectorAll('*')].filter(e => e.shadowRoot).length"
-```
-
-If shadow hosts > 0, this is a Shadow DOM theme. Use the techniques below.
-
-**Wait for hydration before screenshots** (all in ONE Bash call — the browse tool loses page state between separate calls):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "http://127.0.0.1:9292" && sleep 3 && $B js "document.querySelectorAll('*').length" && $B screenshot /tmp/dev-homepage.png
-```
-
-The 3-second sleep lets custom elements register and images load. For pages with heavy media, increase to 5 seconds.
-
-**Deep querySelector — find elements inside shadow roots:**
 ```javascript
 function deepQuery(root, sel) {
   let r = root.querySelector(sel);
   if (r) return r;
   for (const el of root.querySelectorAll('*')) {
-    if (el.shadowRoot) {
-      r = deepQuery(el.shadowRoot, sel);
-      if (r) return r;
-    }
+    if (el.shadowRoot) { r = deepQuery(el.shadowRoot, sel); if (r) return r; }
   }
   return null;
 }
 ```
 
-Run via browse tool:
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B js "function deepQuery(root,sel){let r=root.querySelector(sel);if(r)return r;for(const el of root.querySelectorAll('*')){if(el.shadowRoot){r=deepQuery(el.shadowRoot,sel);if(r)return r;}}return null;} const el=deepQuery(document,'h1,.hero-heading,[class*=title]'); el ? el.textContent.trim() : 'NOT FOUND'"
-```
-
-**Deep querySelectorAll — find ALL matching elements across shadow boundaries:**
-```javascript
-function deepQueryAll(root, sel) {
-  const results = [...root.querySelectorAll(sel)];
-  for (const el of root.querySelectorAll('*')) {
-    if (el.shadowRoot) results.push(...deepQueryAll(el.shadowRoot, sel));
-  }
-  return results;
-}
-```
-
-**Extract computed styles from Shadow DOM elements:**
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B js "function deepQueryAll(root,sel){const r=[...root.querySelectorAll(sel)];for(const el of root.querySelectorAll('*')){if(el.shadowRoot)r.push(...deepQueryAll(el.shadowRoot,sel));}return r;} JSON.stringify(deepQueryAll(document,'h1,h2,h3,p,a,button').slice(0,20).map(el=>{const s=getComputedStyle(el);return{tag:el.tagName,text:el.textContent.trim().slice(0,50),fontSize:s.fontSize,fontWeight:s.fontWeight,fontFamily:s.fontFamily,color:s.color,lineHeight:s.lineHeight}}))"
-```
-
-`getComputedStyle()` works fine on shadow DOM elements once you have a reference to them. The hard part is finding them.
-
-**Extract CSS custom properties (design tokens):**
-
-Shadow DOM themes use CSS custom properties to share styles across shadow boundaries. These are your primary style comparison tool:
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-$B js "const s=getComputedStyle(document.documentElement);const props=['--font-body-family','--font-heading-family','--font-body-weight','--font-heading-weight','--color-foreground','--color-background','--font-body-scale','--font-heading-scale'];JSON.stringify(Object.fromEntries(props.map(p=>[p,s.getPropertyValue(p).trim()])))"
-```
-
-CSS custom properties defined on `:root` pierce all shadow boundaries, making them the most reliable way to compare styles between themes.
-
-**Section-level screenshots — CRITICAL for quality:**
-
-**Always screenshot individual sections, never full pages for comparison.** Full-page screenshots compress details into tiny images where you can't see font weight, letter spacing, padding, or overlay differences. Per-section screenshots are the only way to catch the variances that matter.
-
-**Technique 1: Scroll to section + viewport screenshot** (most reliable for Shadow DOM):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<url>" && sleep 2 && $B js "document.querySelectorAll('.shopify-section')[0].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/live-hero.png
-```
-This navigates, waits, scrolls to the Nth section (0-indexed), and screenshots — all in ONE call. Change the index `[0]` for each section.
-
-**Technique 2: Section ID selector** (works on many themes):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<url>" && sleep 2 && $B screenshot "#shopify-section-template--header" /tmp/live-header.png
-```
-Section IDs follow the pattern `shopify-section-template--XXXXX--SECTION_NAME`. Check the page HTML for exact IDs.
-
-**Technique 3: Custom element tag** (for Horizon-style Shadow DOM themes):
-```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<url>" && sleep 2 && $B screenshot "section-hero" /tmp/live-hero.png
-```
-
-**If all element selectors fail:** Use scroll-to-section (Technique 1). Do NOT fall back to full-page screenshots for section comparison — the resolution is too low to catch real variances.
+The `capture` skill handles Shadow DOM for screenshots and style extraction. You only need `deepQuery` when doing ad-hoc element inspection during fix work (Steps 6-7).
 
 ### Fallback (code-only mode)
 
-When the browse binary is not installed and no Playwright MCP tools are available:
-- Skip Steps 4.1-4.4 (screenshot and computed style diff)
+When the browse tool is not available:
+- Skip Steps 4 and 8 (capture + compare)
 - Perform code-only analysis: compare CSS, schema, and settings between base and target
 - Set final status to `completed_code_only` instead of `completed`
-- Log a note in the report: "Visual verification skipped — browse binary not found"
-
-**Do NOT attempt visual verification with curl, WebFetch, or other non-browse tools.** These return HTML/markdown, not rendered pages. Visual comparison requires an actual browser.
+- Log a note in the report: "Visual verification skipped — browse tool not found"
 
 ## Arguments
 
@@ -321,15 +190,18 @@ Replace `${SECTION_NAME}` with the section's state key (e.g., `featured-collecti
 
 ### Screenshot naming
 
-When saving browse tool screenshots in debug mode, save to `$DEBUG_DIR/screenshots/` instead of `/tmp/`:
+When debug mode is on, copy capture output to `$DEBUG_DIR/screenshots/` for the permanent record:
 
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 2 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot $DEBUG_DIR/screenshots/step4-live.png
+cp /tmp/capture-live/desktop.png $DEBUG_DIR/screenshots/step4-live.png
+cp /tmp/capture-dev/desktop.png $DEBUG_DIR/screenshots/step4-dev.png
+cp /tmp/capture-verify/desktop.png $DEBUG_DIR/screenshots/step8-verify.png
 ```
 
-**Always save to both locations** — `/tmp/` for immediate Read tool viewing, and `$DEBUG_DIR/screenshots/` for the permanent record:
+Also copy tablet and mobile screenshots:
 ```bash
-$B screenshot /tmp/live-section.png && cp /tmp/live-section.png $DEBUG_DIR/screenshots/step4-live.png
+cp /tmp/capture-live/tablet.png $DEBUG_DIR/screenshots/step4-live-tablet.png
+cp /tmp/capture-live/mobile.png $DEBUG_DIR/screenshots/step4-live-mobile.png
 ```
 
 ### Transcript format
@@ -419,9 +291,9 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 3. **Find the CSS loading mechanism early.** In Step 1, identify how the target theme loads custom CSS (e.g., `snippets/stylesheets.liquid`, `assets/custom.css`, `content_for_header`). You will need this for CSS overrides. Don't discover it halfway through.
 
-4. **Always navigate before screenshotting.** The browse tool can lose page context. Always run `$B goto <url>` immediately before `$B screenshot`. Never assume the page is still loaded from a previous command.
+4. **Use the capture skill for all screenshots.** Do not run `$B goto` or `$B screenshot` directly. The capture skill handles navigation, waiting, popup dismissal, and section targeting.
 
-5. **Screenshot individual sections, not just full pages.** Use element selectors (`$B screenshot ".shopify-section:nth-child(3)" /tmp/section.png`) for precise per-section comparison. Full-page screenshots miss details.
+5. **Screenshot individual sections, not just full pages.** The capture skill enforces this. If you find yourself bypassing capture, stop.
 
 6. **When a section uses simplified blocks** (text-only, no heading tags), match visual weight through font settings and CSS, not by changing HTML tags. Don't swap `<h3>` for `<p><strong>` unless that's how the target theme actually renders headings.
 
@@ -587,36 +459,52 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 
 **Image references** (see IMAGE SOURCING RULE above): Copy `shopify://shop_images/filename.ext` URLs from the base theme's `settings_data.json`. These resolve to the store's CDN automatically. **Never leave placeholder images** — every image field in the target theme's settings should have the corresponding URL from the base theme.
 
-### Step 4: Render & Inspect
+### Step 4: Capture & Compare (all breakpoints)
 
 **CRITICAL: Do NOT skip this step.** Do not jump from reading code straight to writing CSS. You MUST visually compare the live and dev sections before making changes.
 
-1. **Navigate to the live site** first, then take a **screenshot of THIS SPECIFIC SECTION ONLY** — not the full page. **Chain all commands in ONE Bash call** (the browse tool loses page state between separate calls).
-   **IMPORTANT: Dismiss popups/modals first.** Live Shopify stores often have email signup overlays, cookie banners, or age gates that block section content. Remove them before screenshotting:
-   ```bash
-   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<live_url>" && sleep 3 && $B js "document.querySelectorAll('[class*=popup], [class*=modal], [class*=overlay], .klaviyo-form, .privy-popup, [class*=cookie], [data-testid*=popup]').forEach(el => el.remove()); document.body.style.overflow='auto'" && sleep 1 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/live-section.png
-   ```
-   Or with element selector: `$B screenshot "#shopify-section-ID" /tmp/live-section.png`. Read the screenshot file with the Read tool to visually inspect. **If a popup/overlay is still visible in the screenshot, dismiss it and retake** — never compare against a popup-obscured screenshot. **Never use full-page screenshots for section comparison** — they're too small to see real differences.
-2. **Navigate to the dev site** and screenshot the **same section** — again, **all in ONE Bash call**:
-   ```bash
-   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<dev_url>" && sleep 3 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/dev-section.png
-   ```
-   The 3-second sleep is for Shadow DOM hydration. Increase to 5 seconds if the screenshot is blank.
-3. **Before reading any CSS**, list every visual difference you can see:
-   - **Structural layout**: Which elements exist? Where are they positioned?
-   - **Proportions**: How much space does each element take?
-   - **Element presence/absence**: Are there elements on one that don't exist on the other?
-   - **Vertical positioning**: Where does text sit within its container?
-4. **Run the computed style diff** (see `references/computed-style-diff.md`):
-   - Execute the extraction JavaScript on the **live site** section (use `$B js "..."` for gstack_browse, or the appropriate MCP tool for other methods)
-   - Execute the same script on the **dev site** section
-   - Diff the two results to get a structured table of every CSS property that differs
-   - This catches variances invisible in screenshots (1px spacing, letter-spacing, font-weight)
-   - Categorize diffs by severity (HIGH / MEDIUM / LOW)
-5. Combine the visual differences (Step 4.3) with the computed style diff (Step 4.4) into a single work list
-   - Visual differences catch structural and layout issues that computed styles miss
-   - Computed styles catch subtle property differences that screenshots miss
-   - Together they form a comprehensive variance list — the goal is to identify ALL differences in one pass
+**Use the `capture` skill for all screenshots.** Read `capture/SKILL.md` and follow its workflow inline. Do NOT write browse commands directly.
+
+#### 4.1 Live site reference
+
+Check if a reference already exists at `.theme-forge/references/{section}-{page}/meta.json`.
+
+**If reference exists:** Use the stored screenshots and computed styles. Read `desktop.png` with the Read tool to confirm it still looks correct.
+
+**If no reference exists:** Run the capture workflow with `--reference {section}-{page} --extract-styles`:
+- URL: the live site page URL
+- Section: the CSS selector or index for this section
+- Output: `.theme-forge/references/{section}-{page}/`
+
+After capture, **read `desktop.png`** with the Read tool. Verify the screenshot shows the correct section with all content loaded (images visible, text rendered, no blank areas). If the capture looks wrong, retry once. If still wrong, note the issue and continue with code-only analysis.
+
+#### 4.2 Dev site capture
+
+Run the capture workflow with `--extract-styles`:
+- URL: the dev server URL (e.g., `http://127.0.0.1:9292`)
+- Section: same selector as live site
+- Output: `/tmp/capture-dev/`
+
+#### 4.3 Compare at each breakpoint
+
+For **desktop, tablet, and mobile**:
+1. Read the live reference screenshot and the dev screenshot side by side
+2. List every visual difference you can see:
+   - **Structural layout**: elements, positioning, proportions
+   - **Element presence/absence**: missing or extra elements
+   - **Colors and typography**: fonts, weights, sizes, spacing
+   - **Images**: loaded vs placeholder, sizing, cropping
+3. Compare the computed styles JSON files (live vs dev) to catch variances invisible in screenshots (1px spacing, letter-spacing, font-weight)
+4. Combine visual + computed style differences into a single work list per breakpoint
+5. Categorize by severity (HIGH / MEDIUM / LOW)
+
+**Responsive-specific variances** (only visible at tablet/mobile):
+- Layout changes (side-by-side → stacked)
+- Hidden/shown elements at different breakpoints
+- Different font sizes or padding
+- Navigation collapse (hamburger menu)
+
+These are tracked separately and may require breakpoint-specific CSS overrides (`@media` queries).
 
 ### Step 5: Identify Variances
 
@@ -687,11 +575,8 @@ If the variance requires HTML/Liquid changes:
 
 ### Step 8: Verify the Fix
 
-1. Reload the dev site preview
-2. Take a **section-level screenshot** (not full-page) at the same viewport width as Step 4. Use the **exact same technique** — scroll-to-section + viewport screenshot, or element selector. **Do NOT take a full-page screenshot here** — a full-page screenshot at this step makes it impossible to verify the fix because details are too small. Example:
-   ```bash
-   B=$HOME/.claude/skills/gstack/browse/dist/browse && $B goto "<dev_url>" && sleep 3 && $B js "document.querySelectorAll('.shopify-section')[N].scrollIntoView({block:'start'})" && sleep 1 && $B screenshot /tmp/dev-verify.png
-   ```
+1. Run the `capture` workflow on the dev URL with `--extract-styles`. Output to `/tmp/capture-verify/`. This produces screenshots at all three breakpoints (desktop, tablet, mobile).
+2. For each breakpoint, read the dev screenshot and compare against the stored live reference in `.theme-forge/references/{section}-{page}/`. The live reference is NOT re-captured.
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
@@ -751,87 +636,7 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
 | 17 | **Image container size** | `getBoundingClientRect()` on image wrapper/container element | Container width or height differs by >2px from live |
 | 18 | **Image sizing properties** | `getComputedStyle(img).objectFit`, `objectPosition`, container `aspectRatio` | Different `object-fit` (cover vs contain), different `object-position`, or different `aspect-ratio` — these control which part of the image is visible |
 
-**Extraction script example** (run on both live and dev via browse tool):
-
-```javascript
-(function() {
-  const s = document.querySelector('[data-section-id="SECTION_ID"]') ||
-            document.querySelector('.shopify-section:nth-child(N)');
-  if (!s) return {error: 'Section not found'};
-  const cs = getComputedStyle(s);
-  const h = s.querySelector('h1,h2,h3');
-  const p = s.querySelector('p');
-  const btn = s.querySelector('.button,a[class*=button]');
-  return {
-    bg: cs.backgroundColor,
-    fg: cs.color,
-    padding: {top: cs.paddingTop, bottom: cs.paddingBottom},
-    height: s.getBoundingClientRect().height,
-    heading: h ? {
-      fontFamily: getComputedStyle(h).fontFamily,
-      fontWeight: getComputedStyle(h).fontWeight,
-      fontSize: getComputedStyle(h).fontSize,
-      letterSpacing: getComputedStyle(h).letterSpacing,
-      textAlign: getComputedStyle(h).textAlign
-    } : null,
-    body: p ? {
-      fontFamily: getComputedStyle(p).fontFamily,
-      fontSize: getComputedStyle(p).fontSize,
-      letterSpacing: getComputedStyle(p).letterSpacing,
-      lineHeight: getComputedStyle(p).lineHeight
-    } : null,
-    button: btn ? {
-      classes: btn.className,
-      bg: getComputedStyle(btn).backgroundColor,
-      color: getComputedStyle(btn).color,
-      borderRadius: getComputedStyle(btn).borderRadius,
-      padding: getComputedStyle(btn).padding
-    } : null,
-    images: (function() {
-      const imgs = s.querySelectorAll('img');
-      return [...imgs].slice(0, 10).map(img => {
-        const ics = getComputedStyle(img);
-        const ir = img.getBoundingClientRect();
-        const parent = img.parentElement;
-        const pr = parent.getBoundingClientRect();
-        const pcs = getComputedStyle(parent);
-        return {
-          src: img.src.split('/').pop().split('?')[0],
-          alt: (img.alt || '').substring(0, 40),
-          imgWidth: Math.round(ir.width),
-          imgHeight: Math.round(ir.height),
-          containerWidth: Math.round(pr.width),
-          containerHeight: Math.round(pr.height),
-          objectFit: ics.objectFit,
-          objectPosition: ics.objectPosition,
-          aspectRatio: pcs.aspectRatio,
-          overflow: pcs.overflow
-        };
-      });
-    })(),
-    liquidErrors: s.innerHTML.includes('Liquid error'),
-    emptyRgb: (s.outerHTML.match(/rgb\(\)/g) || []).length,
-    boundingBoxes: (function() {
-      const sectionRect = s.getBoundingClientRect();
-      const els = s.querySelectorAll('h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]');
-      return [...els].slice(0, 20).map(el => {
-        const r = el.getBoundingClientRect();
-        return {
-          tag: el.tagName,
-          classes: el.className.toString().substring(0, 60),
-          text: el.textContent ? el.textContent.trim().substring(0, 30) : null,
-          x: Math.round(r.x),
-          relativeY: Math.round(r.y - sectionRect.y),
-          width: Math.round(r.width),
-          height: Math.round(r.height)
-        };
-      });
-    })()
-  };
-})()
-```
-
-Compare the two results property by property. Every difference is a variance that needs fixing.
+**Extraction script:** The computed style extraction script lives in `capture/SKILL.md` and runs automatically when `--extract-styles` is passed. The output is a JSON file at each breakpoint (`desktop.styles.json`, `tablet.styles.json`, `mobile.styles.json`). Compare the live and dev results property by property. Every difference is a variance that needs fixing.
 
 **Bounding box comparison**: Match elements between live and dev by tag + text content. For each matched pair, flag any property where the values differ by >2px. Common findings:
 - **Width differs** — text container has different max-width or grid column sizing
@@ -855,36 +660,30 @@ Return to Step 5 for the next visual difference. Repeat Steps 5-8 until all vari
 
 **You cannot declare a section "done" without passing this gate.** This is not optional.
 
-1. **Run the FULL extraction script** on both the live and dev site sections. This is the same script from Step 8's Rendered Output Validation Checklist. You MUST actually run it, not skip it.
+1. **Use the computed styles from the last Step 8 capture** (both live reference and dev). You already have styles at all three breakpoints from the capture workflow. No need to re-extract.
 
-2. **Build the final delta table.** For every property in the extraction output, compare live vs dev:
+2. **Build the final delta table at each breakpoint.** For every property in the extraction output, compare live vs dev:
 
 ```
-Property                | Live          | Dev           | Delta    | Status
-------------------------|---------------|---------------|----------|--------
-heading fontWeight      | 400           | 400           | 0        | PASS
-heading fontSize        | 24px          | 24px          | 0        | PASS
-body fontSize           | 16px          | 16px          | 0        | PASS
-body letterSpacing      | 0.96px        | 0.96px        | 0        | PASS
-padding top             | 36px          | 36px          | 0        | PASS
-image[0] containerWidth | 1564px        | 1564px        | 0        | PASS
-image[0] containerHeight| 560px         | 560px         | 0        | PASS
-image[0] objectFit      | cover         | cover         | -        | PASS
-image[0] objectPosition | 50% 50%      | 50% 50%       | -        | PASS
-bbox[h2] width          | 600px         | 600px         | 0        | PASS
+Breakpoint | Property                | Live          | Dev           | Delta    | Status
+-----------|-------------------------|---------------|---------------|----------|--------
+desktop    | heading fontWeight      | 400           | 400           | 0        | PASS
+desktop    | heading fontSize        | 24px          | 24px          | 0        | PASS
+desktop    | body letterSpacing      | 0.96px        | 0.96px        | 0        | PASS
+desktop    | image[0] objectFit      | cover         | cover         | -        | PASS
+tablet     | heading fontSize        | 20px          | 20px          | 0        | PASS
+tablet     | padding top             | 24px          | 24px          | 0        | PASS
+mobile     | heading fontSize        | 18px          | 18px          | 0        | PASS
+mobile     | padding top             | 16px          | 16px          | 0        | PASS
 ```
 
 3. **If ANY row has a non-zero delta or mismatched value: FAIL.** Go back to Step 6 and fix it. Do not proceed to Step 11.
 
-4. **Take final side-by-side screenshots** at desktop width. Read both screenshots and visually confirm they match. If you see ANY visual difference not captured in the delta table, investigate and fix it.
+4. **Read the final screenshots** (desktop, tablet, mobile) from the last Step 8 capture. Visually confirm they match the live references at each breakpoint. If you see ANY visual difference not captured in the delta table, investigate and fix it.
 
-5. **Breakpoint verification** — render and compare at all breakpoints defined in the base section's CSS:
-   - Desktop (default)
-   - Tablet (typically ≤800px)
-   - Mobile (typically ≤480px)
-6. For new variances found, repeat Steps 5-8
+5. No separate responsive pass is needed. All three breakpoints have been compared throughout the entire fix loop (Steps 4-8-10).
 
-**You MUST show the final delta table in your output.** The user needs to see the evidence that every property matches. A section reported as "complete" without a passing delta table is a bug in your process.
+**You MUST show the final delta table in your output.** The user needs to see the evidence that every property matches at all breakpoints. A section reported as "complete" without a passing delta table is a bug in your process.
 
 ### Step 11: Write Report
 
