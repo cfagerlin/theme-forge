@@ -175,13 +175,34 @@ If Shopify CLI is available, record the live theme's ID from `shopify theme list
 
 Note: A full base theme export is no longer needed. Sessions pull just what they need (~5 seconds) into the gitignored `.theme-forge/base-cache/` directory.
 
-### Step 4: Detect Dev URL
+### Step 4: Detect Dev Server
 
-If Shopify CLI is available and a dev store is configured:
+Check if `shopify theme dev` is already running:
 
-1. Check if `shopify theme dev` is already running (look for a process or recent port)
-2. If running, capture the dev URL (typically `http://127.0.0.1:9292`)
-3. If not running, note it as unavailable — the user can start it later
+```bash
+lsof -i :9292 -sTCP:LISTEN 2>/dev/null | head -5
+```
+
+**If a process is listening on 9292:**
+- Verify it responds: `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9292`
+- If 200 or 3xx → set `dev_url: "http://127.0.0.1:9292"` in config
+- Tell the user: "Detected dev server running at http://127.0.0.1:9292"
+
+**If nothing on 9292**, try common alternative ports (9293, 9294):
+```bash
+lsof -i :9293 -sTCP:LISTEN 2>/dev/null | head -1
+lsof -i :9294 -sTCP:LISTEN 2>/dev/null | head -1
+```
+
+**If no dev server found:**
+- Set `dev_url: null` in config
+- Tell the user:
+
+> No dev server detected. You can start one in a separate terminal:
+> ```
+> shopify theme dev --store <dev_store> --theme <target_theme_id>
+> ```
+> theme-forge will detect it automatically on the next pull-section run.
 
 ### Step 5: Write Config
 
