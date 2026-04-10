@@ -82,14 +82,39 @@ B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE 
 3. **Content comes from `settings_data.json`**: Many themes store section content (headlines, descriptions, button text) in `config/settings_data.json` under the section's key, not in the template JSON. Always check `settings_data.json` first for content values. The template JSON defines structure; `settings_data.json` defines content.
 4. If a page mapping exists at `.theme-forge/mappings/pages/{page-path}.json`, use it for ordering
 
-### Step 1.5: Find CSS Loading Mechanism
+### Step 0.5: Acquire Page Lock
 
-Before pulling sections, identify how the target theme loads CSS:
-1. Search for the stylesheets snippet (e.g., `snippets/stylesheets.liquid`)
-2. Check `layout/theme.liquid` for stylesheet loading patterns
-3. Record the path where a custom CSS file can be added (e.g., add `{{ 'custom-migration.css' | asset_url | stylesheet_tag }}` to the stylesheets snippet)
+1. Read `.theme-forge/state.json`
+2. Acquire the page lock for `{page}` in `pipeline.page_locks` (see Lock Mechanism in the orchestrator SKILL.md). If the lock is held by another session, refuse to start.
+3. Verify no global lock is held (`pipeline.locked_by`). If a global lock is active, the globals/header/footer phase is still running — wait for it to finish.
 
-You will need this when sections require CSS overrides that can't be achieved through JSON settings alone. Finding it now saves time later.
+### Step 1.5: Set Up Per-Page CSS File
+
+Each page writes CSS overrides to its own file to prevent conflicts when multiple sessions run in parallel:
+
+1. **File name**: `assets/custom-migration-{page}.css` (e.g., `custom-migration-index.css`, `custom-migration-product.css`)
+2. **Shared sections**: Header and footer CSS goes in `assets/custom-migration-global.css` (written by `pull-header` / `pull-footer`)
+3. Create the page CSS file if it does not exist
+4. Ensure the **CSS loader snippet** includes it. Search for `snippets/custom-migration-loader.liquid`:
+   - If it does not exist, create it with:
+     ```liquid
+     {{ 'custom-migration-global.css' | asset_url | stylesheet_tag }}
+     {% case template.name %}
+       {% when 'index' %}
+         {{ 'custom-migration-index.css' | asset_url | stylesheet_tag }}
+       {% when 'product' %}
+         {{ 'custom-migration-product.css' | asset_url | stylesheet_tag }}
+       {% when 'collection' %}
+         {{ 'custom-migration-collection.css' | asset_url | stylesheet_tag }}
+     {% endcase %}
+     ```
+   - If it exists, add a `{% when '{page}' %}` case for this page if not already present
+5. Ensure the loader snippet is included in the theme layout. Check `layout/theme.liquid` for `{% render 'custom-migration-loader' %}`. Add it if missing.
+6. **Pass `--css-file assets/custom-migration-{page}.css`** to each `pull-section` call (see below).
+
+**Migrating from a single CSS file:** If `assets/custom-migration.css` already exists (from a prior run), rename it to `assets/custom-migration-global.css` and update the loader snippet accordingly. Do not delete CSS work already done.
+
+**Why per-page files:** Two sessions writing to the same CSS file simultaneously will corrupt it. Per-page files eliminate the conflict entirely. The Liquid `{% case template.name %}` ensures only the relevant CSS loads on each page, which is also better for performance.
 
 ### Step 2: Determine Section Order
 
@@ -107,7 +132,7 @@ For each section:
 
 1. Check if a report already exists at `.theme-forge/reports/sections/{section-type}.json`
    - If yes and `status` is `complete`, skip (unless `--force`)
-2. Run `pull-section` on it. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
+2. Run `pull-section` on it. **Pass `--css-file assets/custom-migration-{page}.css`** so CSS overrides go to the per-page file. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
 3. After each section completes, log progress
 
 ### Step 4: Full-Page Comparison
@@ -163,6 +188,10 @@ CUTOVER ITEMS (2):
 
 Run /theme-forge cutover for the full checklist.
 ```
+
+### Step 6: Release Page Lock
+
+Clear `pipeline.page_locks.{page}` in `state.json`. This allows other sessions (or a resumed `--full`) to know this page is complete.
 
 ## Output
 

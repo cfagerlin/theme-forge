@@ -17,7 +17,7 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
    - Or look for `sections/footer.liquid`
    - Common names: `footer`, `footer-group`, `site-footer`
    - Note: footer groups often contain multiple sections (e.g., trust bar, newsletter signup, footer links, sub-footer)
-3. For footer **groups** with multiple sections, run `pull-section` on each section in the group, in order
+3. For footer **groups** with multiple sections, run `pull-section` on each section in the group, in order. **Pass `--css-file assets/custom-migration-global.css`** (footer appears on every page, so its CSS must load globally)
 4. **Additional footer-specific checks:**
    - Multi-column link layout
    - Newsletter signup form

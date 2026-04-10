@@ -16,7 +16,7 @@ Convenience command that runs `pull-section` on the site header. The header is a
    - Check `{base_theme}/sections/header-group.json` for the header section reference
    - Or look for `sections/header.liquid` (most common name)
    - Common names: `header`, `header-group`, `site-header`, `main-header`
-3. Run `pull-section` on the identified header section
+3. Run `pull-section` on the identified header section with `--css-file assets/custom-migration-global.css` (header appears on every page, so its CSS must load globally)
 4. **Additional header-specific checks:**
    - Sticky/fixed behavior (scroll states)
    - Mobile menu / hamburger behavior

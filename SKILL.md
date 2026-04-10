@@ -59,6 +59,7 @@ These flags modify pipeline behavior for batch operations (`pull-page`, `pull-he
 --reset-failed         Reset only failed sections to pending for retry
 --debug                Save full transcript, screenshots, and diffs to .theme-forge/debug/
 --no-debug             Disable debug for this run (overrides global setting)
+--through-globals      Run steps 1-6 only (scan→map→globals→header→footer), then stop and print parallel commands
 ```
 
 ### `--debug` Mode
@@ -113,18 +114,50 @@ After all sections complete, the debug directory contains a full audit trail. A 
 
 When `--full` is passed, run the complete pipeline in order. **Do not skip steps. Do not improvise.**
 
+**Phase 1 — Global (global lock):**
 1. **Check prerequisites**: `.theme-forge/config.json` must exist (run `onboard` first)
 2. **Run `scan`** if `.theme-forge/site-inventory.json` does not exist. This inventories both themes and creates the migration plan.
 3. **Run `map-page`** for each page template in the site inventory. This creates section mappings in `.theme-forge/mappings/`. Without mappings, pull-section has no source→target section pairs to work from.
 4. **Initialize `state.json`** if it does not exist. Every section from every mapped page gets an entry with status `pending`.
-5. **Run `pull-header`** (header appears on every page, do it first)
-6. **Run `pull-footer`** (footer appears on every page, do it second)
-7. **Run `pull-page`** for each page template in order: index, product, collection, then remaining pages
+5. **Run `pull-header`** (header appears on every page, do it first) — CSS goes to `assets/custom-migration-global.css`
+6. **Run `pull-footer`** (footer appears on every page, do it second) — CSS goes to `assets/custom-migration-global.css`
+6.5. **Release global lock.** Clear `pipeline.locked_by` and `pipeline.locked_at`. The remaining work is page-scoped.
+
+**Phase 2 — Pages (per-page locks):**
+7. **Run `pull-page`** for each page template in order: index, product, collection, then remaining pages. Each page acquires its own lock and writes CSS to `assets/custom-migration-{page}.css`.
+
+**Phase 3 — Review:**
 8. **Run `review`** on each completed page
 
 **Every section must go through `pull-section`** with its full compare→fix→verify loop. Do not skip the visual comparison. Do not mark sections complete without verification. Do not write section reports without actually running the pull-section workflow on that section.
 
 The state machine in `state.json` tracks progress. If the session is interrupted, re-running `--full` picks up where it left off (completed sections are skipped).
+
+### `--through-globals` Workflow
+
+When `--through-globals` is passed, run Phase 1 only (steps 1-6) and then stop:
+
+1. Check prerequisites, scan, map, initialize state
+2. Pull header and footer
+3. **Release global lock and stop.** Print:
+   > "Globals, header, and footer are complete. You can now run `pull-page` for individual pages in parallel sessions:"
+   > ```
+   > /theme-forge pull-page index
+   > /theme-forge pull-page product
+   > /theme-forge pull-page collection
+   > ```
+
+This enables parallel page-level sessions. Run `--through-globals` once, then open separate sessions for each page.
+
+### Parallel Sessions
+
+Multiple sessions can work on different pages simultaneously. The coordination model:
+
+1. **Phase 1 must complete first.** Globals, header, and footer affect every page. Run `--through-globals` or the first 6 steps of `--full` in a single session before parallelizing.
+2. **Each page gets its own lock** in `state.json` → `pipeline.page_locks.{template}`.
+3. **Each page gets its own CSS file** (`assets/custom-migration-{page}.css`). A loader snippet conditionally includes the right file per page. This prevents two sessions from clobbering a shared CSS file.
+4. **Do NOT modify `config/settings_data.json` global settings from parallel page sessions.** Global settings are set during Phase 1. If a page section needs a global change, flag it as a cutover item.
+5. **`state.json` uses atomic writes** (write to `.tmp`, rename). Two sessions racing for the same page lock: one wins, the other backs off on re-read.
 
 ### Configuration
 
@@ -164,7 +197,11 @@ The pipeline state machine tracks progress across sections and sessions. It enab
   "pipeline": {
     "stage": "pull",
     "started_at": "2026-04-08T12:00:00Z",
-    "locked_by": null
+    "locked_by": null,
+    "page_locks": {
+      "index": { "locked_by": "session-1712678400", "locked_at": "2026-04-09T12:00:00Z" },
+      "product": { "locked_by": "session-1712678500", "locked_at": "2026-04-09T12:01:40Z" }
+    }
   },
   "sections": {
     "featured-collection-1:index": {
@@ -209,14 +246,24 @@ The pipeline state machine tracks progress across sections and sessions. It enab
 
 ### Lock Mechanism
 
-When running batch operations (`--full`, `pull-page`), the pipeline acquires a lock:
+The pipeline supports two lock scopes:
 
-1. **Acquire**: Set `pipeline.locked_by` to a session identifier (e.g., `session-{timestamp}`) and `pipeline.locked_at` timestamp
-2. **Check**: Before acquiring, check if a lock exists. If it does:
-   - If lock age < 30 minutes: refuse to start, tell the user another session may be running
-   - If lock age >= 30 minutes and `--force` is passed: break the lock and acquire
+**Global lock** (`pipeline.locked_by`): Used during `--full` steps 1-6 (scan, map, globals, header, footer). Only one session may run these steps.
+
+**Page locks** (`pipeline.page_locks.{template}`): Used during `pull-page`. Each page template gets its own lock entry. Multiple sessions can hold page locks on *different* pages simultaneously.
+
+**Acquire (page lock):**
+1. Read `state.json`
+2. Check `pipeline.page_locks.{template}`:
+   - If no entry or `locked_by` is null: acquire by writing `{ "locked_by": "session-{timestamp}", "locked_at": "<ISO>" }`
+   - If lock age < 30 minutes: refuse to start — another session is working on this page
+   - If lock age >= 30 minutes and `--force`: break and acquire
    - If lock age >= 30 minutes without `--force`: warn and suggest `--force`
-3. **Release**: Clear `locked_by` and `locked_at` when the batch operation completes (success or failure)
+3. Check `pipeline.locked_by` (global lock). If held and < 30 minutes old, refuse — global operations must complete first.
+
+**Acquire (global lock):** Set `pipeline.locked_by`. Also refuse if any page lock is held (page work must finish first, or be `--force`d).
+
+**Release:** Clear the lock entry when the operation completes (success or failure).
 
 ### Resume Protocol
 

@@ -229,6 +229,7 @@ When the browse binary is not installed and no Playwright MCP tools are availabl
 - `--url <live-page-url>` — The specific live page URL to screenshot for comparison (e.g., `https://gldn.com/collections/necklaces`). Defaults to the live site root for `index`, or the first matching page for other templates.
 - `--debug` — Enable debug mode for this run. Saves a full transcript, all screenshots, and computed style diffs to `.theme-forge/debug/`. See "Debug Mode" section below.
 - `--no-debug` — Disable debug mode for this run, even if the global setting is on.
+- `--css-file <path>` — CSS file to append overrides to (e.g., `assets/custom-migration-index.css`). Defaults to `assets/custom-migration-global.css` if omitted. Passed automatically by `pull-page`.
 
 ### How the page is resolved
 
@@ -663,7 +664,7 @@ This is how theme-forge one-shots sections: learnings from prior sections preven
 For CSS variances, apply fixes in order of preference:
 
 1. **Section's own `{% stylesheet %}` block** — for custom sections we control
-2. **Extension CSS file** (e.g., `assets/custom.css`) — for overriding core sections
+2. **Per-page CSS file** (passed via `--css-file`, e.g., `assets/custom-migration-index.css`) — for overriding core sections. If `--css-file` was provided, write CSS rules to that file. If not provided, use `assets/custom-migration-global.css`.
 3. **Inline `style` attribute via Liquid** — for per-instance values driven by settings
 
 Guidelines:

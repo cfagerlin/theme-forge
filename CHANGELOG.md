@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-04-09
+
+**Parallel page sessions.** Multiple sessions can now work on different pages simultaneously, each with fresh context and its own CSS file.
+
+- **`--through-globals`**: New flag that runs scan→map→globals→header→footer, then stops and prints the parallel `pull-page` commands. Run this once, then open separate sessions per page.
+- **Per-page CSS files**: Each page writes to `assets/custom-migration-{page}.css` (e.g., `custom-migration-index.css`). A loader snippet conditionally includes the right file per template. Eliminates CSS file conflicts between parallel sessions.
+- **Per-page locking**: `state.json` now has `pipeline.page_locks.{template}` in addition to the global lock. Multiple sessions can hold locks on different pages simultaneously.
+- **`--css-file` argument** on `pull-section`: Specifies which CSS file to write overrides to. Passed automatically by `pull-page`.
+- **Header/footer use global CSS**: `pull-header` and `pull-footer` write to `custom-migration-global.css` since they appear on every page.
+- **Phase model**: `--full` now has three explicit phases — Phase 1 (global lock: scan/map/globals/header/footer), Phase 2 (per-page locks: pull-page), Phase 3 (review).
+
 ## 0.5.15 — 2026-04-09
 
 **Hard rules at the top.** The agent was ignoring section-level screenshot, mandatory transcript, and honest status rules despite them existing in the skill. Root cause: rules were scattered across a 1032-line file and getting lost.
