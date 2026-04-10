@@ -12,12 +12,24 @@ Convenience command that runs `pull-section` on the site header. The header is a
 ## Workflow
 
 1. Read `.theme-forge/config.json`
-2. Identify the header section:
+2. **Start Dev Server** (if not already running):
+   ```bash
+   # Check if a dev server is already running for this theme
+   curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9292 2>/dev/null
+   ```
+   - If no dev server responds, start one:
+     ```bash
+     cd <target_theme_path>
+     shopify theme dev --store <dev_store> --theme <target_theme_id> --port 9292 --path . &
+     ```
+   - Wait for the dev server to print its preview URL before proceeding.
+   - **Without a dev server, pull-section falls back to code-only mode (no visual verification).** This defeats the purpose of theme-forge. Do NOT proceed without a running dev server unless the user explicitly chooses code-only mode.
+3. Identify the header section:
    - Check `.theme-forge/base-cache/sections/header-group.json` (or `{base_theme}/sections/header-group.json`) for the header section reference
    - Or look for `sections/header.liquid` (most common name)
    - Common names: `header`, `header-group`, `site-header`, `main-header`
-3. Run `pull-section` on the identified header section with `--css-file assets/custom-migration-global.css`
-4. **After completion, commit and push:**
+4. Run `pull-section` on the identified header section with `--css-file assets/custom-migration-global.css`
+5. **After completion, commit and push:**
    ```bash
    git add .theme-forge/reports/sections/header.json \
            .theme-forge/learnings.json \
@@ -25,7 +37,7 @@ Convenience command that runs `pull-section` on the site header. The header is a
    git commit -m "pull: header — completed"
    git push
    ```
-5. **Additional header-specific checks:**
+6. **Additional header-specific checks:**
    - Sticky/fixed behavior (scroll states)
    - Mobile menu / hamburger behavior
    - Search overlay
