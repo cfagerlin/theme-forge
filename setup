@@ -81,12 +81,14 @@ SKILLS=(
   "map-section"
   "map-page"
   "reconcile"
+  "capture"
   "pull-section"
   "pull-page"
   "pull-header"
   "pull-footer"
   "review"
   "status"
+  "cutover"
   "upgrade"
 )
 
@@ -200,4 +202,11 @@ if ! $BROWSE_FOUND; then
 fi
 
 echo ""
-echo "Run /theme-forge onboard to start a migration."
+echo "Ready! Next steps:"
+echo ""
+echo "  1. cd into your target Shopify theme"
+echo "  2. Run /theme-forge onboard to configure the migration"
+echo "  3. Run /theme-forge pull-page index to start pulling the homepage"
+echo ""
+echo "For the full workflow: /theme-forge scan → /theme-forge pull-page <page>"
+echo "Docs: https://github.com/cfagerlin/theme-forge"
