@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.9 — 2026-04-10
+
+**Better error when config is on another branch.** New workspaces branched from `main` before onboard/scan was merged get a confusing "run onboard" message. Now checks if `.theme-forge/config.json` exists on another branch and tells the user to merge first.
+
 ## 0.8.8 — 2026-04-10
 
 **Playwright MCP support as primary browser tool.** Complete rewrite of the capture skill with dual-path architecture: Playwright MCP (preferred) with gstack browse as fallback.

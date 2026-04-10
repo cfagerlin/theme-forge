@@ -367,7 +367,20 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 ### Step 1: Load Context
 
-1. Read `.theme-forge/config.json` for paths, URLs, and capabilities
+1. Read `.theme-forge/config.json` for paths, URLs, and capabilities.
+   **If `.theme-forge/config.json` does not exist**, check if it exists on another branch:
+   ```bash
+   git log --all --oneline -- .theme-forge/config.json | head -5
+   ```
+   - If found on another branch, tell the user:
+     > **Config found on another branch but not on the current branch.** The onboard/scan work hasn't been merged to main yet. Merge it first, then branch from main:
+     > ```bash
+     > # On the branch that has .theme-forge/, create a PR to merge to main:
+     > gh pr create --title "theme-forge: onboard + scan" --body "Base config and global settings"
+     > # After merge, create your working branch from main:
+     > git checkout main && git pull && git checkout -b <your-branch>
+     > ```
+   - If not found on any branch, tell the user to run `/theme-forge onboard` first.
 2. Resolve the page context (see "How the page is resolved" above)
 3. Check for existing mapping at `.theme-forge/mappings/sections/{section-name}.json`
    - If missing, run `map-section` first to find the target section and assess compatibility
