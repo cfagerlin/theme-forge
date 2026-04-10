@@ -1026,6 +1026,17 @@ When the base theme has separate sections for different footer areas (e.g., `foo
 - Map every base footer section to its target equivalent
 - Pull content from ALL mapped sections, not just the first match
 
+### Third-Party Form Integrations Must Be Preserved
+**Never replace a third-party form with the target theme's native equivalent.** If the base theme has a Klaviyo email signup form (`action="https://manage.kmail-lists.com/subscriptions/subscribe"`), a Mailchimp form, or any other third-party integration, the target must use the SAME form action and hidden fields — not Shopify's built-in email marketing block.
+
+**Why this matters:** The store's email marketing flows, list segmentation, and automations are wired to the third-party provider. Swapping to a native Shopify email block silently breaks all of that. The form looks identical but emails go nowhere useful.
+
+**What to do:**
+- During extraction (Step 8), check every `<form>` element's `action` URL. If it points to a third-party domain (`kmail-lists.com`, `mailchimp`, `omnisend`, `drip`, etc.), flag it.
+- In the target theme, use a custom HTML block or snippet to reproduce the exact form markup — `action` URL, hidden fields (`g`, `$fields`, list ID), and input names must match.
+- Do NOT use the target theme's `email-signup` block type as a substitute. It posts to Shopify, not the third-party provider.
+- Check `site-inventory.json` integrations list for known third-party services.
+
 ## Error Classification
 
 When a section fails (retries exhausted or unrecoverable error), classify the failure for structured reporting:
