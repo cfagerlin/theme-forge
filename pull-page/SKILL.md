@@ -246,9 +246,17 @@ git push
 
 **Each completed page should be merged to main** so other sessions and future work starts from the latest state.
 
+Create a PR:
+```bash
+gh pr create --title "pull: {page} page complete — {N} sections" \
+  --body "All sections on {page} pulled and verified. Ready to merge to main."
+```
+
 Tell the user:
 
-> **Page {page} complete.** Create a PR to merge this branch back to main. This makes the pulled sections available to other sessions and prevents drift between page branches.
+> **PR created for {page}.** Please review and merge to main. This makes the pulled sections available to other sessions and prevents drift between page branches.
+
+**If parallel page branches exist**, merging may produce conflicts in shared files (`config/settings_data.json`, global CSS). The PR diff will show these. Resolve by keeping both sets of changes (color schemes, CSS rules are additive).
 
 If this is the first page pull after header/footer, also remind:
 

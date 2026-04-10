@@ -320,13 +320,22 @@ git commit -m "theme-forge: onboard project"
 git push
 ```
 
-**⛔ MERGE POINT: Merge to main before proceeding.** The base theme import + onboard config is the foundation every future branch starts from. Without this on main, parallel sessions have no shared baseline.
+**⛔ MERGE POINT: Create a PR and merge to main before proceeding.** The base theme import + onboard config is the foundation every future branch starts from. Without this on main, parallel sessions have no shared baseline.
+
+Create a PR:
+```bash
+gh pr create --title "theme-forge: onboard project" \
+  --body "Base theme import + migration config. Must be on main before scan/pull work begins."
+```
 
 Tell the user:
 
-> **Action needed: merge this branch to main.** The base theme + config must be on main so future work (scan, header, pages) branches from a correct starting point. Create a PR and merge it now, or I can merge directly if you prefer.
+> **PR created. Please review and merge to main** before continuing. The base theme + config must be on main so future work (scan, header, pages) branches from a correct starting point.
 
-Wait for the user to confirm the merge before suggesting next steps.
+Wait for the user to confirm the merge. After merge, create a new branch for the next phase:
+```bash
+git checkout main && git pull && git checkout -b theme-forge/scan
+```
 
 ### Step 8: Suggest Next Step
 

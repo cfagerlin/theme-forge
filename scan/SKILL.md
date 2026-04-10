@@ -338,15 +338,24 @@ git commit -m "theme-forge: apply global settings from base theme"
 git push
 ```
 
-### Step 8.5: ⛔ MERGE POINT — Merge to Main
+### Step 8.5: ⛔ MERGE POINT — PR and Merge to Main
 
 **Global settings affect every section on every page.** This must be on main before any section work begins. Header, footer, and all page branches must start from this baseline.
 
+Create a PR:
+```bash
+gh pr create --title "theme-forge: scan + apply global settings" \
+  --body "Site inventory, settings map, class map, and global settings applied (fonts, colors, spacing). Must be on main before header/footer/page work begins."
+```
+
 Tell the user:
 
-> **Action needed: merge this branch to main.** Global settings (fonts, colors, spacing) are now applied. Every future branch (header, footer, pages) needs to start from this baseline. Create a PR and merge, or I can merge directly.
+> **PR created. Please review and merge to main.** Global settings (fonts, colors, spacing) are applied. Every future branch (header, footer, pages) needs this as its baseline.
 
-Wait for the user to confirm the merge before proceeding.
+Wait for the user to confirm the merge. After merge, create a new branch for header/footer:
+```bash
+git checkout main && git pull && git checkout -b theme-forge/header-footer
+```
 
 ### Step 9: Recommend Next Steps
 
