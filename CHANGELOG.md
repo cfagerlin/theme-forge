@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3 — 2026-04-10
+
+**Dev server startup in pull-header and pull-footer.** Both skills silently fell back to code-only mode (no visual verification) because they never started a dev server. Only pull-page had a dev server step.
+
+- **pull-header**: Added Step 2 — check for running dev server, start one if needed
+- **pull-footer**: Added Step 2 — same
+- **Git merge strategy**: Added merge points at onboard, scan, header/footer, and per-page completion. All merge points create PRs via `gh pr create` for visibility and conflict handling.
+
 ## 0.8.2 — 2026-04-10
 
 **Tool-enforced compliance gates.** The agent can no longer skip screenshots, accept variances, or declare completion without user confirmation. Based on architectural review comparing theme-forge's text-based enforcement with gstack's tool-gated enforcement model.
