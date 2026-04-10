@@ -25,6 +25,7 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-forge status             — Human-readable migration progress report
 /theme-forge status --page <t>  — List all sections on a page with pull commands
 /theme-forge status --next      — Show the next section to pull
+/theme-forge capture <url> --section <sel> — Section-scoped screenshot at all breakpoints
 /theme-forge cutover            — Show cutover checklist for production go-live
 /theme-forge upgrade            — Check for and apply updates
 /theme-forge --debug on         — Enable debug mode globally (persists in config.json)
@@ -165,6 +166,13 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 │   │   └── ...
 │   └── pages/               # Per-page pull reports — COMMITTED on completion
 │       └── ...
+├── references/              # Live site reference screenshots (all breakpoints) — COMMITTED
+│   ├── hero-index/
+│   │   ├── desktop.png
+│   │   ├── tablet.png
+│   │   ├── mobile.png
+│   │   └── meta.json
+│   └── ...
 ├── cutover.json             # Items requiring manual action during production go-live
 └── debug/                   # Debug artifacts — GITIGNORED
 ```

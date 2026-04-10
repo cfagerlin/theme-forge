@@ -229,7 +229,7 @@ Create `.theme-forge/learnings.json`:
 
 1. Confirm the target theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
 2. If a browse tool is available, verify the live URL is reachable
-3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/` directories
+3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/` directories
 4. **Check `.gitignore`**: Add ONLY session-specific paths to `.gitignore`:
    ```
    .theme-forge/base-cache/

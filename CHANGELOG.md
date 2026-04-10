@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0 — 2026-04-10
+
+**Deterministic screenshot capture at all breakpoints.** Extracts screenshot logic from pull-section into a dedicated `capture` skill. Adds mandatory responsive comparison (desktop, tablet, mobile) throughout the entire fix loop, not just final review.
+
+- **New `capture` skill**: Deterministic section-scoped screenshot recipe. Exact browse commands, no agent discretion. Handles navigation, popup dismissal, `wait --networkidle`, and section targeting.
+- **Three breakpoints every time**: Desktop (1280), tablet (768), mobile (375) captured together on every screenshot. Responsive bugs caught per-section, not in a surprise final review.
+- **Reference screenshots**: Live site captured once per section, stored in `.theme-forge/references/` (committed). Reused across all verification loops and parallel sessions. Manual recapture if live site changes.
+- **Simplified pull-section**: ~400 lines of browse tool setup and screenshot code removed. Steps 4, 8, and 10 now invoke the capture workflow. Step 10 no longer needs a separate responsive pass.
+- **Computed style extraction per breakpoint**: Style extraction runs at all three viewports, catching responsive-specific variances (layout shifts, font size changes, hidden elements).
+
+### Removed
+- Direct browse tool commands from pull-section (moved to capture)
+- Shadow DOM screenshot techniques from pull-section (handled by capture)
+- Separate responsive comparison pass in Step 10 (always responsive now)
+
 ## 0.7.0 — 2026-04-10
 
 **Git-centric parallel sessions.** Complete rethink of multi-session coordination. The repo is the coordination layer. No locks. No state machine. Zero-ceremony session start.
