@@ -355,7 +355,9 @@ These rules prevent the most common mistakes observed in real migrations. Follow
     - Accepting a shorter/taller section height as "header offset calculation" — NO. If the rendered section is 109px shorter, fix it.
     The live site is the spec. Your job is to match it, not improve it.
 
-11. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
+11. **A blank live screenshot is a hard stop.** After every live capture, read the screenshot with the Read tool. If it's blank, white, or missing the expected section content, do NOT continue. Retry once, then escalate. Proceeding without a valid live baseline means zero visual verification — every subsequent "comparison" is meaningless.
+
+12. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
     - The section's content (heading text, images) matches what the mapping describes
     - The section's position on the page matches the expected order
     - If the live page has changed since the mapping was created, update the mapping — don't compare against a different section
@@ -1003,6 +1005,26 @@ After applying changes, always check the rendered HTML (via browse tool or curl)
 - Empty `font-family: , ;` declarations (broken font variables)
 - `border-width: px` without a number (missing values)
 - SVG data URIs in `<img>` tags where real images should be (placeholder images)
+
+### Blank or White Live Capture = Hard Stop
+**If the live site screenshot is blank, white, or clearly missing content, STOP.** Do not proceed with code-only analysis. Do not proceed with "the target looks reasonable." Without a live baseline, you have nothing to match against — any work you do is guesswork.
+
+**What to do:**
+- Retry the capture once with a longer wait (`sleep 5` instead of `sleep 3`)
+- Try a different selector (the footer may be inside a shadow root or loaded lazily)
+- If still blank, escalate to the user via `AskUserQuestion`. Explain the capture failed and ask whether to retry with different parameters or skip this section.
+- **NEVER silently continue without a valid live capture.** A blank screenshot means zero visual verification happened. Marking the section "completed" without ever seeing the live site is the worst possible outcome.
+
+### Footer Groups Have Multiple Base Sections
+When the base theme has separate sections for different footer areas (e.g., `footer` + `footer_top`), ALL base sections must be mapped and their content pulled into the target footer group. Don't just map the obvious one.
+
+**Common miss:** The base `footer_top` contains contact info, hours, navigation links, and newsletter signup — the richest part of the footer. The base `footer` is just copyright and legal links. If you only look at `footer` → `footer`, you'll produce a skeleton footer and miss 80% of the content.
+
+**What to do:**
+- Check `site-inventory.json` for ALL base sections tagged as footer/shared
+- Check the live site to see what's actually rendered in the footer area
+- Map every base footer section to its target equivalent
+- Pull content from ALL mapped sections, not just the first match
 
 ## Error Classification
 
