@@ -134,7 +134,22 @@ For each section:
    - If yes and `status` is `failed`, skip (use `--retry-failed` to delete failed reports first)
    - If yes and `status` is `skipped`, skip
 3. Run `pull-section` on it. **Pass `--css-file assets/custom-migration-{page}.css`** so CSS overrides go to the per-page file. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
-4. After each section completes, **commit and push**:
+4. After each section completes, **validate the report quality** before counting it as done:
+   - Read `.theme-forge/reports/sections/{section}.json`
+   - Check: `files_modified` is non-empty (work was actually done)
+   - Check: `screenshots` array is non-empty (visual verification happened)
+   - Check: every entry in `variances_accepted` (if any) has `user_approved: true`
+   - Check: `variances_found == variances_fixed + variances_remaining` (math checks out)
+   - **If any check fails**, flag via `AskUserQuestion`:
+     ```
+     Section {section} report has quality issues:
+     - {list failing checks}
+
+     A) Re-run pull-section for this section
+     B) Accept report as-is and continue
+     C) Skip this section
+     ```
+5. After each section completes validation, **commit and push**:
    ```bash
    git add .theme-forge/reports/sections/{section}.json \
            .theme-forge/learnings.json \

@@ -26,6 +26,8 @@ These rules are non-negotiable. They override everything else in this document. 
 
 ### No accepted variances without user approval
 - **You may NEVER mark a variance as "accepted" on your own.** Not for Shadow DOM. Not for "theme limitations." Not for "close approximation." Not for "not a visual difference." If a property differs between live and dev, fix it or escalate to the user.
+- **Escalation uses `AskUserQuestion`** (MCP tool `mcp__conductor__AskUserQuestion`). This is a tool call that blocks your execution until the user responds. It is not optional. After 2 failed fix attempts, you MUST call this tool. See Step 8 escalation protocol.
+- **Only the user can approve a variance.** The report field `user_approved: true` can ONLY be set after the user explicitly selects "Accept this variance" via AskUserQuestion. You cannot set it yourself.
 - **"Shadow DOM prevents CSS override" is almost always wrong.** CSS custom properties (`--var-name`) cascade through Shadow DOM boundaries. If the target theme uses custom properties for a value (font-size, letter-spacing, border-radius, colors), you CAN override it from outside the shadow root. Check the theme's CSS before claiming Shadow DOM blocks the fix.
 - **Height differences are ALWAYS visual.** A 109px height difference (480px vs 371px) is visible. Do not rationalize it as "header offset calculation." Match the live height.
 - **Text alignment differences are ALWAYS visual.** Left-aligned vs centered text is obvious. Match the live alignment.
@@ -521,7 +523,7 @@ After capture, **read `desktop.png`** with the Read tool. Verify the screenshot 
 Run the capture workflow with `--extract-styles`:
 - URL: the dev server URL (e.g., `http://127.0.0.1:9292`)
 - Section: same selector as live site
-- Output: `/tmp/capture-dev/`
+- Output: `.theme-forge/tmp/capture-dev/`
 
 #### 4.3 Compare at each breakpoint
 
@@ -543,6 +545,29 @@ For **desktop, tablet, and mobile**:
 - Navigation collapse (hamburger menu)
 
 These are tracked separately and may require breakpoint-specific CSS overrides (`@media` queries).
+
+#### 4.4 ⛔ USER GATE: Confirm captures before code changes
+
+**This is a tool-enforced gate, not a suggestion.** After completing Steps 4.1-4.3, you MUST present the captures and variance list to the user using `AskUserQuestion` (MCP tool `mcp__conductor__AskUserQuestion`) before proceeding to Step 5.
+
+Present:
+```
+Section: {section-name} on {page}
+
+Live reference (desktop): [Read desktop.png]
+Dev current (desktop):    [Read desktop.png]
+
+Variances found: {count}
+- {variance 1}
+- {variance 2}
+...
+
+A) Proceed to fix these variances
+B) Recapture (screenshots look wrong)
+C) Skip this section
+```
+
+**Do NOT proceed to Step 5 until the user responds.** In batch mode (`pull-page` or `--full`), auto-select A and log "batch mode: auto-proceeding" in the transcript.
 
 ### Step 5: Identify Variances
 
@@ -624,7 +649,30 @@ If the variance requires HTML/Liquid changes:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
 4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. If any property differs (font weight, font size, letter spacing, container width, image object-fit, image container size, padding, colors), the fix is NOT complete. Go back and fix it.
-5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3). If still not fixed, classify the error (see Error Classification) and log as outstanding.
+5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
+
+#### ⛔ Escalation protocol (retries exhausted)
+
+**After 2 failed fix attempts**, you MUST escalate to the user using `AskUserQuestion`. Do NOT silently accept the variance. Do NOT mark it as "accepted" or "theme limitation."
+
+Present via `AskUserQuestion`:
+```
+Section: {section-name} — variance not resolved after {N} attempts
+
+Property: {property name}
+Live: {live value}
+Dev: {dev value}
+Attempted fixes: {list what was tried}
+
+A) Try a different approach (describe what you'd try)
+B) Accept this variance (user approves)
+C) Skip this section entirely
+D) I'll fix it manually — move on
+```
+
+**Only option B creates an accepted variance**, and it sets `user_approved: true` in the report. The agent CANNOT set `user_approved: true` on its own.
+
+If all retries are exhausted without escalation (should not happen), classify the error (see Error Classification) and log as outstanding.
 6. **Capture learnings — on EVERY successful fix, not just retries.**
    After verification passes, review each CSS override or settings change you made. For each fix, ask: *"Would this same issue appear in other sections?"* If yes, write a learning to `.theme-forge/learnings.json`.
 
@@ -738,7 +786,7 @@ Read each screenshot with the Read tool and present them:
 2. Read `.theme-forge/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
 3. Read `.theme-forge/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
 
-Present them with a brief summary:
+Present them via `AskUserQuestion` (tool-enforced gate):
 ```
 Section: {section-name} on {page} — final result
 
@@ -748,11 +796,14 @@ Mobile (375px):   [Read mobile.png]
 
 Delta table: all properties PASS at all breakpoints.
 Files modified: {list}
+Variances fixed: {count}
 
-Any issues with these screenshots?
+A) Looks good — mark as completed
+B) I see an issue — go back to fix (describe what's wrong)
+C) Acceptable — mark as completed with notes
 ```
 
-**Wait for user feedback** if the session is interactive (not a batch `pull-page` or `--full` run). If the user flags an issue, return to Step 6 to fix it. If they confirm it looks good (or don't respond in a batch run), proceed to Step 11.
+**Do NOT proceed to Step 11 until the user responds.** This is the final quality gate. In batch mode (`pull-page` or `--full`), auto-select A and log "batch mode: auto-approved" in the transcript. The user can review batch-approved sections later via the page report.
 
 ### Step 11: Write Report
 
