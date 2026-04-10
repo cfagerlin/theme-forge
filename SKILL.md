@@ -155,6 +155,8 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 ├── conventions.json         # Global standards (CSS-first, prefix, thresholds) — COMMITTED
 ├── learnings.json           # Accumulated learnings from retries — COMMITTED
 ├── site-inventory.json      # Full site inventory (created by scan) — COMMITTED (optional)
+├── settings-map.json        # Global settings cross-reference base→target (created by scan) — COMMITTED
+├── class-map.json           # CSS class/property/component cross-reference (created by scan) — COMMITTED
 ├── plan.json                # Migration plan (created by scan) — COMMITTED (optional)
 ├── base-cache/              # Targeted base theme pull (templates + config only) — GITIGNORED
 ├── mappings/
