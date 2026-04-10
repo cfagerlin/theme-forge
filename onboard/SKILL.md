@@ -17,22 +17,44 @@ Set up a Shopify theme migration project by collecting configuration and detecti
 
 Note: A full base theme export is NOT needed. Sessions pull just templates and settings from the live theme on demand (~5 seconds). See Targeted Base Pull in the orchestrator SKILL.md.
 
-**Step 1a: Live site URL**
+**Step 1a: Dev store domain**
 
-First, check for any existing project config (CLAUDE.md, package.json, etc.) that might contain the live URL. If found, confirm it:
+This is the only required input. Everything else can be derived from it.
 
-> I found `https://example.com` in your project config. Is this the live site to match?
+First, check for any existing project config (CLAUDE.md, package.json, etc.) that might contain a `.myshopify.com` domain. If found, confirm it:
+
+> I found `my-store.myshopify.com` in your project config. Is this the dev store for this migration?
 > A) Yes, use that
-> B) No, I'll provide a different URL
+> B) No, I'll provide a different domain
 
 If not found, ask:
 
-> What's the production storefront URL I should match? (e.g., `https://example.com`)
+> What's your Shopify dev store domain? (e.g., `my-store.myshopify.com`)
 
-**Step 1b: Dev store**
+**Step 1b: Resolve the live site URL**
 
-> What's your Shopify dev store domain?
-> (e.g., `my-store.myshopify.com`)
+The live (production) storefront URL can be resolved from the dev store domain. Use Shopify CLI:
+
+```bash
+shopify theme list --store <dev_store>
+```
+
+This authenticates and connects to the store. Once connected, resolve the primary domain:
+
+```bash
+# The store's primary domain is the live URL
+# Check if the store has a custom domain by visiting the myshopify.com URL
+# and following the redirect
+curl -sI "https://<store>.myshopify.com" | grep -i "^location:"
+```
+
+If a custom domain redirect is found (e.g., `https://example.com`), use that as `live_url`. If no redirect (stays on `.myshopify.com`), use `https://<store>.myshopify.com`.
+
+Confirm with the user:
+
+> Your live storefront appears to be `https://example.com`. Is that correct?
+> A) Yes
+> B) No, the live URL is different (tell me)
 
 **Step 1c: Extension prefix**
 
