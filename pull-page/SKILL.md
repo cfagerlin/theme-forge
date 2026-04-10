@@ -23,9 +23,26 @@ Defaults to `index` (homepage) if omitted.
 
 ## Workflow
 
+### Step -2: Verify Branch Strategy
+
+Before any work, verify that shared foundations are on main:
+
+1. **Check main has globals:** `git log main --oneline | grep -q "apply global settings"`. If not, STOP:
+   > **Global settings are not on main.** Merge the scan/globals branch to main first. Without this, page branches won't have the correct baseline (fonts, colors, spacing will be wrong).
+
+2. **Check main has header/footer** (if they've been pulled): `git log main --oneline | grep -q "pull: header"`. If header/footer reports exist but aren't on main, recommend merging first.
+
+3. **Branch from main for this page** (if not already):
+   ```bash
+   git checkout main
+   git pull
+   git checkout -b pull-page-{page}
+   ```
+   Each page gets its own branch off main. This enables parallel sessions and clean PRs.
+
 ### Step -1: Git Pull + Globals Check
 
-1. **`git pull`** to get the latest committed state from the repo.
+1. **`git pull origin main`** to get the latest shared state.
 2. **Check global maps:** Look for `.theme-forge/settings-map.json` and `.theme-forge/class-map.json`. If either is missing, STOP and recommend scan first:
 
    > **Global maps not found.** Running pull-page without global maps means every section independently rediscovers theme settings and CSS class mappings. This is slower and more error-prone.
@@ -224,6 +241,46 @@ git add .theme-forge/reports/pages/{page}.json \
 git commit -m "pull: {page} page complete — {N} sections pulled"
 git push
 ```
+
+### Step 7: ⛔ MERGE POINT — PR Back to Main
+
+**Each completed page should be merged to main** so other sessions and future work starts from the latest state.
+
+Create a PR:
+```bash
+gh pr create --title "pull: {page} page complete — {N} sections" \
+  --body "All sections on {page} pulled and verified. Ready to merge to main."
+```
+
+Tell the user:
+
+> **PR created for {page}.** Please review and merge to main. This makes the pulled sections available to other sessions and prevents drift between page branches.
+
+**If parallel page branches exist**, merging may produce conflicts in shared files (`config/settings_data.json`, global CSS). The PR diff will show these. Resolve by keeping both sets of changes (color schemes, CSS rules are additive).
+
+If this is the first page pull after header/footer, also remind:
+
+> **If header/footer haven't been merged to main yet**, merge those first. They appear on every page and should be in the shared baseline.
+
+## Git Strategy Summary
+
+```
+main: base theme → onboard → globals → header/footer → merge index → merge product → ...
+                                          \                /              /
+page branches:                             └── pull-page ──┘             /
+                                          \                             /
+                                           └────── pull-page ──────────┘
+```
+
+**Merge points** (shared work that all branches need):
+1. Base theme import + onboard config
+2. Scan + apply-globals (fonts, colors, spacing)
+3. Header + footer (appear on every page)
+
+**Page branches** (can run in parallel after merge point 3):
+- Each page branches from main after header/footer are merged
+- Each page PRs back to main when complete
+- Conflicts are minimal since pages mostly touch different template files
 
 ## Output
 

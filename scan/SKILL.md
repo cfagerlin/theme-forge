@@ -333,24 +333,49 @@ Using the `settings-map.json` generated in Step 5.5, apply the base theme's glob
 
 Commit the changes:
 ```bash
-git add config/settings_data.json
+git add config/settings_data.json .theme-forge/
 git commit -m "theme-forge: apply global settings from base theme"
+git push
+```
+
+### Step 8.5: ⛔ MERGE POINT — PR and Merge to Main
+
+**Global settings affect every section on every page.** This must be on main before any section work begins. Header, footer, and all page branches must start from this baseline.
+
+Create a PR:
+```bash
+gh pr create --title "theme-forge: scan + apply global settings" \
+  --body "Site inventory, settings map, class map, and global settings applied (fonts, colors, spacing). Must be on main before header/footer/page work begins."
+```
+
+Tell the user:
+
+> **PR created. Please review and merge to main.** Global settings (fonts, colors, spacing) are applied. Every future branch (header, footer, pages) needs this as its baseline.
+
+Wait for the user to confirm the merge. After merge, create a new branch for header/footer:
+```bash
+git checkout main && git pull && git checkout -b theme-forge/header-footer
 ```
 
 ### Step 9: Recommend Next Steps
 
-After scan completes, present the recommended workflow:
+After scan completes and branch is merged to main, present the recommended workflow:
 
-> **Scan complete.** Here's the recommended order:
+> **Scan complete and merged to main.** Here's the recommended order:
 >
 > 1. ~~Apply global settings~~ ✓ Done (fonts, colors, spacing applied)
 > 2. `/theme-forge pull-header` — Pull the site header (appears on every page)
 > 3. `/theme-forge pull-footer` — Pull the site footer (appears on every page)
-> 4. `/theme-forge pull-page index` — Start pulling the homepage
+> 4. **Merge header/footer to main** — these appear on every page, must be shared
+> 5. `/theme-forge pull-page index` — Start pulling the homepage
 >
-> Global settings are applied. Header and footer come next because they appear on every page — getting them right first means every subsequent page pull starts from a correct baseline.
->
-> For parallel sessions: after header/footer are done, open additional sessions and run `/theme-forge pull-page <page>` in each.
+> **Git strategy for parallel sessions:**
+> ```
+> main: base theme → onboard → globals → header/footer → ──────────────→ merge pages
+>                                                          \             /
+> page branches:                                            └─ pull-page ─┘
+> ```
+> After header/footer are merged to main, open additional sessions and branch from main for each page. Each page branch PRs back to main when complete.
 
 ## Output Schema
 
