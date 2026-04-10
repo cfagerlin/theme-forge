@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 — 2026-04-10
+
+**Session setup script for Conductor workspaces.** New sessions now start from the latest `origin/main` with pre-flight checks for expected artifacts (config, global maps, Playwright MCP).
+
+- `scripts/session-setup.sh` — fetches origin, checks out main, creates working branch, verifies prerequisites
+- Pre-flight checks: `.theme-forge/config.json`, `settings-map.json`, `class-map.json`, `.mcp.json`
+- Warns when prerequisites haven't been merged to main yet, with actionable next steps
+- For Conductor: set as the workspace Setup Script. For terminal: run `scripts/session-setup.sh [branch-name]`
+
 ## 0.8.9 — 2026-04-10
 
 **Better error when config is on another branch.** New workspaces branched from `main` before onboard/scan was merged get a confusing "run onboard" message. Now checks if `.theme-forge/config.json` exists on another branch and tells the user to merge first.
