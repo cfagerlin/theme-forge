@@ -9,6 +9,27 @@ description: >
 
 Execute the full compare→fix→verify methodology on a single section. This is the core workhorse of theme-forge — it does the actual pixel-matching work.
 
+## ⛔ Hard Rules — Read These First
+
+These rules are non-negotiable. They override everything else in this document. If you find yourself about to violate one, stop and re-read it.
+
+### Screenshots
+- **NEVER take a full-page screenshot for section comparison.** Every screenshot must target a single section using scroll-to-section + viewport capture or an element selector. Full-page screenshots are too small to see real differences and make visual verification meaningless. This applies to Step 4 AND Step 8.
+- **Dismiss popups/modals before screenshotting the live site.** Email signup overlays, cookie banners, and age gates block section content. Remove them with JS before capturing.
+
+### Debug mode
+- **`transcript.md` is mandatory.** Write to it incrementally at every step, not at the end. A debug session without a transcript is a failed debug session. Do not skip it.
+- **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
+
+### Status honesty
+- **Never mark `final_status: "completed"` when `variances_remaining > 0`.** Use `"incomplete"`.
+- **Never mark `final_status: "completed"` when `files_modified` is empty and variances were found.** That means you did no work.
+- **Never rationalize a variance as "intentional" or "better."** The live site is the spec. Your job is to match it, not improve it.
+- **`variances_found` must equal `variances_fixed + variances_remaining`.** Always.
+
+### Section identity
+- **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
+
 ## Prerequisites
 
 - `.theme-forge/config.json` must exist (run `onboard` first)

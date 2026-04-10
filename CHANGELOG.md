@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.15 — 2026-04-09
+
+**Hard rules at the top.** The agent was ignoring section-level screenshot, mandatory transcript, and honest status rules despite them existing in the skill. Root cause: rules were scattered across a 1032-line file and getting lost.
+
+- **New "Hard Rules" section** at the very top of pull-section SKILL.md, before Prerequisites. Short, blunt, unmissable.
+- Consolidates the most-violated rules: no full-page screenshots, mandatory transcript, honest final_status, no rationalization, section identity verification.
+- No new rules added — this is a structural fix to make existing rules actually followed.
+
 ## 0.5.14 — 2026-04-09
 
 **Quick section queries.** Users shouldn't have to memorize section type names. Two new quick-query modes for `status`:
