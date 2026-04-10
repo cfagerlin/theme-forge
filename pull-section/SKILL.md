@@ -685,6 +685,32 @@ mobile     | padding top             | 16px          | 16px          | 0        
 
 **You MUST show the final delta table in your output.** The user needs to see the evidence that every property matches at all breakpoints. A section reported as "complete" without a passing delta table is a bug in your process.
 
+### Step 10.5: Present Final Screenshots to User
+
+**This step is mandatory.** Before writing the report, show the user what the dev site looks like at all three breakpoints. This gives them a chance to flag issues the automated comparison missed.
+
+Read each screenshot with the Read tool and present them:
+
+1. Read `/tmp/capture-verify/desktop.png` — "**Desktop (1280px):**"
+2. Read `/tmp/capture-verify/tablet.png` — "**Tablet (768px):**"
+3. Read `/tmp/capture-verify/mobile.png` — "**Mobile (375px):**"
+
+Present them with a brief summary:
+```
+Section: {section-name} on {page} — final result
+
+Desktop (1280px): [Read desktop.png]
+Tablet (768px):   [Read tablet.png]
+Mobile (375px):   [Read mobile.png]
+
+Delta table: all properties PASS at all breakpoints.
+Files modified: {list}
+
+Any issues with these screenshots?
+```
+
+**Wait for user feedback** if the session is interactive (not a batch `pull-page` or `--full` run). If the user flags an issue, return to Step 6 to fix it. If they confirm it looks good (or don't respond in a batch run), proceed to Step 11.
+
 ### Step 11: Write Report
 
 Save to `.theme-forge/reports/sections/{section-key}.json` (e.g., `featured-collection-1:index`). Use the section key, not the bare section name, to prevent report collisions when the same section type appears multiple times:
