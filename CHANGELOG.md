@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.7 — 2026-04-10
+
+**Third-party form integration gotcha.** Agent replaced a Klaviyo email signup form (`manage.kmail-lists.com`) with Horizon's native `email-signup` block (Shopify email marketing). Silently breaks all email flows.
+
+- **New gotcha in pull-section**: Third-party forms (Klaviyo, Mailchimp, Omnisend, Drip) must be preserved with exact `action` URL, hidden fields, and input names. Never substitute with native theme blocks.
+
 ## 0.8.6 — 2026-04-10
 
 **Fix popup blocking and browse daemon crashes on live Shopify sites.** Complete rewrite of capture timing and popup dismissal. Verified working on gldn.com — clean footer capture with full content visible.
