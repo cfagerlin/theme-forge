@@ -24,6 +24,15 @@ These rules are non-negotiable. They override everything else in this document. 
 - **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
 - **Write transcript FIRST at each step, THEN do the work.** This ensures crashes leave partial transcripts, not empty ones.
 
+### Extraction FAIL = must fix (no rationalizing)
+- **If the computed style extraction marks a row as FAIL, you MUST fix it or escalate.** You may not reclassify a FAIL as "measurement artifact," "visually equivalent," or "not a real difference." The extraction compares exact computed values from the browser. If live says `text-align: center` and dev says `text-align: left`, that is a real difference — fix it. Do not argue that "the container is narrow so they look the same."
+- **The extraction table is the spec, not a suggestion.** Screenshots are a secondary check. The extraction catches sub-pixel differences that screenshots miss. If the extraction says FAIL and the screenshot looks "close enough," trust the extraction.
+- **Common rationalizations that are NOT allowed:**
+  - "The visual appearance looks the same" — if the values differ, fix them.
+  - "Measurement artifact" — computed styles are exact, not approximate.
+  - "The container is narrow so center and left are equivalent" — they aren't. Multi-line text wraps differently.
+  - "Close approximation" — match the exact value.
+
 ### No accepted variances without user approval
 - **You may NEVER mark a variance as "accepted" on your own.** Not for Shadow DOM. Not for "theme limitations." Not for "close approximation." Not for "not a visual difference." If a property differs between live and dev, fix it or escalate to the user.
 - **Escalation uses `AskUserQuestion`** (MCP tool `mcp__conductor__AskUserQuestion`). This is a tool call that blocks your execution until the user responds. It is not optional. After 2 failed fix attempts, you MUST call this tool. See Step 8 escalation protocol.
@@ -49,9 +58,10 @@ These rules are non-negotiable. They override everything else in this document. 
 - **All Playwright MCP files stay in `.playwright-mcp/`.** Do not move or copy them elsewhere. This directory is gitignored.
 
 ### Learnings are mandatory
-- **After completing any section, write at least one learning to `.theme-forge/learnings.json`.** Every section teaches something about the target theme (font-weight defaults, color scheme mappings, CSS variable names, breakpoint behavior). If you found zero variances, that's unusual — document WHY (the global settings were already correct, etc.).
-- **Before starting any section, read `learnings.json` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
-- **An empty `learnings.json` after 2+ sections is a red flag.** Stop and review what you learned from previous sections.
+- **After completing any section, write learnings to `.theme-forge/learnings/{section-key}.json`.** Each section gets its own file (e.g., `learnings/hero-1_index.json`, `learnings/header.json`). This prevents merge conflicts when parallel sessions write learnings simultaneously. The file contains an array of learning objects for that section.
+- **Before starting any section, read ALL files in `.theme-forge/learnings/` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
+- **An empty `.theme-forge/learnings/` directory after 2+ sections is a red flag.** Stop and review what you learned from previous sections.
+- **Migration from single file:** If `.theme-forge/learnings.json` exists (old format), read it, split entries by `created_by`/`source.section` into per-section files in `learnings/`, then delete the old file.
 
 ## Prerequisites
 

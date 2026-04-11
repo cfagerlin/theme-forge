@@ -130,7 +130,7 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 2. **Commit onboard artifacts** (if onboard just ran):
    ```bash
    git add .theme-forge/config.json .theme-forge/mapping-rules.json \
-           .theme-forge/conventions.json .theme-forge/learnings.json .gitignore
+           .theme-forge/conventions.json .theme-forge/learnings/ .gitignore
    git commit -m "theme-forge: onboard project"
    git push
    ```
@@ -182,7 +182,7 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
      ```bash
      git add sections/ snippets/ assets/ config/ templates/ \
              .theme-forge/reports/sections/header.json \
-             .theme-forge/learnings.json .theme-forge/mapping-rules.json
+             .theme-forge/learnings/ .theme-forge/mapping-rules.json
      git commit -m "pull: header — completed"
      git push
      ```
@@ -193,7 +193,7 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
      ```bash
      git add sections/ snippets/ assets/ config/ templates/ \
              .theme-forge/reports/sections/footer.json \
-             .theme-forge/learnings.json .theme-forge/mapping-rules.json
+             .theme-forge/learnings/ .theme-forge/mapping-rules.json
      git commit -m "pull: footer — completed"
      git push
      ```
@@ -263,7 +263,7 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 ├── config.json              # Project configuration (created by onboard) — COMMITTED
 ├── mapping-rules.json       # Global mapping registry (base X → target Y) — COMMITTED
 ├── conventions.json         # Global standards (CSS-first, prefix, thresholds) — COMMITTED
-├── learnings.json           # Accumulated learnings from retries — COMMITTED
+├── learnings/               # Per-section learning files (one per section, merge-friendly) — COMMITTED
 ├── site-inventory.json      # Full site inventory (created by scan) — COMMITTED (optional)
 ├── settings-map.json        # Global settings cross-reference base→target (created by scan) — COMMITTED
 ├── class-map.json           # CSS class/property/component cross-reference (created by scan) — COMMITTED
@@ -329,7 +329,7 @@ Multiple sessions can work on different pages simultaneously. **Git is the coord
 2. Read config.json                  # Onboarded? ✓
 3. Targeted base pull                # Fresh templates + settings (~5 sec)
 4. Read mapping-rules.json           # Apply global mapping conventions
-5. Read learnings.json               # Apply accumulated patterns
+5. Read learnings/*.json              # Apply accumulated patterns
 6. Check reports/sections/header.json # Globals done? If not, ask.
 7. Scoped scan + map for this page   # Only if mappings don't exist
 8. Pull sections one by one          # Skip if report exists

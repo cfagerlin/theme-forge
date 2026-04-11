@@ -283,14 +283,13 @@ Create `.theme-forge/conventions.json`:
 }
 ```
 
-Create `.theme-forge/learnings.json`:
+Create `.theme-forge/learnings/` directory and seed it with universal learnings:
 
-```json
-{
-  "learnings": [],
-  "created_at": "<current ISO timestamp>"
-}
+```bash
+mkdir -p .theme-forge/learnings
 ```
+
+Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (see `pull-section/references/learnings.md` § Seeding Learnings for the full content).
 
 ### Step 6: Verify Setup
 
@@ -327,7 +326,7 @@ Commit the onboarding artifacts:
 git add .theme-forge/config.json \
         .theme-forge/mapping-rules.json \
         .theme-forge/conventions.json \
-        .theme-forge/learnings.json \
+        .theme-forge/learnings/ \
         .gitignore
 git commit -m "theme-forge: onboard project"
 git push

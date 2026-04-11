@@ -2,7 +2,19 @@
 
 ## 0.9.5 — 2026-04-11
 
-**`--full` is now a one-shot pipeline.** Previously, `--full` required the user to manually onboard, run scan, start the dev server, and pull globals before it would work. Now it handles every prerequisite automatically:
+Three fixes from observing the bangalore pull-page-index run.
+
+### Extraction FAIL = must fix (new hard rule)
+The agent was rationalizing away extraction failures. The hero section had `text-align: center` on live and `left` on dev — a clear FAIL — but the agent called it a "measurement artifact" because "the container is narrow so they look the same." New hard rule: extraction FAIL rows are binding. You fix them or escalate. No reclassifying as "visually equivalent."
+
+### Learnings: per-section files instead of single JSON
+`learnings.json` was a single array that parallel sessions both append to — guaranteed merge conflicts. Now learnings are stored as one file per section in `.theme-forge/learnings/` (e.g., `learnings/header.json`, `learnings/hero-1_index.json`). Two sessions working different sections create different files, so git merge succeeds without conflicts. Old-format `learnings.json` files are auto-migrated on read.
+
+### Branch visibility: push immediately after creation
+The agent was creating `pull-page-{page}` branches but not pushing them to remote until after the first section completed. This meant the user couldn't see diffs in VS Code or track progress. Now the branch is pushed with `-u` immediately after creation, before any work starts.
+
+### `--full` is now a one-shot pipeline
+Previously, `--full` required the user to manually onboard, run scan, start the dev server, and pull globals before it would work. Now it handles every prerequisite automatically:
 
 - **Auto-onboard**: If `.theme-forge/config.json` doesn't exist, runs the full onboard flow (collects dev store domain, detects capabilities, writes config, sets up gitignore).
 - **Auto-scan**: If global maps (`settings-map.json`, `class-map.json`) are missing, runs `scan --apply-globals` to inventory the site and apply global settings (logo, fonts, colors).

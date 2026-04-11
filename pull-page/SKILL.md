@@ -40,6 +40,12 @@ Before any work, verify that shared foundations are on main:
    ```
    Each page gets its own branch off main. This enables parallel sessions and clean PRs.
 
+4. **Push the branch immediately** so it's visible in VS Code and to other collaborators:
+   ```bash
+   git push -u origin pull-page-{page}
+   ```
+   Do not wait until the first section is done. Push the branch as soon as it's created.
+
 ### Step -1: Git Pull + Globals Check
 
 1. **`git pull origin main`** to get the latest shared state.
@@ -53,7 +59,7 @@ Before any work, verify that shared foundations are on main:
    **Wait for the user's choice.** If A, run scan (which includes `--apply-globals`), then resume from here.
 
 3. **Check header/footer:** Look for `.theme-forge/reports/sections/header.json` and `footer.json` with `status: "completed"`. If both exist, globals are done. If not, ask: "Header/footer haven't been pulled yet. Run them now before starting page sections?" If yes, run `pull-header` and `pull-footer`, commit changes, and push.
-4. **Read global standards:** Load `.theme-forge/mapping-rules.json`, `.theme-forge/learnings.json`, and `.theme-forge/conventions.json` (if they exist).
+4. **Read global standards:** Load `.theme-forge/mapping-rules.json`, all files in `.theme-forge/learnings/`, and `.theme-forge/conventions.json` (if they exist).
 
 ### Step 0: Targeted Base Pull
 
@@ -173,7 +179,7 @@ For each section:
 5. After each section completes validation, **commit and push**:
    ```bash
    git add .theme-forge/reports/sections/{section}.json \
-           .theme-forge/learnings.json \
+           .theme-forge/learnings/ \
            .theme-forge/mapping-rules.json \
            sections/ templates/ assets/ snippets/ config/
    git commit -m "pull: {section} on {page} — completed"
