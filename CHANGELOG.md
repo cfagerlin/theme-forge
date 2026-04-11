@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.3 — 2026-04-11
+
+**Third-party form integrations: port the JS, not just the HTML.** The bangalore footer pull preserved the Klaviyo form HTML correctly, but the form doesn't actually work on dev because the AJAX submission JS was never ported. The `data-ajax-submit` attribute needs JavaScript to intercept the submit event, and the success message div needs JS to toggle visibility.
+
+- **Form JS guidance**: New instructions to search the base theme for form handling JS, port it to the custom-liquid block, or add an inline AJAX fallback script. Includes a copy-paste fallback pattern for Klaviyo-style `data-ajax-submit` forms.
+- **App embed vs form HTML**: Clarifies that the Shopify app embed (e.g., `klaviyo-onsite-embed`) handles popups/tracking, not the footer form. Both must be preserved, but the form should work independently. App embeds only function if the app is installed on the dev store.
+- **pull-footer: form testing step**: Must actually test the email form on dev after pulling. Enter a test email, verify the success message appears inline (not a page redirect).
+- **pull-footer: third-party signup checklist**: Three things must all be right: form HTML, form JS, and app embed. Expanded footer gotchas with the full checklist.
+- **Fix: gitignore missing entries**: Onboard was creating `.gitignore` with only 3 entries (base-cache, debug, tmp). Missing: `.playwright-mcp/` (Playwright MCP session YAMLs), `.theme-forge/references/` (live reference screenshots), `.gstack/`, and `/*.png` (root-only catch-all for screenshots saved to repo root). The bangalore workspace had 259 untracked files.
+- **Hard rule: never save files to repo root**: Screenshots, YAML files, and working artifacts must go in `.theme-forge/` subdirectories. The agent was saving comparison screenshots (`dev-footer-v3.png`, `dev-header-sticky-v4.png`, etc.) directly to the repo root.
+
 ## 0.9.2 — 2026-04-11
 
 **Extract first, don't guess: mandatory computed style extraction before writing any code.** The bangalore migration showed pull-section taking 3 rounds per section because it guessed CSS values from source files instead of extracting them from the live browser. Same typography fixes (heading 2.18rem, letter-spacing -0.02em, font-weight 300) were re-derived for every section. learnings.json was completely empty after 5 sessions and 13 variances.

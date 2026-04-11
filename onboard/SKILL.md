@@ -297,13 +297,26 @@ Create `.theme-forge/learnings.json`:
 1. Confirm the target theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
 2. If a browse tool is available, verify the live URL is reachable
 3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/`, `.theme-forge/tmp/` directories
-4. **Check `.gitignore`**: Add ONLY session-specific paths to `.gitignore`:
+4. **Check `.gitignore`**: Add session-specific and tool-generated paths to `.gitignore`:
    ```
    .theme-forge/base-cache/
    .theme-forge/debug/
    .theme-forge/tmp/
+   .theme-forge/references/
+   .playwright-mcp/
+   .gstack/
+   /*.png
    ```
    Do NOT gitignore all of `.theme-forge/`. Config, mappings, reports, learnings, and mapping rules must be committed so parallel sessions share them.
+
+   Why each entry:
+   - `base-cache/` — pulled from live theme per session, large binary assets
+   - `debug/` — transcripts and screenshots from debug runs
+   - `tmp/` — temporary capture output
+   - `references/` — live site reference screenshots (large, session-specific)
+   - `.playwright-mcp/` — Playwright MCP session/page YAML files (auto-generated)
+   - `.gstack/` — gstack working files
+   - `*.png` — screenshot artifacts from capture/comparison. All screenshots should go in `.theme-forge/` subdirectories, but the agent sometimes saves them to the repo root. This catch-all prevents accidental commits.
 5. Print a summary of the configuration
 
 ### Step 7: Commit + Merge to Main
