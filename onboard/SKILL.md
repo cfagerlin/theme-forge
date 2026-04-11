@@ -15,7 +15,7 @@ Set up a Shopify theme migration project by collecting configuration and detecti
 
 **Ask one question at a time.** Do not dump all questions at once. Wait for each answer before asking the next. Try to infer values from CLAUDE.md or project files before asking.
 
-Note: A full base theme export is NOT needed. Sessions pull just templates and settings from the live theme on demand (~5 seconds). See Targeted Base Pull in the orchestrator SKILL.md.
+Note: A full base theme export is NOT needed. Sessions pull templates, config, sections, snippets, blocks, layout, and code assets from the live theme on demand (~10-15 seconds). See Targeted Base Pull in the orchestrator SKILL.md.
 
 **Step 1a: Dev store domain**
 
@@ -193,9 +193,9 @@ Store the target theme ID in config as `target_theme_id`.
 
 ### Step 3.6: Record Live Theme ID
 
-If Shopify CLI is available, record the live theme's ID from `shopify theme list` output (the theme with `role: "live"`). Store as `live_theme_id` in config. This is used by the targeted base pull (`shopify theme pull --theme <live_theme_id> --only templates/ --only config/`) to fetch fresh settings and templates on demand.
+If Shopify CLI is available, record the live theme's ID from `shopify theme list` output (the theme with `role: "live"`). Store as `live_theme_id` in config. This is used by the targeted base pull to fetch fresh code, settings, and templates on demand.
 
-Note: A full base theme export is no longer needed. Sessions pull just what they need (~5 seconds) into the gitignored `.theme-forge/base-cache/` directory.
+Note: A full base theme export is no longer needed. Sessions pull templates, config, sections, snippets, blocks, layout, and code assets (~10-15 seconds) into the gitignored `.theme-forge/base-cache/` directory.
 
 ### Step 4: Detect Dev Server
 
@@ -257,7 +257,7 @@ Create `.theme-forge/config.json` in the target theme root:
 }
 ```
 
-Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) instead of a full theme export.
+Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) which pulls sections, snippets, blocks, layout, and code assets alongside templates and config.
 
 ### Step 5.5: Write Global Standards
 
@@ -310,7 +310,7 @@ Create `.theme-forge/learnings.json`:
    Do NOT gitignore all of `.theme-forge/`. Config, mappings, reports, learnings, and mapping rules must be committed so parallel sessions share them.
 
    Why each entry:
-   - `base-cache/` — pulled from live theme per session, large binary assets
+   - `base-cache/` — pulled from live theme per session, includes sections/snippets/blocks/layout code
    - `debug/` — transcripts and screenshots from debug runs
    - `tmp/` — temporary capture output
    - `references/` — live site reference screenshots (large, session-specific)

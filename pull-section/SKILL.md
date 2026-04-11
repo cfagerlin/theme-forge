@@ -438,10 +438,15 @@ Where to find image references:
 1. Check if `scan` has already been run — look for this section in `.theme-forge/site-inventory.json`
    - If present, use the **resolved CSS** from the inventory (all Liquid variables already substituted with actual values). This saves significant time vs manual cross-referencing.
    - If not present, fall back to manual resolution (below)
-2. Read the **base theme's section `.liquid` file** — this is the PRIMARY code reference. Extract:
+2. Read the **base theme's section `.liquid` file** from `.theme-forge/base-cache/sections/` — this is the PRIMARY code reference. Extract:
    - The inline `<style>` block with all CSS rules, breakpoints, responsive behavior
    - The `{% schema %}` with available settings and their types
    - The HTML structure and Liquid logic
+   - **All `{% render %}` and `{% include %}` calls** — these reference snippets in `.theme-forge/base-cache/snippets/` that may contain form handlers, JS, tracking code, or reusable components. Read every referenced snippet.
+   - **All `<script>` tags and JS references** — inline scripts, external asset references (`{{ 'filename.js' | asset_url }}`). If the section uses JavaScript for form submission, AJAX, animations, or tracking, you need to understand and port it.
+   - **All `{% section %}` and `{% block %}` references** — check `.theme-forge/base-cache/blocks/` for block definitions.
+
+   **If `.theme-forge/base-cache/sections/` is empty or missing the section file:** The base pull may have only fetched templates and config (old behavior). Re-run the targeted base pull with the full set of `--only` patterns (see orchestrator SKILL.md "Targeted Base Pull"). Do NOT proceed without reading the base section code — you will be guessing at how things are implemented instead of knowing.
 3. Read the **base theme's configured values** from `settings_data.json` first, then template JSON as fallback. `settings_data.json` is the source of truth for content because it reflects what the theme editor shows on the live site.
 4. **Resolve all Liquid variables in the section CSS** (skip if resolved CSS was loaded from inventory). If the base section's `<style>` block contains `{{settings.something}}` or `{{section.settings.something}}`, look up the actual values in `settings_data.json`. Pay special attention to:
    - Font family, weight, style, and letter-spacing

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.4 — 2026-04-11
+
+**Base pull now includes section code, not just templates and config.** The targeted base pull was only fetching `templates/*` and `config/*`, which meant the agent had no visibility into the base theme's section Liquid files, snippets, blocks, layout, or JavaScript. It couldn't see how forms were implemented, what JS handlers existed, what snippets sections referenced, or how custom blocks were structured. It was forced to guess at implementation details it should have been reading directly.
+
+- **Expanded base pull**: Now pulls `sections/*`, `snippets/*`, `blocks/*`, `layout/*`, `assets/*.css`, and `assets/*.js` alongside templates and config. Takes ~10-15 seconds instead of ~5.
+- **pull-section Step 2 expanded**: Must read all `{% render %}` and `{% include %}` calls to find snippets with form handlers, tracking code, and reusable components. Must read all `<script>` tags and JS references. Must check `blocks/` for block definitions.
+- **Hard stop on missing base code**: If `.theme-forge/base-cache/sections/` is empty, the agent must re-run the base pull before proceeding. No more guessing.
+- **Updated all references**: orchestrator SKILL.md, pull-page, onboard all updated to use the expanded pull command.
+
 ## 0.9.3 — 2026-04-11
 
 **Third-party form integrations: port the JS, not just the HTML.** The bangalore footer pull preserved the Klaviyo form HTML correctly, but the form doesn't actually work on dev because the AJAX submission JS was never ported. The `data-ajax-submit` attribute needs JavaScript to intercept the submit event, and the success message div needs JS to toggle visibility.
