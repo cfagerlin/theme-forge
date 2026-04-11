@@ -183,9 +183,11 @@ For each section:
            .theme-forge/mapping-rules.json \
            sections/ templates/ assets/ snippets/ config/
    git commit -m "pull: {section} on {page} — completed"
-   git push
+   git push -u origin $(git branch --show-current)
    ```
-   This makes the completion visible to other sessions immediately.
+   **Always use `git push -u origin <branch>`.** Plain `git push` fails silently if no upstream is set. Using `-u` every time is safe (it's a no-op if upstream already exists) and guarantees the push actually goes to GitHub.
+
+   **Verify the push succeeded** — check that `git log origin/$(git branch --show-current) --oneline -1` shows your commit. If it doesn't, the push failed. Fix it before continuing.
 
 ### Step 4: Full-Page Comparison
 
@@ -249,7 +251,7 @@ Commit the page report and any remaining changes:
 git add .theme-forge/reports/pages/{page}.json \
         .theme-forge/cutover.json
 git commit -m "pull: {page} page complete — {N} sections pulled"
-git push
+git push -u origin $(git branch --show-current)
 ```
 
 ### Step 7: ⛔ MERGE POINT — PR Back to Main
