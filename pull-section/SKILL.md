@@ -52,6 +52,11 @@ These rules are non-negotiable. They override everything else in this document. 
 - **On first push, use `git push -u origin <branch-name>`.** Subsequent pushes can use plain `git push`. If `git push` fails with "no upstream branch," you forgot the `-u` — run `git push -u origin $(git branch --show-current)`.
 - **Verify the push succeeded.** After pushing, check that the remote branch exists: `git log origin/<branch-name> --oneline -1`. If this fails, the push didn't work — fix it before continuing.
 
+### "Requires custom section" means build it, not skip it
+- **If a section needs a custom section, build the custom section.** The mapping classification `requires_customization` or `incompatible` describes the approach, not a reason to defer. You have the tools: create a `.liquid` file in `sections/`, build the schema, write the CSS, register it in the template JSON. The spec sheet (Step 2.75) tells you exactly what to build.
+- **"Requires custom section" is NEVER a valid skip reason.** If you write `status: "skipped"` with reason "requires custom section," that is a bug. The only valid skip reasons are: (1) it's an app embed/widget that loads at runtime, or (2) the user explicitly approved the skip via `AskUserQuestion`.
+- **Below-fold content is NOT optional.** Collapsible product details, FAQ accordions, trust badges, recommendation carousels — if it's visible on the live page, it must be replicated. "Below the fold" does not mean "low priority."
+
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
 
