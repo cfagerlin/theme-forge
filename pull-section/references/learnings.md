@@ -6,36 +6,50 @@ theme-forge accumulates knowledge from every correction. When you fix a variance
 
 ### 1. Storage
 
-Learnings live in `.theme-forge/learnings.json` in the project root:
+Learnings are stored as **one file per section** in `.theme-forge/learnings/`:
+
+```
+.theme-forge/learnings/
+├── header.json
+├── footer.json
+├── hero-1_index.json
+├── featured-collection-1_index.json
+└── _seeds.json
+```
+
+Each file contains an array of learning objects from that section:
 
 ```json
-{
-  "version": "0.2.0",
-  "learnings": [
-    {
-      "id": "l_001",
-      "trigger": {
-        "condition": "target_theme_sets_property_via_inline_style",
-        "property": "font-family",
-        "description": "Target theme injects font-family as an inline style via CSS custom properties in theme-styles-variables.liquid"
-      },
-      "action": {
-        "description": "Use !important when overriding font-family on elements that inherit from the target theme's global typography",
-        "example": "font-family: 'Spectral', serif !important;",
-        "anti_pattern": "font-family: 'Spectral', serif; /* will be overridden by inline style */"
-      },
-      "source": {
-        "section": "custom-dynamic-collections",
-        "correction_type": "retry_after_fail",
-        "description": "CSS override didn't apply because Horizon inline style had higher specificity"
-      },
-      "scope": "target_theme",
-      "confidence": "high",
-      "created_at": "2026-04-07T20:00:00Z"
-    }
-  ]
-}
+[
+  {
+    "id": "l_001",
+    "trigger": {
+      "condition": "target_theme_sets_property_via_inline_style",
+      "property": "font-family",
+      "description": "Target theme injects font-family as an inline style via CSS custom properties in theme-styles-variables.liquid"
+    },
+    "action": {
+      "description": "Use !important when overriding font-family on elements that inherit from the target theme's global typography",
+      "example": "font-family: 'Spectral', serif !important;",
+      "anti_pattern": "font-family: 'Spectral', serif; /* will be overridden by inline style */"
+    },
+    "source": {
+      "section": "custom-dynamic-collections",
+      "correction_type": "retry_after_fail",
+      "description": "CSS override didn't apply because Horizon inline style had higher specificity"
+    },
+    "scope": "target_theme",
+    "confidence": "high",
+    "created_at": "2026-04-07T20:00:00Z"
+  }
+]
 ```
+
+**Why per-section files:** A single `learnings.json` file causes merge conflicts when parallel sessions both append entries. Per-section files are additive — two sessions working on different sections create different files, so `git merge` succeeds without conflicts.
+
+**To load all learnings:** Read every `.json` file in `.theme-forge/learnings/` and concatenate the arrays. Filter by scope and confidence to find applicable learnings.
+
+**Migration from old format:** If `.theme-forge/learnings.json` exists (pre-0.9.5 format), split entries by `source.section` or `created_by` into per-section files, then delete the old file.
 
 ### 2. When Learnings Are Captured
 
@@ -91,7 +105,7 @@ Confidence decreases when:
 
 ### 6. Capturing a Learning (for the AI agent)
 
-When you identify a pattern worth capturing, write it to `.theme-forge/learnings.json` with this structure:
+When you identify a pattern worth capturing, write it to `.theme-forge/learnings/{section-key}.json` (e.g., `learnings/header.json`, `learnings/hero-1_index.json`). Each file contains an array. Append to it if the file already exists. Structure for each entry:
 
 ```json
 {
@@ -134,7 +148,7 @@ When you identify a pattern worth capturing, write it to `.theme-forge/learnings
 
 ### 8. Seeding Learnings
 
-On `onboard` or first `pull-section` run, seed `.theme-forge/learnings.json` with universal learnings that apply to any Shopify theme migration:
+On `onboard` or first `pull-section` run, seed `.theme-forge/learnings/_seeds.json` with universal learnings that apply to any Shopify theme migration:
 
 ```json
 [
