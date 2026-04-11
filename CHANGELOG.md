@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.8 — 2026-04-11
+
+Three improvements from validating the bangalore scan PR.
+
+### Functional template format rule (scan Step 4.5)
+Hard rule: functional/redirect templates MUST have `target_format: "liquid"`. The bangalore scan incorrectly marked 25 AJAX endpoints as `"json"` — these don't use Shopify's JSON section architecture and would break if converted.
+
+### Broken asset reference checks (scan Step 5.8)
+After copying snippets to the target theme, scan for `{{ '...' | asset_url }}` calls and verify each file exists in target `assets/`. Copy from base-cache if found, add to cutover if not. Shopify CDN URLs are case-sensitive (`Logo.png` ≠ `logo.png`).
+
+### Asset migration (scan Step 5.9)
+New step: classify every base theme asset and copy what's needed. Images (favicons, icons) and fonts (brand/icon fonts) are store-specific and get copied. Third-party assets get copied if referenced by migrated snippets. Base theme CSS/JS/Liquid/SCSS are skipped — the target theme replaces them. Dependency-driven, not bulk copy.
+
 ## 0.9.7 — 2026-04-11
 
 **Template migration map + enumerate from base theme, not target.**
