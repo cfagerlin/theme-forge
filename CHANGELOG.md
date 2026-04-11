@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2 — 2026-04-11
+
+**Extract first, don't guess: mandatory computed style extraction before writing any code.** The bangalore migration showed pull-section taking 3 rounds per section because it guessed CSS values from source files instead of extracting them from the live browser. Same typography fixes (heading 2.18rem, letter-spacing -0.02em, font-weight 300) were re-derived for every section. learnings.json was completely empty after 5 sessions and 13 variances.
+
+- **New Step 2.75**: Mandatory live-site computed style extraction via browser before writing any settings or CSS. Produces a structured spec table that every subsequent value must trace back to.
+- **Custom Section Spec Sheet**: When creating a new `.liquid` section, must produce a spec with every element's exact computed values from extraction before writing code. No guessing font sizes or spacing.
+- **Learnings are now a hard rule**: Empty learnings.json after 2+ sections is a red flag. Must write at least one learning per section. Must read and apply learnings before starting each section.
+- **Step 8 computed style validation**: Structured comparison table (Property | Live | Dev | Delta | Status) catches sub-pixel differences invisible in screenshots. FAIL rows must be fixed before proceeding.
+- **Theme Constants**: After the first section, identify and capture theme-wide values (font weights, letter-spacing, button styles) to learnings.json with `scope: "target_theme"`. Every subsequent section applies them automatically instead of rediscovering them.
+
 ## 0.9.1 — 2026-04-10
 
 **Fix section settings mapping: read block schemas, prefer native blocks, respect conditional settings.** The agent was bypassing Horizon's native `menu`, `social-links`, and `email-signup` blocks in favor of `custom-liquid` blobs, and setting typography values that were silently ignored due to `visible_if` conditions.
