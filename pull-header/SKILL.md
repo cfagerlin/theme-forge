@@ -37,7 +37,7 @@ Convenience command that runs `pull-section` on the site header. The header is a
            .theme-forge/learnings/ \
            sections/ assets/ snippets/ config/
    git commit -m "pull: header — completed"
-   git push
+   git push -u origin $(git branch --show-current)
    ```
 8. **Additional header-specific checks:**
    - Sticky/fixed behavior (scroll states)

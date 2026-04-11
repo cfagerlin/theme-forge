@@ -33,10 +33,10 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
 5. **After completion, commit and push:**
    ```bash
    git add .theme-forge/reports/sections/footer.json \
-           .theme-forge/learnings.json \
+           .theme-forge/learnings/ \
            sections/ assets/ snippets/ config/
    git commit -m "pull: footer — completed"
-   git push
+   git push -u origin $(git branch --show-current)
    ```
 6. **⛔ MERGE POINT after both header + footer are done.** These shared sections appear on every page. Create a PR:
    ```bash

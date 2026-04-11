@@ -77,6 +77,107 @@ For each section in the base theme:
    - `none` — No match found
 3. Record in inventory with confidence score
 
+### Step 4.5: Template Migration Map
+
+Build a complete map of every base theme template, its type, the sections it uses, and each section's snippet/asset dependencies. **Every base template gets migrated** — the question is format and approach, not whether to include it.
+
+#### 1. Classify every base template
+
+For each template in `.theme-forge/base-cache/templates/`:
+
+| Classification | Description | Migration approach |
+|---|---|---|
+| **page** | Full page template (index, product, collection, page, blog, article, cart, search, 404, customers/*) | Create `.json` template in target theme with mapped sections |
+| **alternate** | Variant of a page type (e.g., `page.about.json`, `product.featured.json`) | Create `.json` alternate in target theme |
+| **functional** | AJAX endpoint, quick-view modal, app data loader (renders a single section or snippet, not a full page) | Copy as `.liquid` template — these don't use the JSON section architecture |
+| **redirect** | Template that just redirects to another page (e.g., `product.donate-gift` → homepage) | Copy as `.liquid` template with redirect logic |
+| **app-artifact** | Template created by a Shopify app that's no longer active or relevant | Document in cutover; migrate only if the app is still installed |
+
+**How to classify:**
+- Read the template file. If it contains `{% section %}` tags or a `sections`/`order` JSON structure → **page** or **alternate**
+- If it contains a single `{% render %}` call, an AJAX response, or raw JSON output → **functional**
+- If it contains `{% redirect %}` or a `<meta http-equiv="refresh">` → **redirect**
+- If it references an app that isn't in the app embeds inventory → **app-artifact**
+- `.liquid` templates that render full pages (legacy themes) are still **page** type
+
+#### 2. Build the dependency cascade
+
+For each template, trace the full dependency tree:
+
+```
+template → sections → snippets → assets
+                   → blocks
+                   → snippets → assets
+```
+
+Concretely:
+1. **Template → Sections**: Parse the template JSON `sections` key (JSON templates) or find `{% section 'name' %}` tags (Liquid templates). Also check `config/settings_data.json` for section composition (legacy themes).
+2. **Section → Snippets**: For each section `.liquid` file, find all `{% render 'name' %}` and `{% include 'name' %}` calls.
+3. **Section → Blocks**: Check the section's schema for block types, then find the block definitions in `blocks/`.
+4. **Snippet → Snippets**: Snippets can render other snippets. Follow the chain.
+5. **Section/Snippet → Assets**: Find `{{ 'filename.js' | asset_url }}` and `{{ 'filename.css' | asset_url }}` references.
+
+#### 3. Save the template map
+
+Save to `.theme-forge/template-map.json`:
+
+```json
+{
+  "generated_at": "<ISO timestamp>",
+  "templates": [
+    {
+      "base_template": "templates/index.json",
+      "classification": "page",
+      "target_format": "json",
+      "target_template": "templates/index.json",
+      "sections": [
+        {
+          "key": "slideshow-1",
+          "base_type": "cta_banner",
+          "target_type": "hero",
+          "match_quality": "candidate",
+          "snippets": ["mega-menu-list", "social-icons"],
+          "blocks": ["text", "button", "image"],
+          "assets": ["cta-banner.css"]
+        }
+      ]
+    },
+    {
+      "base_template": "templates/product.quick-view.liquid",
+      "classification": "functional",
+      "target_format": "liquid",
+      "target_template": "templates/product.quick-view.liquid",
+      "description": "AJAX endpoint — renders product card partial in modal",
+      "sections": [],
+      "snippets_referenced": ["product-card", "quick-add-form"],
+      "assets_referenced": ["quick-view.js"]
+    },
+    {
+      "base_template": "templates/product.donate-gift.liquid",
+      "classification": "redirect",
+      "target_format": "liquid",
+      "target_template": "templates/product.donate-gift.liquid",
+      "description": "Redirects to homepage",
+      "sections": [],
+      "snippets_referenced": []
+    }
+  ],
+  "summary": {
+    "total_templates": 15,
+    "page": 8,
+    "alternate": 3,
+    "functional": 2,
+    "redirect": 1,
+    "app_artifact": 1
+  },
+  "all_sections_referenced": ["cta_banner", "featured-collection", "..."],
+  "all_snippets_referenced": ["mega-menu-list", "social-icons", "product-card", "..."],
+  "all_assets_referenced": ["cta-banner.css", "quick-view.js", "..."]
+}
+```
+
+**This map drives everything downstream.** The `--full` workflow uses it to enumerate templates. `pull-page` uses it to know which sections to pull. The dependency lists ensure no snippet or asset is forgotten.
+
 ### Step 5: Identify Gaps
 
 Compare theme-level settings between base and target:
@@ -406,12 +507,14 @@ Create a prioritized plan:
 
 Save to `.theme-forge/`:
 
-1. `site-inventory.json` — Full inventory of both themes
+1. `site-inventory.json` — Full inventory of both themes (including layout audit results)
 2. `settings-map.json` — Global settings cross-reference (typography, colors, spacing, features)
 3. `class-map.json` — CSS class, custom property, and component pattern cross-reference
-4. `plan.json` — Migration plan with phases and effort estimates
+4. `template-map.json` — Every base template classified with full section→snippet→asset dependency cascade
+5. `app-embeds.json` — App embeds inventory and migration status
+6. `plan.json` — Migration plan with phases and effort estimates
 
-Commit all four files to git.
+Commit all files to git.
 
 ### Step 8: Apply Global Settings (`--apply-globals`)
 
