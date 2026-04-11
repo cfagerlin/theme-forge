@@ -100,6 +100,13 @@ For each template in `.theme-forge/base-cache/templates/`:
 - If it references an app that isn't in the app embeds inventory → **app-artifact**
 - `.liquid` templates that render full pages (legacy themes) are still **page** type
 
+**⛔ `target_format` must match classification:**
+- `page` and `alternate` → `target_format: "json"` (these use Shopify's JSON section architecture)
+- `functional` and `redirect` → `target_format: "liquid"` (these are raw Liquid — AJAX endpoints, data feeds, redirects — they CANNOT be `.json` because they don't use sections/order)
+- `app-artifact` → `target_format: "liquid"` (or omit if not migrating)
+
+This is a hard rule. A functional template with `target_format: "json"` is always a bug.
+
 #### 2. Build the dependency cascade
 
 For each template, trace the full dependency tree:
