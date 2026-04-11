@@ -141,12 +141,13 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 
 4. **Check for global maps**: Look for `.theme-forge/settings-map.json` and `.theme-forge/class-map.json`.
    - **If both exist**: Global maps are ready. Continue.
-   - **If either is missing**: Run `scan --apply-globals` automatically. This inventories the site, generates the settings cross-reference map (`settings-map.json`), CSS class map (`class-map.json`), and applies global settings (logo, favicon, fonts, colors, body text size) to the target theme's `settings_data.json`. Commit the results:
+   - **If either is missing**: Run `scan --apply-globals` automatically. This inventories the site, generates the settings cross-reference map (`settings-map.json`), CSS class map (`class-map.json`), inventories app embeds (`app-embeds.json`), audits layouts for third-party scripts, and applies global settings (logo, favicon, fonts, colors, body text size) to the target theme's `settings_data.json`. Commit the results:
      ```bash
      git add .theme-forge/settings-map.json .theme-forge/class-map.json \
-             .theme-forge/site-inventory.json .theme-forge/plan.json \
-             .theme-forge/mappings/ config/settings_data.json
-     git commit -m "scan: apply global settings"
+             .theme-forge/app-embeds.json .theme-forge/site-inventory.json \
+             .theme-forge/plan.json .theme-forge/mappings/ \
+             config/settings_data.json layout/ snippets/
+     git commit -m "scan: apply global settings, migrate app embeds, audit layouts"
      git push
      ```
 
@@ -267,6 +268,7 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 ├── site-inventory.json      # Full site inventory (created by scan) — COMMITTED (optional)
 ├── settings-map.json        # Global settings cross-reference base→target (created by scan) — COMMITTED
 ├── class-map.json           # CSS class/property/component cross-reference (created by scan) — COMMITTED
+├── app-embeds.json          # App embeds inventory and migration status (created by scan) — COMMITTED
 ├── plan.json                # Migration plan (created by scan) — COMMITTED (optional)
 ├── base-cache/              # Targeted base theme pull (templates, config, sections, snippets, blocks, layout, CSS/JS) — GITIGNORED
 ├── mappings/
