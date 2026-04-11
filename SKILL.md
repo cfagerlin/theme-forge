@@ -144,10 +144,11 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
    - **If either is missing**: Run `scan --apply-globals` automatically. This inventories the site, generates the settings cross-reference map (`settings-map.json`), CSS class map (`class-map.json`), inventories app embeds (`app-embeds.json`), audits layouts for third-party scripts, and applies global settings (logo, favicon, fonts, colors, body text size) to the target theme's `settings_data.json`. Commit the results:
      ```bash
      git add .theme-forge/settings-map.json .theme-forge/class-map.json \
-             .theme-forge/app-embeds.json .theme-forge/site-inventory.json \
-             .theme-forge/plan.json .theme-forge/mappings/ \
+             .theme-forge/app-embeds.json .theme-forge/template-map.json \
+             .theme-forge/site-inventory.json .theme-forge/plan.json \
+             .theme-forge/mappings/ \
              config/settings_data.json layout/ snippets/
-     git commit -m "scan: apply global settings, migrate app embeds, audit layouts"
+     git commit -m "scan: global settings, app embeds, template map, layout audit"
      git push
      ```
 
@@ -199,18 +200,34 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
      git push
      ```
 
-#### Phase 5: Page Pulls
+#### Phase 5: Template Migration
 
-8. **Enumerate page templates**: List all `.json` template files in the target theme's `templates/` directory. Order them:
+**Enumerate from the base theme, not the target.** The base theme (live site) has all the templates that need migrating. The target theme starts mostly empty. Use `.theme-forge/template-map.json` (from scan Step 4.5) as the source of truth.
+
+8. **Migrate functional/redirect templates first**: These are simple copies that don't need section-by-section pulling.
+
+   For each template classified as `functional`, `redirect`, or `app-artifact` in the template map:
+   - Copy the `.liquid` template file from `.theme-forge/base-cache/templates/` to the target theme's `templates/`
+   - Copy any referenced snippets from base-cache to target `snippets/`
+   - Copy any referenced assets from base-cache to target `assets/`
+   - Commit:
+     ```bash
+     git add templates/ snippets/ assets/
+     git commit -m "migrate: functional templates and dependencies"
+     git push -u origin $(git branch --show-current)
+     ```
+
+9. **Pull page templates in order**: For each template classified as `page` in the template map, ordered:
    1. `index` (homepage — highest traffic, best first test)
-   2. `product` (product pages)
-   3. `collection` (collection pages)
+   2. `product` (product pages — revenue-critical)
+   3. `collection` (collection pages — discovery path)
    4. `page` (generic pages)
-   5. All remaining templates alphabetically (`article`, `blog`, `cart`, `search`, `404`, etc.)
+   5. `cart`, `search`, `blog`, `article` 
+   6. `404`, `password`, `gift_card`
+   7. `customers/*` (account pages)
 
-   Skip: `customers/*` templates (account pages, rarely customized), `gift_card`, `password`, and any template alternates (e.g., `page.about.json`) — these are handled after the base templates.
-
-9. **Pull each page**: For each template in order, run `pull-page <template>`. The pull-page sub-skill handles:
+   For each, run `pull-page <template>`. The pull-page sub-skill handles:
+   - Creating the `.json` template in the target theme if it doesn't exist
    - Scoped scan + map (if mappings don't exist for this page)
    - Section-by-section pull with compare→fix→verify loops
    - Per-section commits and pushes
@@ -219,7 +236,7 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 
    **Between pages, `git pull`** to pick up any changes from parallel sessions.
 
-10. **Pull template alternates**: After all base templates are done, enumerate alternates (e.g., `page.about.json`, `page.bridal.json`, `product.featured.json`). Pull each one. These share most sections with their base template, so they're fast — mostly just content/settings differences.
+10. **Pull template alternates**: For each template classified as `alternate` in the template map (e.g., `page.about.json`, `product.featured.json`). These share most sections with their base template, so they're fast — mostly content/settings differences and a few unique sections.
 
 #### Phase 6: Review + Report
 
@@ -269,6 +286,7 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 ├── settings-map.json        # Global settings cross-reference base→target (created by scan) — COMMITTED
 ├── class-map.json           # CSS class/property/component cross-reference (created by scan) — COMMITTED
 ├── app-embeds.json          # App embeds inventory and migration status (created by scan) — COMMITTED
+├── template-map.json        # Every base template classified with dependency cascade (created by scan) — COMMITTED
 ├── plan.json                # Migration plan (created by scan) — COMMITTED (optional)
 ├── base-cache/              # Targeted base theme pull (templates, config, sections, snippets, blocks, layout, CSS/JS) — GITIGNORED
 ├── mappings/

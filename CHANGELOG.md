@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.7 — 2026-04-11
+
+**Template migration map + enumerate from base theme, not target.**
+
+### Template migration map (scan Step 4.5)
+Scan now classifies every base template into one of five types: `page`, `alternate`, `functional` (AJAX endpoints), `redirect`, and `app-artifact`. For each template, traces the full dependency cascade: template → sections → snippets → blocks → assets. Saves to `.theme-forge/template-map.json`. This drives everything downstream — `--full` uses it to enumerate work, `pull-page` uses it to know dependencies.
+
+### Enumerate from base theme
+The `--full` Phase 5 was listing templates from the target theme's `templates/` directory. But the target starts mostly empty — the base (live) theme has the templates that need migrating. Now enumerates from `template-map.json`. Functional templates (AJAX endpoints, redirects) are copied first with their dependencies. Page templates get the full pull-page treatment. Nothing is skipped — customers/*, gift_card, password all get migrated.
+
 ## 0.9.6 — 2026-04-11
 
 Four new capabilities for third-party integrations, navigation, and search.
