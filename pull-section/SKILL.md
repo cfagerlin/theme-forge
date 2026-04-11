@@ -888,6 +888,61 @@ This is how theme-forge one-shots sections: learnings from prior sections preven
 
 **Address structural variances FIRST.** Do not start CSS work until the HTML structure matches.
 
+### Step 5.5: Inspect the Rendered DOM (Mandatory for CSS overrides)
+
+> **HARD RULE: Never guess CSS selectors.** Before writing ANY CSS override, inspect the
+> actual rendered DOM on the dev site to discover the correct selectors. Themes like Horizon
+> use web components and Shadow DOM — the rendered DOM is different from what `.liquid` files
+> suggest. A selector that looks right from reading the source may match nothing at runtime.
+
+**For each element you plan to style:**
+
+1. **Navigate to the dev site** and run JavaScript to discover the actual DOM path:
+   ```javascript
+   // Example: find where the product title actually renders
+   function findElement(root, textOrTag, depth = 0) {
+     const results = [];
+     for (const el of root.querySelectorAll('*')) {
+       if (el.matches(textOrTag) || el.textContent?.trim().startsWith(textOrTag?.slice(0, 20))) {
+         results.push({ tag: el.tagName, classes: [...el.classList], parent: el.parentElement?.tagName });
+       }
+       if (el.shadowRoot) results.push(...findElement(el.shadowRoot, textOrTag, depth + 1));
+     }
+     return results;
+   }
+   ```
+
+2. **Check for Shadow DOM boundaries.** If the element is inside a shadow root:
+   - You CANNOT style it with normal CSS selectors
+   - Check if the web component exposes CSS custom properties (`--var-name`) — these cascade through Shadow DOM
+   - Check if the component uses `::part()` — allows external styling of named parts
+   - Check if there's a JSON setting that controls the value — **settings always beat CSS**
+
+3. **Check for CSS custom properties.** Run on the dev site:
+   ```javascript
+   // Get all custom properties on the product section
+   const section = document.querySelector('.shopify-section--product-information');
+   const styles = getComputedStyle(section);
+   // Look for relevant custom properties
+   const props = [...document.styleSheets].flatMap(s => {
+     try { return [...s.cssRules] } catch { return [] }
+   }).filter(r => r.selectorText?.includes('product')).map(r => r.cssText).join('\n');
+   ```
+
+4. **Record the working selector** in the debug transcript before writing CSS. Format:
+   ```
+   SELECTOR DISCOVERY: product title
+   Target element: <h1> inside product-information-block shadow root
+   Approach: CSS custom property --heading-font-size on host element
+   Selector: product-information .product-details { --heading-font-size: 28px; }
+   ```
+
+5. **Settings-first rule.** Before writing a CSS override, verify the value isn't controlled by a JSON setting:
+   - Read the section's `{% schema %}` and block schemas for settings that control the property
+   - Check `settings_data.json` for the current value
+   - **If a setting exists, change the setting** — don't override it with CSS. CSS overrides on top of wrong settings create fragile, hard-to-debug styling.
+   - Example: `variant_button_width: "equal-width-buttons"` in settings fights CSS swatch overrides. Change the setting to `"auto"` first.
+
 ### Step 6: Apply CSS Overrides
 
 **Before writing any CSS, consult the global maps loaded in Step 1:**
@@ -897,11 +952,14 @@ This is how theme-forge one-shots sections: learnings from prior sections preven
 
 For CSS variances, apply fixes in order of preference:
 
-1. **Section's own `{% stylesheet %}` block** — for custom sections we control
-2. **Extension CSS file** (e.g., `assets/custom.css`) — for overriding core sections
-3. **Inline `style` attribute via Liquid** — for per-instance values driven by settings
+1. **JSON settings** — always first. If a setting controls the property, change the setting.
+2. **CSS custom properties** — override `--var-name` on the host element or `:root`. These cascade through Shadow DOM.
+3. **Section's own `{% stylesheet %}` block** — for custom sections we control
+4. **Extension CSS file** (e.g., `assets/custom.css`) — for overriding core sections. Use selectors verified in Step 5.5.
+5. **Inline `style` attribute via Liquid** — for per-instance values driven by settings
 
 Guidelines:
+- **Use only selectors verified against the actual rendered DOM (Step 5.5).** Never write a CSS selector by guessing from the `.liquid` source.
 - Use component-scoped selectors (class-based, not IDs or element selectors)
 - Use `!important` only when overriding core inline styles or CSS custom properties
 - Match the live site's CSS values exactly — copy font-size, padding, letter-spacing values
@@ -944,6 +1002,16 @@ If the variance requires HTML/Liquid changes:
    Any FAIL row is a variance that must be fixed before proceeding. Do not rely on "the screenshots look close enough" — 1px font-size differences and 0.5px letter-spacing differences are invisible in screenshots but accumulate across sections into a noticeable quality gap.
 
 5. If any FAIL rows remain, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
+
+   > **HARD RULE: If a FAIL row shows the SAME dev value as before your fix, your selector
+   > is wrong.** Do NOT retry with the same selector. Go back to Step 5.5 and re-inspect
+   > the actual rendered DOM. The most common cause is a Shadow DOM boundary between your
+   > selector and the target element. Switch to CSS custom properties or JSON settings.
+   >
+   > Example: You wrote `.price-money { font-weight: 300 !important }` but extraction shows
+   > font-weight is still 500. This means `.price-money` doesn't match the actual element.
+   > Inspect the DOM → discover it's inside a shadow root → use `--price-font-weight` custom
+   > property instead.
 
 #### ⛔ Escalation protocol (retries exhausted)
 

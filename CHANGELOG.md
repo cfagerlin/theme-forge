@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.1 — 2026-04-11
+
+**DOM inspection before CSS, settings-first, selector verification loop.**
+
+The semarang product page agent wrote CSS with correct values but wrong selectors. Its own extraction data proved none of the overrides were taking effect (title 32px not 28px, price weight 500 not 300, variant labels 16px not 12px) but it marked the section complete anyway. Three changes:
+
+### Mandatory DOM inspection (new Step 5.5)
+Before writing ANY CSS override, inspect the actual rendered DOM on the dev site. Horizon uses web components and Shadow DOM — the rendered DOM differs from `.liquid` source. Discover the correct selector, check for Shadow DOM boundaries, find CSS custom properties. Record the verified selector in the transcript before writing CSS.
+
+### Settings-first enforcement (Step 5.5 + Step 6)
+Before writing a CSS override, verify the value isn't controlled by a JSON setting. If a setting exists, change the setting — don't override it with CSS. Example: `variant_button_width: "equal-width-buttons"` in settings fights CSS swatch overrides. Change the setting first. Step 6 priority order updated: JSON settings → CSS custom properties → stylesheet → extension CSS → inline styles.
+
+### Wrong-selector detection (Step 8)
+If extraction shows a FAIL row with the SAME dev value as before the fix, the selector is wrong. Hard rule: do NOT retry with the same selector. Go back to Step 5.5 and re-inspect the DOM. Switch to CSS custom properties or JSON settings when Shadow DOM blocks the selector.
+
 ## 0.10.0 — 2026-04-11
 
 **Anti-skip enforcement: every section gets attempted, no self-approved variances.**
