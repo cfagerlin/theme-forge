@@ -185,13 +185,18 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 └── debug/                   # Debug artifacts — GITIGNORED
 ```
 
-**`.gitignore` for `.theme-forge/`:**
+**`.gitignore` for theme-forge projects:**
 ```
 .theme-forge/base-cache/
 .theme-forge/debug/
+.theme-forge/tmp/
+.theme-forge/references/
+.playwright-mcp/
+.gstack/
+/*.png
 ```
 
-Everything else in `.theme-forge/` is committed. This is how parallel sessions share mappings, learnings, and see each other's completed work.
+Everything else in `.theme-forge/` is committed. This is how parallel sessions share mappings, learnings, and see each other's completed work. The `/*.png` catch-all prevents screenshot artifacts from being committed (the agent sometimes saves them to the repo root instead of `.theme-forge/` subdirectories).
 
 ### Git Coordination (Parallel Sessions)
 

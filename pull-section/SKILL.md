@@ -44,6 +44,10 @@ These rules are non-negotiable. They override everything else in this document. 
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
 
+### Never save files to the repo root
+- **All screenshots go in `.theme-forge/` subdirectories.** Debug screenshots go in `.theme-forge/debug/{session}/`. Reference screenshots go in `.theme-forge/references/{section}/`. Temporary captures go in `.theme-forge/tmp/capture/`. NEVER save `.png` files, `.yml` files, or any working artifacts to the repo root directory. The repo root is for theme files only (sections/, assets/, config/, templates/, snippets/, layout/).
+- **All Playwright MCP files stay in `.playwright-mcp/`.** Do not move or copy them elsewhere. This directory is gitignored.
+
 ### Learnings are mandatory
 - **After completing any section, write at least one learning to `.theme-forge/learnings.json`.** Every section teaches something about the target theme (font-weight defaults, color scheme mappings, CSS variable names, breakpoint behavior). If you found zero variances, that's unusual — document WHY (the global settings were already correct, etc.).
 - **Before starting any section, read `learnings.json` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
@@ -1184,6 +1188,44 @@ When the base theme has separate sections for different footer areas (e.g., `foo
 - In the target theme, use a custom HTML block or snippet to reproduce the exact form markup — `action` URL, hidden fields (`g`, `$fields`, list ID), and input names must match.
 - Do NOT use the target theme's `email-signup` block type as a substitute. It posts to Shopify, not the third-party provider.
 - Check `site-inventory.json` integrations list for known third-party services.
+
+**Port the JavaScript, not just the HTML.** Third-party forms almost always depend on JS for:
+- **AJAX submission** (e.g., Klaviyo's `data-ajax-submit` attribute, Mailchimp's `mc-embedded-subscribe-form`). Without JS, the form falls back to a full page redirect or opens a new tab.
+- **Success/error state handling** (showing a "Thanks!" message, hiding the form, displaying validation errors). Without JS, the success `<div>` stays hidden forever.
+- **Tracking/analytics** (firing conversion events on submit).
+
+**How to handle form JS:**
+1. Check the base theme's JS files for form handling code. Search for the form's class name, action URL, or `ajax` references in `assets/*.js` and `snippets/*.liquid`.
+2. If the base theme has custom JS for the form, port it to a snippet or inline `<script>` in the custom-liquid block.
+3. If the form depends on the third-party's JS (loaded via app embed), add a **lightweight inline fallback** so the form works even when the app JS hasn't loaded:
+   ```html
+   <script>
+     (function() {
+       var form = document.querySelector('.your-form-class');
+       if (!form) return;
+       form.addEventListener('submit', function(e) {
+         var ajaxUrl = form.getAttribute('data-ajax-submit');
+         if (!ajaxUrl) return; // let native form handle it
+         e.preventDefault();
+         var data = new FormData(form);
+         var params = new URLSearchParams(data).toString();
+         fetch(ajaxUrl + '?' + params)
+           .then(function() {
+             form.querySelector('.success-msg').style.display = 'block';
+             form.querySelector('.form-wrap').style.display = 'none';
+           })
+           .catch(function() { form.submit(); }); // fallback to native submit
+       });
+     })();
+   </script>
+   ```
+4. Test the form on the dev site. Click submit with a test email. Verify: does the success message appear? Does the page redirect? Does the submission reach the provider?
+
+**App embeds vs form HTML — they serve different purposes:**
+- The **app embed** (e.g., `klaviyo-onsite-embed` in `settings_data.json` global blocks) loads the third-party's tracking JS, popups, and onsite features. It does NOT render the footer form.
+- The **footer form** is custom HTML in a `custom-liquid` block. It renders and submits independently of the app embed.
+- Preserve BOTH: the app embed in `settings_data.json` (for popups/tracking) AND the form HTML in the section (for the actual signup).
+- The app embed only works if the app is **installed on the dev store**. Adding the JSON block reference without the app installed does nothing. Note this in the report as a manual verification step for the merchant.
 
 ### Block Schema Settings Are Conditional (`visible_if`)
 **Many block settings are silently ignored if their `visible_if` condition isn't met.** This is the most common cause of "I set the setting but nothing changed." Shopify doesn't error — it just ignores the value.
