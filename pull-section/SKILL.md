@@ -47,8 +47,10 @@ These rules are non-negotiable. They override everything else in this document. 
 - **Never rationalize a variance as "intentional" or "better."** The live site is the spec. Your job is to match it, not improve it.
 - **`variances_found` must equal `variances_fixed + variances_remaining`.** Always.
 
-### Commit after each section
+### Commit and push after each section
 - **Always commit and push after completing a section.** Code changes, reports, debug artifacts, and learnings must be committed. Uncommitted work is invisible to parallel sessions and lost on crash.
+- **On first push, use `git push -u origin <branch-name>`.** Subsequent pushes can use plain `git push`. If `git push` fails with "no upstream branch," you forgot the `-u` — run `git push -u origin $(git branch --show-current)`.
+- **Verify the push succeeded.** After pushing, check that the remote branch exists: `git log origin/<branch-name> --oneline -1`. If this fails, the push didn't work — fix it before continuing.
 
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
