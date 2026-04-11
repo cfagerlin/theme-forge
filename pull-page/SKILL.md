@@ -57,15 +57,19 @@ Before any work, verify that shared foundations are on main:
 
 ### Step 0: Targeted Base Pull
 
-Pull just templates and settings from the live theme (~5 seconds, always fresh):
+Pull code, templates, and settings from the live theme (~10-15 seconds, always fresh):
 
 ```bash
+mkdir -p .theme-forge/base-cache && git -C .theme-forge/base-cache init 2>/dev/null
 shopify theme pull --theme <live_theme_id> \
-  --only templates/ --only config/ \
+  --only 'templates/*' --only 'config/*' \
+  --only 'sections/*' --only 'snippets/*' \
+  --only 'blocks/*' --only 'layout/*' \
+  --only 'assets/*.css' --only 'assets/*.js' \
   --path .theme-forge/base-cache/
 ```
 
-The `live_theme_id` comes from `.theme-forge/config.json`. The base-cache directory is gitignored (session-local).
+The `live_theme_id` comes from `.theme-forge/config.json`. The base-cache directory is gitignored (session-local). Sections, snippets, blocks, and layout are needed to understand how the base theme implements its features (form handlers, JS, conditional logic, custom blocks).
 
 ### Step 0.3: Scoped Scan + Map
 
