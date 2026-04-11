@@ -117,23 +117,133 @@ After all sections complete, the debug directory contains a full audit trail. A 
 
 ### `--full` Workflow
 
-When `--full` is passed, run the complete pipeline in order. **Do not skip steps. Do not improvise.**
+When `--full` is passed, run the **complete migration pipeline from zero to finished site**. This is a one-shot command — it handles its own prerequisites. The user should be able to install theme-forge, open a target theme, and run `/theme-forge --full` with no prior setup.
 
-1. **Check prerequisites**: `.theme-forge/config.json` must exist (run `onboard` first)
-2. **Targeted base pull**: Pull templates, config, sections, snippets, blocks, layout, and code assets (~10-15 sec). See "Targeted Base Pull" below for the full command.
-3. **Run scoped scan + map** for each page template found in the target theme's `templates/` directory. This creates section mappings in `.theme-forge/mappings/`.
-4. **Run `pull-header`** (header appears on every page, do it first). Commit changes.
-5. **Run `pull-footer`** (footer appears on every page, do it second). Commit changes.
-6. **Run `pull-page`** for each page template in order: index, product, collection, then remaining pages. Each page commits its changes on completion.
-7. **Run `review`** on each completed page
+**Do not skip steps. Do not improvise. Each step checks whether it's already been done and skips if so.**
+
+#### Phase 1: Project Setup (auto-onboard)
+
+1. **Check for config**: Read `.theme-forge/config.json`.
+   - **If it exists**: Project is already onboarded. Load config and continue.
+   - **If it doesn't exist**: Run the `onboard` sub-skill workflow automatically. This collects the dev store domain, resolves the live URL, detects capabilities, writes config, and sets up `.gitignore`. The onboard skill asks interactive questions (dev store domain, extension prefix) — let it run its full interactive flow.
+
+2. **Commit onboard artifacts** (if onboard just ran):
+   ```bash
+   git add .theme-forge/config.json .theme-forge/mapping-rules.json \
+           .theme-forge/conventions.json .theme-forge/learnings.json .gitignore
+   git commit -m "theme-forge: onboard project"
+   git push
+   ```
+
+#### Phase 2: Base Pull + Global Settings
+
+3. **Targeted base pull**: Pull templates, config, sections, snippets, blocks, layout, and code assets from the live theme. See "Targeted Base Pull" below for the full command. Always run this — it's fast (~10-15 sec) and ensures fresh data.
+
+4. **Check for global maps**: Look for `.theme-forge/settings-map.json` and `.theme-forge/class-map.json`.
+   - **If both exist**: Global maps are ready. Continue.
+   - **If either is missing**: Run `scan --apply-globals` automatically. This inventories the site, generates the settings cross-reference map (`settings-map.json`), CSS class map (`class-map.json`), and applies global settings (logo, favicon, fonts, colors, body text size) to the target theme's `settings_data.json`. Commit the results:
+     ```bash
+     git add .theme-forge/settings-map.json .theme-forge/class-map.json \
+             .theme-forge/site-inventory.json .theme-forge/plan.json \
+             .theme-forge/mappings/ config/settings_data.json
+     git commit -m "scan: apply global settings"
+     git push
+     ```
+
+#### Phase 3: Dev Server
+
+5. **Start dev server** (if not already running): Check if a Shopify dev server is serving this theme on any port 9292-9295.
+   ```bash
+   for port in 9292 9293 9294 9295; do
+     if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port" 2>/dev/null | grep -q "200\|301\|302"; then
+       echo "DEV_PORT=$port"
+       break
+     fi
+   done
+   ```
+   - **If found**: Use that port for dev comparisons.
+   - **If not found**: Start one in the background:
+     ```bash
+     # Find the first available port
+     for port in 9292 9293 9294 9295; do
+       if ! lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
+         DEV_PORT=$port; break
+       fi
+     done
+     shopify theme dev --store <dev_store> --theme <target_theme_id> --port $DEV_PORT --path . &
+     ```
+     Wait for the dev server to print its preview URL before proceeding. If `target_theme_id` is not in config, use `shopify theme list --store <dev_store>` to find the development/unpublished theme.
+
+#### Phase 4: Globals (Header + Footer)
+
+6. **Pull header**: Check `.theme-forge/reports/sections/header.json`.
+   - If it exists with `status: "completed"`: Skip.
+   - Otherwise: Run `pull-header`. Commit changes:
+     ```bash
+     git add sections/ snippets/ assets/ config/ templates/ \
+             .theme-forge/reports/sections/header.json \
+             .theme-forge/learnings.json .theme-forge/mapping-rules.json
+     git commit -m "pull: header — completed"
+     git push
+     ```
+
+7. **Pull footer**: Check `.theme-forge/reports/sections/footer.json`.
+   - If it exists with `status: "completed"`: Skip.
+   - Otherwise: Run `pull-footer`. Commit changes:
+     ```bash
+     git add sections/ snippets/ assets/ config/ templates/ \
+             .theme-forge/reports/sections/footer.json \
+             .theme-forge/learnings.json .theme-forge/mapping-rules.json
+     git commit -m "pull: footer — completed"
+     git push
+     ```
+
+#### Phase 5: Page Pulls
+
+8. **Enumerate page templates**: List all `.json` template files in the target theme's `templates/` directory. Order them:
+   1. `index` (homepage — highest traffic, best first test)
+   2. `product` (product pages)
+   3. `collection` (collection pages)
+   4. `page` (generic pages)
+   5. All remaining templates alphabetically (`article`, `blog`, `cart`, `search`, `404`, etc.)
+
+   Skip: `customers/*` templates (account pages, rarely customized), `gift_card`, `password`, and any template alternates (e.g., `page.about.json`) — these are handled after the base templates.
+
+9. **Pull each page**: For each template in order, run `pull-page <template>`. The pull-page sub-skill handles:
+   - Scoped scan + map (if mappings don't exist for this page)
+   - Section-by-section pull with compare→fix→verify loops
+   - Per-section commits and pushes
+   - Full-page comparison at the end
+   - Page report written to `.theme-forge/reports/pages/`
+
+   **Between pages, `git pull`** to pick up any changes from parallel sessions.
+
+10. **Pull template alternates**: After all base templates are done, enumerate alternates (e.g., `page.about.json`, `page.bridal.json`, `product.featured.json`). Pull each one. These share most sections with their base template, so they're fast — mostly just content/settings differences.
+
+#### Phase 6: Review + Report
+
+11. **Run `review`** on each completed page to catch cross-section issues (inter-section spacing, color continuity, header/footer interaction).
+
+12. **Final summary**: Print a migration status report:
+    ```
+    MIGRATION COMPLETE
+    ==================
+    Pages pulled:     8/8
+    Sections pulled:  42/42
+    Sections skipped: 0
+    Sections failed:  0
+    Cutover items:    3
+
+    Run /theme-forge cutover for the full go-live checklist.
+    ```
 
 **Every section must go through `pull-section`** with its full compare→fix→verify loop. Do not skip the visual comparison. Do not mark sections complete without verification. Do not write section reports without actually running the pull-section workflow on that section.
 
-**Resume after interruption:** Re-running `--full` checks `.theme-forge/reports/sections/` for existing reports. Sections with a completed report are skipped. Sections with a failed report are skipped (use `--retry-failed` to re-attempt them by deleting their failed reports first).
+**Resume after interruption:** Re-running `--full` checks existing artifacts at every step. Onboard is skipped if config exists. Scan is skipped if maps exist. Header/footer are skipped if their reports exist. Each page's sections are skipped if their reports exist. This means `--full` is idempotent — you can safely re-run it after a crash, context limit, or network interruption and it picks up where it left off.
 
 ### `--globals-only` Workflow
 
-When `--globals-only` is passed, run steps 1-5 of the `--full` workflow (prerequisites, base pull, scan, map, header, footer), commit all results, then stop:
+When `--globals-only` is passed, run Phases 1-4 of the `--full` workflow (project setup, base pull, global settings, dev server, header, footer), commit all results, then stop:
 
 > "Globals, header, and footer are complete. You can now run `pull-page` for individual pages in parallel sessions:"
 > ```

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.5 — 2026-04-11
+
+**`--full` is now a one-shot pipeline.** Previously, `--full` required the user to manually onboard, run scan, start the dev server, and pull globals before it would work. Now it handles every prerequisite automatically:
+
+- **Auto-onboard**: If `.theme-forge/config.json` doesn't exist, runs the full onboard flow (collects dev store domain, detects capabilities, writes config, sets up gitignore).
+- **Auto-scan**: If global maps (`settings-map.json`, `class-map.json`) are missing, runs `scan --apply-globals` to inventory the site and apply global settings (logo, fonts, colors).
+- **Auto-dev-server**: Detects if a Shopify dev server is running for this theme. If not, starts one on the first available port (9292-9295).
+- **Ordered page pulls**: After header + footer, pulls pages in priority order (index → product → collection → page → remaining). Template alternates pulled after base templates.
+- **Idempotent resume**: Every step checks existing artifacts before running. Re-running `--full` after a crash, context limit, or interruption picks up where it left off — no duplicate work.
+
+The goal: install theme-forge, open a target theme, run `/theme-forge --full`, walk away.
+
 ## 0.9.4 — 2026-04-11
 
 **Settings migration rubric and expanded base pull.** Two changes that fix the agent's blindness to how base themes work.
