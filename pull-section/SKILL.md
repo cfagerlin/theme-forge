@@ -324,7 +324,7 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 1. **Never do rem/em math manually.** Always extract computed pixel values via the browse tool (`getComputedStyle(el).fontSize`). Themes use different base font sizes, responsive scaling, and `clamp()` functions. Manual calculation is wrong more often than right.
 
-2. **Read the target section schema FIRST.** Before setting any values, read the `{% schema %}` of the target section to understand what settings are available (presets, font_size options, color schemes, padding ranges). Don't guess what knobs exist — read the schema.
+2. **Read the target section AND block schemas FIRST.** Before setting any values, read the `{% schema %}` of the target section AND the `{% schema %}` of every block type it references (in `blocks/*.liquid`). The section schema often just lists block type names — the actual settings (what knobs exist, what values are valid, what conditions control visibility) are in the block definition files. Don't guess what knobs exist — read the block schemas.
 
 3. **Find the CSS loading mechanism early.** In Step 1, identify how the target theme loads custom CSS (e.g., `snippets/stylesheets.liquid`, `assets/custom.css`, `content_for_header`). You will need this for CSS overrides. Don't discover it halfway through.
 
@@ -357,7 +357,9 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 11. **A blank live screenshot is a hard stop.** After every live capture, read the screenshot with the Read tool. If it's blank, white, or missing the expected section content, do NOT continue. Retry once, then escalate. Proceeding without a valid live baseline means zero visual verification — every subsequent "comparison" is meaningless.
 
-12. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
+12. **Prefer native blocks over `custom-liquid`.** For each piece of base content, check if the target theme has a native block type that handles it (e.g., `menu` for navigation, `social-links` for social icons, `email-signup` for newsletter forms, `footer-copyright` for copyright text). Only use `custom-liquid` when: (a) no native block type exists for that content, OR (b) a third-party integration requires exact HTML preservation (e.g., Klaviyo forms). Native blocks are editable in the Shopify theme editor; custom-liquid blocks are opaque blobs that merchants can't modify.
+
+13. **Verify you are comparing the correct live section.** Before screenshotting, confirm the live section you're targeting matches the mapping. Check:
     - The section's content (heading text, images) matches what the mapping describes
     - The section's position on the page matches the expected order
     - If the live page has changed since the mapping was created, update the mapping — don't compare against a different section
@@ -367,7 +369,20 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 ### Step 1: Load Context
 
-1. Read `.theme-forge/config.json` for paths, URLs, and capabilities
+1. Read `.theme-forge/config.json` for paths, URLs, and capabilities.
+   **If `.theme-forge/config.json` does not exist**, check if it exists on another branch:
+   ```bash
+   git log --all --oneline -- .theme-forge/config.json | head -5
+   ```
+   - If found on another branch, tell the user:
+     > **Config found on another branch but not on the current branch.** The onboard/scan work hasn't been merged to main yet. Merge it first, then branch from main:
+     > ```bash
+     > # On the branch that has .theme-forge/, create a PR to merge to main:
+     > gh pr create --title "theme-forge: onboard + scan" --body "Base config and global settings"
+     > # After merge, create your working branch from main:
+     > git checkout main && git pull && git checkout -b <your-branch>
+     > ```
+   - If not found on any branch, tell the user to run `/theme-forge onboard` first.
 2. Resolve the page context (see "How the page is resolved" above)
 3. Check for existing mapping at `.theme-forge/mappings/sections/{section-name}.json`
    - If missing, run `map-section` first to find the target section and assess compatibility
@@ -425,7 +440,11 @@ Where to find image references:
    - Padding/margin values with theme-level variables
    - Also check the HTML for global CSS classes that apply fonts not visible in the section's `<style>` block
 5. Read the **target theme's section `.liquid` file** — its `{% schema %}`, CSS, and HTML structure. **Pay special attention to the `{% schema %}` block**: what settings exist, what presets are available, what font_size/type_preset options can be used. This determines what can be fixed via JSON vs what needs CSS overrides.
-6. Read the **target theme's configured values** from template JSON
+6. **Read every block type's schema.** The section schema lists block types by name (e.g., `"type": "text"`, `"type": "menu"`, `"type": "group"`), but the actual settings for each block type live in `blocks/{type}.liquid`. Read the `{% schema %}` of every block type you plan to use. Pay critical attention to:
+   - **`visible_if` conditions**: Many settings are conditional. For example, `font`, `font_size`, `line_height`, `letter_spacing`, `case`, and `wrap` on a `text` block may only take effect when `type_preset == "custom"`. If you set these values with `type_preset: "h2"`, they are **silently ignored** by Shopify. You must either use `type_preset: "custom"` (and set all typography explicitly) or accept the preset's defaults.
+   - **Available options**: Settings like `font_size` may only accept specific values (e.g., `""`, `"0.625rem"`, `"0.75rem"`, etc.), not arbitrary pixel values. Settings like `line_height` may accept keywords (`"tight"`, `"normal"`, `"loose"`), not numeric values. Check the `options` array.
+   - **Native block capabilities**: Check if the theme has native blocks for the content you need (e.g., `menu` for nav links, `social-links` for social icons, `email-signup` for newsletter, `footer-copyright` for copyright). Use native blocks first — they're editable in the theme editor. Only fall back to `custom-liquid` when no native block handles the content or when a third-party integration requires exact HTML.
+7. Read the **target theme's configured values** from template JSON
 
 ### Step 2.5: Resolve Final Computed CSS Values
 
@@ -1036,6 +1055,51 @@ When the base theme has separate sections for different footer areas (e.g., `foo
 - In the target theme, use a custom HTML block or snippet to reproduce the exact form markup — `action` URL, hidden fields (`g`, `$fields`, list ID), and input names must match.
 - Do NOT use the target theme's `email-signup` block type as a substitute. It posts to Shopify, not the third-party provider.
 - Check `site-inventory.json` integrations list for known third-party services.
+
+### Block Schema Settings Are Conditional (`visible_if`)
+**Many block settings are silently ignored if their `visible_if` condition isn't met.** This is the most common cause of "I set the setting but nothing changed." Shopify doesn't error — it just ignores the value.
+
+**The #1 offender:** The `text` block's typography settings (`font`, `font_size`, `line_height`, `letter_spacing`, `case`, `wrap`) all have `visible_if: "{{ block.settings.type_preset == 'custom' }}"`. If you set `type_preset: "h2"` and also set `font_size: "1.5rem"`, the `font_size` is ignored — the block uses the h2 preset's default size.
+
+**What to do:**
+- Before setting any block value, read the block's `{% schema %}` in `blocks/{type}.liquid`
+- Check every setting for a `visible_if` condition
+- If you need custom typography (specific font size, weight, letter spacing), you MUST use `type_preset: "custom"` — then set ALL the typography fields explicitly
+- If you use a preset like `"h2"` or `"rte"`, do NOT set typography fields — they're ignored
+
+**Common conditional patterns in Horizon:**
+- `text` block: typography fields require `type_preset: "custom"`
+- `group` block: `color_scheme` requires `inherit_color_scheme: false`
+- `menu` block: `accordion_icon` and `accordion_dividers` require `show_as_accordion: true`
+- `text` block: `alignment` requires `width: "100%"`
+- `text` block: `background_color` and `corner_radius` require `background: true`
+
+### Native Blocks Before `custom-liquid`
+**`custom-liquid` blocks are an escape hatch, not a default.** When the agent can't immediately see how to use a native block, it tends to dump raw HTML into `custom-liquid`. This produces a footer/section that "works" but:
+- Is not editable in the Shopify theme editor (merchants see a code blob)
+- Doesn't inherit theme typography, colors, or spacing updates
+- Breaks when the theme updates its CSS class names
+- Hardcodes URLs, social links, and menu items that should come from Shopify settings
+
+**Decision tree for each piece of base content:**
+1. Does the target theme have a native block for this? (e.g., `menu` for nav, `social-links` for social icons) → **Use the native block.** Read its schema, configure its settings.
+2. Is this a third-party integration that requires exact HTML? (e.g., Klaviyo form with specific `action` URL and hidden fields) → **Use `custom-liquid`.** This is the correct use case.
+3. Does the base theme have a unique layout not achievable with native blocks? (e.g., interleaved social icons within a menu column) → **Try native blocks with CSS overrides first.** Use a `group` with `menu` + `social-links` blocks and CSS positioning. Only use `custom-liquid` if CSS can't achieve the layout.
+
+**Real example (GLDN footer):**
+- BAD: `custom-liquid` with hardcoded `<nav>` HTML, inline SVGs, and `linklists.footer.links` Liquid → not editable, SVGs break on theme update
+- GOOD: `menu` block (menu: "footer", heading: "", link_preset: "paragraph") + `social-links` block (facebook_url: "...", instagram_url: "...", pinterest_url: "...") → editable in theme editor, inherits theme styles
+
+### Setting Values Must Match Schema Options
+**Block settings with `options` arrays only accept values from that list.** Setting an arbitrary value silently falls back to the default.
+
+**Examples:**
+- `text` block `font_size` accepts `""`, `"0.625rem"`, `"0.75rem"`, `"0.875rem"`, `"1rem"`, etc. — NOT `"15px"` or `"14px"`
+- `text` block `line_height` accepts `"tight"`, `"normal"`, `"loose"` — NOT `"1.4"` or `"24px"`
+- `text` block `width` accepts `"fit-content"` or `"100%"` — NOT `"fill"` or `"50%"`
+- `menu` block `heading_preset` accepts `""`, `"paragraph"`, `"h1"` through `"h6"` — NOT `"body"` or `"small"`
+
+**What to do:** Read the schema. If the value you want isn't in the `options` array, pick the closest match from the available options, then use CSS overrides for the exact value.
 
 ## Error Classification
 

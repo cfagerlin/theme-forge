@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.1 — 2026-04-10
+
+**Fix section settings mapping: read block schemas, prefer native blocks, respect conditional settings.** The agent was bypassing Horizon's native `menu`, `social-links`, and `email-signup` blocks in favor of `custom-liquid` blobs, and setting typography values that were silently ignored due to `visible_if` conditions.
+
+- **New rule #12**: Prefer native blocks over `custom-liquid`. Only use custom-liquid for third-party integrations or when no native block exists.
+- **Step 2 expanded**: Must read `blocks/*.liquid` schemas for every block type used — not just the section's `{% schema %}`. Block settings like `font_size`, `line_height`, `color` have `visible_if` conditions that silently ignore values when conditions aren't met.
+- **Gotcha: Block schema settings are conditional**: `text` block typography requires `type_preset: "custom"`. Setting `font_size` with `type_preset: "h2"` does nothing.
+- **Gotcha: Native blocks before custom-liquid**: Decision tree for when to use native vs custom-liquid. Real GLDN footer example.
+- **Gotcha: Setting values must match schema options**: `font_size` only accepts specific rem values, `line_height` accepts keywords not numbers. Arbitrary values silently fall back to defaults.
+
+## 0.9.0 — 2026-04-10
+
+**Session setup script for Conductor workspaces.** New sessions now start from the latest `origin/main` with pre-flight checks for expected artifacts (config, global maps, Playwright MCP).
+
+- `scripts/session-setup.sh` — fetches origin, checks out main, creates working branch, verifies prerequisites
+- Pre-flight checks: `.theme-forge/config.json`, `settings-map.json`, `class-map.json`, `.mcp.json`
+- Warns when prerequisites haven't been merged to main yet, with actionable next steps
+- For Conductor: set as the workspace Setup Script. For terminal: run `scripts/session-setup.sh [branch-name]`
+
+## 0.8.9 — 2026-04-10
+
+**Better error when config is on another branch.** New workspaces branched from `main` before onboard/scan was merged get a confusing "run onboard" message. Now checks if `.theme-forge/config.json` exists on another branch and tells the user to merge first.
+
 ## 0.8.8 — 2026-04-10
 
 **Playwright MCP support as primary browser tool.** Complete rewrite of the capture skill with dual-path architecture: Playwright MCP (preferred) with gstack browse as fallback.
