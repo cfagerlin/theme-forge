@@ -454,6 +454,12 @@ Compare `layout/theme.liquid` (and any other layout files) between the base and 
 
 5. **Apply**: Copy custom scripts and snippets to the target theme. For custom snippets, copy both the snippet file and add the `{% render %}` call to the target layout in the same position (before `</head>`, before `</body>`, etc.).
 
+6. **Check copied snippets for broken asset references**: After copying, scan each snippet for `{{ '...' | asset_url }}` calls. These reference files in the theme's `assets/` directory — NOT Shopify Files (CDN). If the referenced asset doesn't exist in the target theme's `assets/`:
+   - Check if it exists in `.theme-forge/base-cache/assets/` → copy it to the target
+   - If it's not in the base cache either (e.g., `logo.png` that only exists as a Shopify File), add to cutover checklist: "Upload {filename} to theme assets or update reference to use Shopify Files URL"
+   - **Shopify Files URLs** (`cdn.shopify.com/s/files/...`) and **store image references** (`shopify://shop_images/...`) are store-level, not theme-level — they resolve regardless of which theme is active. Do not flag these.
+   - **Note:** Shopify CDN URLs are case-sensitive. `Logo.png` and `logo.png` are different files.
+
 **Present summary:**
 
 > **Layout audit complete:**
