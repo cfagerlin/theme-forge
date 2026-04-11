@@ -24,6 +24,15 @@ These rules are non-negotiable. They override everything else in this document. 
 - **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
 - **Write transcript FIRST at each step, THEN do the work.** This ensures crashes leave partial transcripts, not empty ones.
 
+### Extraction FAIL = must fix (no rationalizing)
+- **If the computed style extraction marks a row as FAIL, you MUST fix it or escalate.** You may not reclassify a FAIL as "measurement artifact," "visually equivalent," or "not a real difference." The extraction compares exact computed values from the browser. If live says `text-align: center` and dev says `text-align: left`, that is a real difference — fix it. Do not argue that "the container is narrow so they look the same."
+- **The extraction table is the spec, not a suggestion.** Screenshots are a secondary check. The extraction catches sub-pixel differences that screenshots miss. If the extraction says FAIL and the screenshot looks "close enough," trust the extraction.
+- **Common rationalizations that are NOT allowed:**
+  - "The visual appearance looks the same" — if the values differ, fix them.
+  - "Measurement artifact" — computed styles are exact, not approximate.
+  - "The container is narrow so center and left are equivalent" — they aren't. Multi-line text wraps differently.
+  - "Close approximation" — match the exact value.
+
 ### No accepted variances without user approval
 - **You may NEVER mark a variance as "accepted" on your own.** Not for Shadow DOM. Not for "theme limitations." Not for "close approximation." Not for "not a visual difference." If a property differs between live and dev, fix it or escalate to the user.
 - **Escalation uses `AskUserQuestion`** (MCP tool `mcp__conductor__AskUserQuestion`). This is a tool call that blocks your execution until the user responds. It is not optional. After 2 failed fix attempts, you MUST call this tool. See Step 8 escalation protocol.
@@ -49,9 +58,10 @@ These rules are non-negotiable. They override everything else in this document. 
 - **All Playwright MCP files stay in `.playwright-mcp/`.** Do not move or copy them elsewhere. This directory is gitignored.
 
 ### Learnings are mandatory
-- **After completing any section, write at least one learning to `.theme-forge/learnings.json`.** Every section teaches something about the target theme (font-weight defaults, color scheme mappings, CSS variable names, breakpoint behavior). If you found zero variances, that's unusual — document WHY (the global settings were already correct, etc.).
-- **Before starting any section, read `learnings.json` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
-- **An empty `learnings.json` after 2+ sections is a red flag.** Stop and review what you learned from previous sections.
+- **After completing any section, write learnings to `.theme-forge/learnings/{section-key}.json`.** Each section gets its own file (e.g., `learnings/hero-1_index.json`, `learnings/header.json`). This prevents merge conflicts when parallel sessions write learnings simultaneously. The file contains an array of learning objects for that section.
+- **Before starting any section, read ALL files in `.theme-forge/learnings/` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
+- **An empty `.theme-forge/learnings/` directory after 2+ sections is a red flag.** Stop and review what you learned from previous sections.
+- **Migration from single file:** If `.theme-forge/learnings.json` exists (old format), read it, split entries by `created_by`/`source.section` into per-section files in `learnings/`, then delete the old file.
 
 ## Prerequisites
 
@@ -423,7 +433,7 @@ These rules prevent the most common mistakes observed in real migrations. Follow
      > B) Continue without maps — I'll figure it out per-section
 
      **Wait for the user's choice.** If A, run scan (which includes `--apply-globals`), then resume this pull-section from Step 1. If B, continue without maps.
-6. **Load and apply learnings** from `.theme-forge/learnings.json` (see `references/learnings.md`)
+6. **Load and apply learnings** from all files in `.theme-forge/learnings/` (see `references/learnings.md`)
    - Filter to learnings whose trigger matches the current section or has `target_theme`/`universal` scope
    - **List the matching learnings by ID in the transcript** so it's clear which are being applied
    - These MUST be applied proactively in Steps 5, 6, and 7 — before writing code, not after it fails
@@ -642,53 +652,52 @@ Themes use different variable names for the same properties. When comparing, you
 
 For every section, determine whether the live site uses a light background (RGB sum > 384) or dark background (RGB sum < 384). If the target section has the OPPOSITE polarity, the color scheme assignment is wrong. This is the single most visible error — an entire section with inverted colors.
 
-### Step 2.75: Extract Live Computed Styles (Mandatory)
+### Step 2.75: Build the Spec Sheet (Mandatory)
 
-**Before writing ANY settings or CSS**, extract exact computed values from the live site using the browser tool. Source files use variables, formulas, and cascading CSS. The browser resolves everything to final pixel/color/font values. This extraction is your spec sheet — every value you write in Steps 3-7 must trace back to it.
+**Before writing ANY settings or CSS**, build a complete spec sheet for this section. The base theme source code is the primary reference — you already have it in `.theme-forge/base-cache/`. The browser is for verification, not discovery.
 
-Navigate to the live page and run the extraction script on the target section. For each element type (section container, headings h1-h4, body text, buttons, links, images, form inputs):
-- font-family, font-size (px), font-weight, line-height (px), letter-spacing (px)
-- color (rgb), background-color (rgb)
-- padding (top/right/bottom/left in px), margin (top/right/bottom/left in px)
-- width (px), height (px), gap (px) for flex/grid containers
-- border (width, style, color)
-- text-transform, text-decoration
-- display, flex-direction, justify-content, align-items
-- grid-template-columns, grid-template-rows (for grid layouts)
+#### 2.75a: Extract values from base theme source (primary)
 
-Run at all 3 breakpoints (desktop 1280, tablet 768, mobile 375).
+You already read the base section in Step 2. Now resolve every visual property to a concrete value:
 
-Write the results to the transcript as a structured table:
+1. **From `settings_data.json`**: Section settings (colors, text-align, padding, font choices, toggle states)
+2. **From the section's `<style>` block**: CSS rules with Liquid variables resolved to their `settings_data.json` values
+3. **From the section's `{% schema %}`**: Default values for settings not overridden in `settings_data.json`
+4. **From referenced snippets/assets**: Shared CSS, JS form handlers, typography mixins
+
+Build the spec table from source:
 
 ```
-LIVE EXTRACTION: {section-name} on {page}
-Breakpoint: desktop (1280px)
+SOURCE SPEC: {section-name} on {page}
 
-Element               | Property         | Value
-----------------------|------------------|------------------
-section container     | background-color | rgb(253, 253, 253)
-section container     | padding-top      | 80px
-section container     | padding-bottom   | 80px
-h2                    | font-family      | Spectral, serif
-h2                    | font-size        | 34.88px
-h2                    | font-weight      | 200
-h2                    | letter-spacing   | -0.32px
-h2                    | line-height      | 39.97px
-body text             | font-family      | freight-sans-pro, sans-serif
-body text             | font-size        | 16px
-body text             | font-weight      | 300
-body text             | letter-spacing   | 0.16px
-button                | font-size        | 12px
-button                | letter-spacing   | 1.2px
-button                | text-transform   | uppercase
-button                | padding          | 14px 24px
-grid container        | grid-template-columns | 1fr 1fr 1fr 2fr
-grid container        | gap              | 8px
+Element               | Property         | Value              | Source
+----------------------|------------------|--------------------|---------------------------
+section container     | text-align       | center             | settings_data.json → text_align
+section container     | padding          | 7em 2em 0 0        | settings_data.json → text_padding
+h1                    | font-family      | Spectral, serif    | global font setting
+h1                    | font-weight      | 200                | section CSS → .cta-heading
+body text             | font-weight      | 300                | global CSS → body
+button                | text-transform   | uppercase          | section CSS → .btn
+button                | letter-spacing   | 1.2px              | section CSS → .btn
+grid container        | grid-template    | 1fr 1fr 1fr 2fr    | section CSS → .grid
+grid container        | gap              | 8px                | section CSS → .grid
 ```
 
-This table IS your spec for Steps 3-7. Every CSS value you write must match a value from this table. If a value isn't in the table, extract it first — do not guess.
+The "Source" column traces each value back to a specific file and location. This is your primary spec for Steps 3-7.
 
-**If the browse tool is unavailable**, you MUST note this in the transcript and proceed with source-file analysis (Step 2.5), but mark the report as `extraction_method: "source_analysis"` to flag lower confidence.
+#### 2.75b: Browser extraction for verification (secondary)
+
+After building the source spec, use the browser to verify values that involve CSS cascade, inheritance, or calc() — things that are hard to resolve by reading source alone. This catches:
+- Inherited styles from parent elements or global CSS
+- Computed values from CSS variables or calc() expressions
+- Overrides from higher-specificity selectors elsewhere in the theme
+- Values set by JavaScript at runtime
+
+Navigate to the live page and extract computed styles for each element type (section container, headings, body text, buttons, links, images). Run at desktop (1280px) at minimum, plus tablet (768px) and mobile (375px) if the section has responsive breakpoints.
+
+**Compare source spec vs browser extraction.** If they disagree, the browser wins — it shows what the user actually sees. Update the spec table with the browser value and note the discrepancy in the transcript. This usually means a CSS cascade issue the source reading missed.
+
+**If the browse tool is unavailable**, proceed with the source-only spec from 2.75a. Mark the report as `extraction_method: "source_analysis"` to flag that browser verification was skipped.
 
 ### Step 3: Align Settings (JSON)
 
