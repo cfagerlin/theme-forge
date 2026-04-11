@@ -44,6 +44,11 @@ These rules are non-negotiable. They override everything else in this document. 
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
 
+### Learnings are mandatory
+- **After completing any section, write at least one learning to `.theme-forge/learnings.json`.** Every section teaches something about the target theme (font-weight defaults, color scheme mappings, CSS variable names, breakpoint behavior). If you found zero variances, that's unusual — document WHY (the global settings were already correct, etc.).
+- **Before starting any section, read `learnings.json` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
+- **An empty `learnings.json` after 2+ sections is a red flag.** Stop and review what you learned from previous sections.
+
 ## Prerequisites
 
 - `.theme-forge/config.json` must exist (run `onboard` first)
@@ -503,9 +508,57 @@ Themes use different variable names for the same properties. When comparing, you
 
 For every section, determine whether the live site uses a light background (RGB sum > 384) or dark background (RGB sum < 384). If the target section has the OPPOSITE polarity, the color scheme assignment is wrong. This is the single most visible error — an entire section with inverted colors.
 
+### Step 2.75: Extract Live Computed Styles (Mandatory)
+
+**Before writing ANY settings or CSS**, extract exact computed values from the live site using the browser tool. Source files use variables, formulas, and cascading CSS. The browser resolves everything to final pixel/color/font values. This extraction is your spec sheet — every value you write in Steps 3-7 must trace back to it.
+
+Navigate to the live page and run the extraction script on the target section. For each element type (section container, headings h1-h4, body text, buttons, links, images, form inputs):
+- font-family, font-size (px), font-weight, line-height (px), letter-spacing (px)
+- color (rgb), background-color (rgb)
+- padding (top/right/bottom/left in px), margin (top/right/bottom/left in px)
+- width (px), height (px), gap (px) for flex/grid containers
+- border (width, style, color)
+- text-transform, text-decoration
+- display, flex-direction, justify-content, align-items
+- grid-template-columns, grid-template-rows (for grid layouts)
+
+Run at all 3 breakpoints (desktop 1280, tablet 768, mobile 375).
+
+Write the results to the transcript as a structured table:
+
+```
+LIVE EXTRACTION: {section-name} on {page}
+Breakpoint: desktop (1280px)
+
+Element               | Property         | Value
+----------------------|------------------|------------------
+section container     | background-color | rgb(253, 253, 253)
+section container     | padding-top      | 80px
+section container     | padding-bottom   | 80px
+h2                    | font-family      | Spectral, serif
+h2                    | font-size        | 34.88px
+h2                    | font-weight      | 200
+h2                    | letter-spacing   | -0.32px
+h2                    | line-height      | 39.97px
+body text             | font-family      | freight-sans-pro, sans-serif
+body text             | font-size        | 16px
+body text             | font-weight      | 300
+body text             | letter-spacing   | 0.16px
+button                | font-size        | 12px
+button                | letter-spacing   | 1.2px
+button                | text-transform   | uppercase
+button                | padding          | 14px 24px
+grid container        | grid-template-columns | 1fr 1fr 1fr 2fr
+grid container        | gap              | 8px
+```
+
+This table IS your spec for Steps 3-7. Every CSS value you write must match a value from this table. If a value isn't in the table, extract it first — do not guess.
+
+**If the browse tool is unavailable**, you MUST note this in the transcript and proceed with source-file analysis (Step 2.5), but mark the report as `extraction_method: "source_analysis"` to flag lower confidence.
+
 ### Step 3: Align Settings (JSON)
 
-Using the computed value table from Step 2.5, apply all setting changes via JSON (template config or `settings_data.json`):
+Using the computed value table from Step 2.5 and the extraction data from Step 2.75, apply all setting changes via JSON (template config or `settings_data.json`):
 
 **Color scheme alignment** (highest priority):
 1. For each section, extract the live site's background color RGB values
@@ -535,6 +588,37 @@ Using the computed value table from Step 2.5, apply all setting changes via JSON
 **Always prefer JSON settings over CSS overrides.** CSS is only for what settings cannot control.
 
 **Image references** (see IMAGE SOURCING RULE above): Copy `shopify://shop_images/filename.ext` URLs from the base theme's `settings_data.json`. These resolve to the store's CDN automatically. **Never leave placeholder images** — every image field in the target theme's settings should have the corresponding URL from the base theme.
+
+#### Custom Section Spec Sheet (when creating a new section)
+
+When the mapping recommends `extension_section` or `custom_from_scratch`, you MUST produce a settings spec before writing any code. Use the extraction data from Step 2.75.
+
+Write a spec to the transcript:
+
+```
+SECTION SPEC: gldn-cta-gallery
+LAYOUT: CSS Grid, 4 columns (1fr 1fr 1fr 2fr), 2 rows, gap: 8px
+CONTAINER: max-width 1296px, padding 0 72px, background rgb(253, 253, 253)
+
+ELEMENT: Category tile image
+  width: 100%, height: 100%, object-fit: cover
+
+ELEMENT: Category label (on hover)
+  font-family: freight-sans-pro, font-size: 12px, font-weight: 400
+  letter-spacing: 1.2px, color: rgb(253, 253, 253), text-transform: none
+
+ELEMENT: Feature title
+  font-family: Spectral, font-size: 32px (2rem), font-weight: 200
+  letter-spacing: -0.32px (-0.02em), color: rgb(253, 253, 253), line-height: 1.1
+
+ELEMENT: CTA button
+  font-family: freight-sans-pro, font-size: 12px, font-weight: 400
+  letter-spacing: 1.2px, text-transform: uppercase
+  background: rgb(253, 253, 253), color: rgb(51, 51, 51)
+  padding: 14px 24px, min-width: 176px
+```
+
+Every CSS value in the custom section MUST come from this spec, and every spec value MUST come from the Step 2.75 extraction. No guessing font sizes or spacing values. If a value isn't in your extraction table, go back and extract it — do not approximate.
 
 ### Step 4: Capture & Compare (all breakpoints)
 
@@ -692,8 +776,24 @@ If the variance requires HTML/Liquid changes:
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
-4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. If any property differs (font weight, font size, letter spacing, container width, image object-fit, image container size, padding, colors), the fix is NOT complete. Go back and fix it.
-5. If the variance persists, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
+4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. Write the comparison to the transcript as a structured table:
+
+   ```
+   COMPUTED STYLE VALIDATION: {section-name}
+   Breakpoint: desktop (1280px)
+
+   Property               | Live value      | Dev value       | Delta    | Status
+   -----------------------|-----------------|-----------------|----------|-------
+   h2 font-size           | 34.88px         | 34.88px         | 0        | PASS
+   h2 letter-spacing      | -0.32px         | -0.32px         | 0        | PASS
+   body font-weight       | 300             | 400             | +100     | FAIL
+   container padding-top  | 80px            | 80px            | 0        | PASS
+   button font-size       | 12px            | 16px            | +4px     | FAIL
+   ```
+
+   Any FAIL row is a variance that must be fixed before proceeding. Do not rely on "the screenshots look close enough" — 1px font-size differences and 0.5px letter-spacing differences are invisible in screenshots but accumulate across sections into a noticeable quality gap.
+
+5. If any FAIL rows remain, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
 
 #### ⛔ Escalation protocol (retries exhausted)
 
@@ -743,6 +843,35 @@ If all retries are exhausted without escalation (should not happen), classify th
    ```
 
    The key insight: **if you had to override a theme default to match the live site, the next section will have that same default.** Capture it now so the next section one-shots it.
+
+#### Theme Constants (after the first section)
+
+After completing the FIRST section (usually header), identify values that are theme-wide constants vs section-specific overrides. Theme constants apply to every section and should be captured as learnings with `scope: "target_theme"` so every subsequent section applies them automatically in Step 3 — before any screenshots, not rediscovered in Step 8.
+
+**Theme-wide constants** (apply to ALL sections — capture these):
+- Font families (heading, body, subheading)
+- Default font weights (body, heading, strong/bold)
+- Default letter-spacing (heading, body)
+- Button base styles (font-size, font-weight, letter-spacing, text-transform, padding)
+- Link decoration styles
+- Color scheme RGB values for common backgrounds
+
+**Section-specific values** (apply only to ONE section — do NOT generalize):
+- Section padding (hero has different padding than footer)
+- Section background color (each section may use a different scheme)
+- Section-specific font sizes (hero h1 is larger than footer h2)
+- Layout dimensions (grid columns, flex ratios, container max-widths)
+
+**Example from GLDN → Horizon migration:**
+After the header pull, these theme constants should have been captured:
+- Heading font-weight: 200 (Horizon defaults to 700)
+- Heading letter-spacing: -0.02em (Horizon defaults to 0.06em)
+- Body font-weight: 300 (Horizon defaults to 400)
+- Body letter-spacing: 0.01em
+- Strong/bold: font-weight 400 (not 700)
+- Button: font-size 12px, letter-spacing 1.2px, font-weight 400, uppercase
+
+Instead, these were rediscovered independently in the footer pull AND all 5 homepage sections. That's 7 sessions repeating the same work because zero learnings were written after the header.
 
 #### Rendered Output Validation Checklist
 
