@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.6 — 2026-04-11
+
+Four new capabilities for third-party integrations, navigation, and search.
+
+### App embeds inventory + migration (scan Step 5.7)
+The scan now inventories every app embed from the base theme's `settings_data.json` (tracking pixels, review widgets, search overlays, loyalty programs, form embeds — everything in the App Embeds panel) and copies them to the target theme. Saves an `app-embeds.json` inventory with migration status. App embeds only activate when the corresponding app is installed on the store, so they're inert on dev but ready for production.
+
+### Layout audit for third-party scripts (scan Step 5.8)
+Compares base vs target `layout/theme.liquid` for custom scripts, meta tags, snippet render calls, and app sections. Shopify-managed hooks (`content_for_header`) auto-migrate, but manually added scripts (GTM, chat widgets, A/B tools) and custom snippets need explicit copying. Results saved to `site-inventory.json`.
+
+### Search provider migration (pull-header)
+Detects if the live site uses a third-party search provider (Searchspring, Algolia, Klevu, etc.) via theme snippets, assets, or app embeds. If found, copies the integration files and documents what needs the app installed. If native search, configures visibility and style to match the live site.
+
+### Mega menu build-out (pull-header)
+Pull-header now replicates the live site's mega menu structure instead of just matching visual styles. Configures featured products/collections, column layouts, image settings, mobile drawer behavior, and menu depth. Verifies every top-level nav item renders correctly on both live and dev.
+
 ## 0.9.5 — 2026-04-11
 
 Three fixes from observing the bangalore pull-page-index run.

@@ -239,6 +239,123 @@ Save to `.theme-forge/class-map.json`:
 
 **This map is committed to git** so all parallel sessions share it.
 
+### Step 5.7: Inventory App Embeds
+
+Shopify app embeds are third-party integrations that inject scripts, tracking pixels, widgets, and overlays into the storefront. They live in `config/settings_data.json` under `current.blocks` as entries with `shopify://apps/` type URIs. **These must be migrated to the target theme** or those integrations will stop working.
+
+1. **Extract app embeds from base theme**: Read `.theme-forge/base-cache/config/settings_data.json` → `current.blocks`. Filter entries where `type` starts with `shopify://apps/`. For each, record:
+   - App name (from the type URI, e.g., `klaviyo-email-marketing-sms`)
+   - Block type (e.g., `klaviyo-onsite-embed`, `script-tag`, `pixel`)
+   - Enabled/disabled status
+   - Settings (any configuration the merchant has set)
+   - The full block key (UUID)
+
+2. **Check target theme**: Read the target theme's `config/settings_data.json` → `current.blocks`. Check which app embeds already exist.
+
+3. **Copy missing app embeds**: For each base app embed NOT in the target theme, copy the entire block entry (key, type, disabled status, settings) into the target theme's `settings_data.json` → `current.blocks`. Preserve the original block key so Shopify associates it with the installed app.
+
+4. **Record in inventory**: Save the app embeds list to `.theme-forge/app-embeds.json`:
+
+```json
+{
+  "generated_at": "<ISO timestamp>",
+  "embeds": [
+    {
+      "app": "klaviyo-email-marketing-sms",
+      "block_type": "klaviyo-onsite-embed",
+      "block_key": "2632fe16-c075-4321-a88b-50b567f42507",
+      "enabled": true,
+      "settings": {},
+      "status": "migrated",
+      "notes": "Requires Klaviyo app installed on dev store to function"
+    },
+    {
+      "app": "triple-pixel",
+      "block_type": "script-tag",
+      "block_key": "abc123...",
+      "enabled": true,
+      "settings": { "pixel_id": "..." },
+      "status": "migrated",
+      "notes": "Tracking pixel — works automatically if app is installed"
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "migrated": 15,
+    "already_present": 0,
+    "requires_app_install": 15
+  }
+}
+```
+
+**Important:** App embeds only function if the corresponding Shopify app is **installed on the store**. On a dev store, many embeds will be inert because the app isn't installed. This is expected — the embeds are pre-configured so they activate automatically when the theme goes live on the production store (where the apps are installed). Note this in the inventory.
+
+**Present summary to user:**
+
+> **App embeds migrated:** {N} app embeds copied from base theme to target.
+> - {list each app name and block type}
+>
+> ⚠️ These embeds require their apps to be installed on the store. On dev, they'll be inert. On production, they'll activate automatically.
+
+### Step 5.8: Audit Layouts for Third-Party Scripts
+
+Compare `layout/theme.liquid` (and any other layout files) between the base and target themes. Third-party apps sometimes inject code directly into layouts via Shopify's theme editor, or merchants/developers add custom script tags manually.
+
+1. **Read base layout**: Read `.theme-forge/base-cache/layout/theme.liquid` and any other layout files (`layout/checkout.liquid`, `layout/password.liquid`, etc.). For each, extract:
+   - All `<script>` tags (inline and external `src=""`)
+   - All `<link>` tags beyond standard Shopify
+   - All `{% render %}` / `{% include %}` calls (and read the referenced snippets)
+   - Any `{{ content_for_header }}` placement (standard — apps inject here automatically)
+   - Any custom `<meta>` tags
+   - Any `{% section %}` tags (section references in the layout)
+
+2. **Read target layout**: Same extraction on the target theme's layout files.
+
+3. **Diff and classify**: For each item found in the base but not in the target:
+   - **Shopify-managed** (`{{ content_for_header }}`, `{{ content_for_layout }}`): These are standard. Apps inject via `content_for_header` automatically — no manual migration needed.
+   - **App sections** (e.g., `{% section 'searchspring-results' %}`): May need to be added to target layouts.
+   - **Custom scripts** (manually added `<script>` tags): Must be copied to target layout. These are often tracking pixels, chat widgets, or A/B testing tools added by the merchant's developer.
+   - **Custom snippets** (e.g., `{% render 'custom-tracking' %}`): Copy both the render call and the snippet file.
+
+4. **Save to inventory**: Add a `layout_audit` section to `.theme-forge/site-inventory.json`:
+
+```json
+{
+  "layout_audit": {
+    "base_layouts": ["theme.liquid", "password.liquid"],
+    "custom_scripts": [
+      {
+        "file": "layout/theme.liquid",
+        "type": "inline_script",
+        "description": "Google Tag Manager container",
+        "action": "copy_to_target"
+      }
+    ],
+    "custom_snippets": [
+      {
+        "render_call": "{% render 'custom-tracking' %}",
+        "snippet_file": "snippets/custom-tracking.liquid",
+        "action": "copy_snippet_and_render_call"
+      }
+    ],
+    "app_sections_in_layout": [],
+    "shopify_managed": ["content_for_header", "content_for_layout"]
+  }
+}
+```
+
+5. **Apply**: Copy custom scripts and snippets to the target theme. For custom snippets, copy both the snippet file and add the `{% render %}` call to the target layout in the same position (before `</head>`, before `</body>`, etc.).
+
+**Present summary:**
+
+> **Layout audit complete:**
+> - Base layouts: {list}
+> - Custom scripts found: {N} — {list descriptions}
+> - Custom snippets found: {N} — {list}
+> - Shopify-managed (auto-migrated): content_for_header, content_for_layout
+>
+> {N} items copied to target layout.
+
 ### Step 6: Generate Migration Plan
 
 Create a prioritized plan:
