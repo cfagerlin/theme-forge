@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 — 2026-04-11
+
+**Anti-skip enforcement: every section gets attempted, no self-approved variances.**
+
+The semarang product page run completed 2/6 sections in 8 minutes — the agent classified 4 sections as "requires custom section" and skipped them without user approval. It also self-accepted 6 variances and never checked tablet/mobile. Three enforcement changes:
+
+### pull-page: no self-skipping (Step 2 + Step 3)
+Hard rule: every section gets attempted. `requires_customization` and `incompatible` describe the approach (build a custom section), not a reason to skip. The only valid skip reasons are app embeds or explicit user approval via `AskUserQuestion`. Report validation now also checks responsive breakpoints and flags unauthorized skips.
+
+### pull-page: completeness gate (new Step 3.5)
+Before full-page comparison, verify coverage: count completed sections, flag gaps, escalate if <80% complete, and do a below-fold audit to catch missed content that has no section work at all.
+
+### pull-section: "requires custom section" = build it
+New hard rule: if a section needs a custom section, build the custom section. Create the `.liquid` file, schema, CSS, register in template JSON. `status: "skipped"` with reason "requires custom section" is a bug. Below-fold content (collapsible details, trust badges, recommendation carousels) is not optional.
+
 ## 0.9.9 — 2026-04-11
 
 **Tighten asset migration: referenced-only, no third-party CSS, smoke test.**

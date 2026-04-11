@@ -151,6 +151,17 @@ Pull sections in this order:
 
 Within each group, maintain the top-to-bottom page order.
 
+> **HARD RULE: Every section gets attempted.** You may NOT skip a section because it
+> "requires custom section" or is "incompatible." Those classifications describe the
+> *approach* needed, not a reason to skip. `requires_customization` means build a custom
+> section. `incompatible` means build a custom section with more effort. The only valid
+> reasons to skip are: (1) it's an app embed that loads at runtime, or (2) the user
+> explicitly tells you to skip it via `AskUserQuestion`.
+>
+> **HARD RULE: No self-skipping.** If you believe a section should be skipped, you MUST
+> escalate to the user via `AskUserQuestion` with your reasoning. The user decides, not you.
+> Do NOT write a report with `status: "skipped"` without user approval.
+
 ### Step 3: Pull Each Section
 
 For each section:
@@ -167,6 +178,8 @@ For each section:
    - Check: `screenshots` array is non-empty (visual verification happened)
    - Check: every entry in `variances_accepted` (if any) has `user_approved: true`
    - Check: `variances_found == variances_fixed + variances_remaining` (math checks out)
+   - Check: `final_status` is NOT `"completed"` when `variances_remaining > 0`
+   - Check: responsive breakpoints were verified (tablet + mobile, not just desktop)
    - **If any check fails**, flag via `AskUserQuestion`:
      ```
      Section {section} report has quality issues:
@@ -176,6 +189,7 @@ For each section:
      B) Accept report as-is and continue
      C) Skip this section
      ```
+   - **If the section was skipped without user approval** (no `AskUserQuestion` was called), **this is a bug**. Re-run the section — skips require explicit user approval.
 5. After each section completes validation, **commit and push**:
    ```bash
    git add .theme-forge/reports/sections/{section}.json \
@@ -188,6 +202,22 @@ For each section:
    **Always use `git push -u origin <branch>`.** Plain `git push` fails silently if no upstream is set. Using `-u` every time is safe (it's a no-op if upstream already exists) and guarantees the push actually goes to GitHub.
 
    **Verify the push succeeded** — check that `git log origin/$(git branch --show-current) --oneline -1` shows your commit. If it doesn't, the push failed. Fix it before continuing.
+
+### Step 3.5: Completeness Gate
+
+Before proceeding to full-page comparison, verify coverage:
+
+1. **Count sections**: How many sections were in the template? How many have reports with `status: "completed"` or `"completed_code_only"`?
+2. **Flag gaps**: If any section has `status: "incomplete"`, `"failed"`, or `"skipped"`, list them.
+3. **Escalate if coverage is low**: If fewer than 80% of sections are completed, escalate to the user:
+   ```
+   Page {page} coverage: {N}/{total} sections completed.
+   Incomplete/skipped: {list with reasons}
+
+   A) Continue with remaining sections before full-page comparison
+   B) Proceed to full-page comparison as-is
+   ```
+4. **Below-fold audit**: Scroll the live page from top to bottom. List every visible content block. Cross-reference against the sections you pulled. If there's live content that has NO corresponding section work (even a "skipped" report), you missed it — go back and pull it.
 
 ### Step 4: Full-Page Comparison
 
