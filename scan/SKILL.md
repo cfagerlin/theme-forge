@@ -470,6 +470,80 @@ Compare `layout/theme.liquid` (and any other layout files) between the base and 
 >
 > {N} items copied to target layout.
 
+### Step 5.9: Migrate Base Theme Assets
+
+The base theme's `assets/` directory contains CSS, JS, images, fonts, and Liquid-generated assets. **Do not bulk-copy.** Most CSS and JS is base theme UI code that conflicts with the target theme. Instead, use dependency analysis to copy only what's needed.
+
+#### 1. Classify every base asset
+
+For each file in `.theme-forge/base-cache/assets/`:
+
+| Classification | File patterns | Action |
+|---|---|---|
+| **theme-css** | Base theme stylesheets (style.css, custom.css, accordion.css, card_grid.css, checkout.css, etc.) | **Skip** — target theme has its own CSS |
+| **theme-js** | Base theme scripts (accordion.js, checkout.js, vendor.js, component_read_more.js, etc.) | **Skip** — target theme has its own JS |
+| **liquid-asset** | `*.css.liquid`, `*.js.liquid`, `*.scss.liquid` | **Skip** — dynamic assets that use base theme Liquid variables; they won't resolve in the target theme |
+| **scss-source** | `*.scss` | **Skip** — source files, not deployed |
+| **third-party** | Assets for migrated integrations (beam-stylesheet.css, html2canvas.min.js, etc.) | **Copy if referenced** by a migrated snippet or layout render call |
+| **image** | `*.png`, `*.jpg`, `*.gif`, `*.svg`, `*.ico`, `*.webp` | **Copy** — store-specific images (favicons, icons, decorative images) are not theme-dependent |
+| **font** | `*.woff`, `*.woff2`, `*.ttf`, `*.eot` | **Copy** — custom/brand fonts and icon fonts |
+
+#### 2. Build the referenced-assets list
+
+Scan all migrated files (copied snippets, layout render calls, and migrated sections from template-map dependencies) for asset references:
+- `{{ 'filename' | asset_url }}` — Liquid asset URL
+- `{{ 'filename' | asset_img_url }}` — Liquid image asset URL
+- `url('filename')` in CSS — relative URL references
+- `@font-face` `src:` declarations — font file references
+
+Collect every filename referenced. These are the assets that MUST be in the target theme's `assets/` for the migrated code to work.
+
+#### 3. Copy assets
+
+1. **Referenced third-party assets**: For each asset in the referenced list that's classified as `third-party`, copy from `.theme-forge/base-cache/assets/` to the target theme's `assets/`.
+
+2. **All images**: Copy all image files (png, jpg, gif, svg, ico, webp) from base-cache to target. These are store-specific — logos, favicons, decorative graphics, product UI images (gift cards, checkmarks). They don't conflict with the target theme.
+   - **Exception**: Skip images that are clearly base theme UI chrome (e.g., theme-specific button sprites, theme-branded placeholder images). Use your judgment — when in doubt, copy.
+
+3. **All custom fonts**: Copy all font files (woff, woff2, ttf, eot) from base-cache to target. These are brand fonts or icon fonts (e.g., `gldn-inline.woff`, `dripicons-v2.woff`) that the migrated sections and snippets reference.
+   - Also copy any `@font-face` CSS that declares these fonts. This may be in a `.css.liquid` file — in that case, extract just the `@font-face` declarations and add them to the target theme's CSS override file.
+
+4. **Skip everything else**: Theme CSS, theme JS, Liquid assets, and SCSS source files are base theme code. The target theme has its own equivalents.
+
+#### 4. Verify no broken references
+
+After copying, scan all migrated snippets and the target layout for `asset_url` references. For each:
+- Does the file exist in target `assets/`? → OK
+- Does the file exist in base-cache `assets/`? → Copy it now (missed in step 3)
+- Not found anywhere? → Add to cutover checklist
+
+Save the asset migration results to `.theme-forge/site-inventory.json` under `asset_migration`:
+
+```json
+{
+  "asset_migration": {
+    "total_base_assets": 87,
+    "copied_images": 12,
+    "copied_fonts": 6,
+    "copied_third_party": 3,
+    "skipped_theme_css": 24,
+    "skipped_theme_js": 18,
+    "skipped_liquid_assets": 15,
+    "skipped_scss": 9,
+    "broken_references": ["logo.png"]
+  }
+}
+```
+
+**Present summary:**
+
+> **Asset migration:** {N} assets copied from base theme.
+> - Images: {N} (favicons, icons, decorative graphics)
+> - Fonts: {N} (brand fonts, icon fonts)
+> - Third-party: {N} (integration assets referenced by migrated snippets)
+> - Skipped: {N} (base theme CSS/JS/Liquid — replaced by target theme)
+> - Broken references: {list or "none"}
+
 ### Step 6: Generate Migration Plan
 
 Create a prioritized plan:
