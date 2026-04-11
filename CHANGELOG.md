@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.4 — 2026-04-11
+
+**Settings migration rubric and expanded base pull.** Two changes that fix the agent's blindness to how base themes work.
+
+### Settings Migration Rubric (new Step 2.1)
+The agent was diving straight into JSON and CSS without analyzing what the merchant actually needs from section settings. New Step 2.1 gates all implementation work behind a settings migration table that classifies every base setting into one of six categories:
+
+- **NATIVE** — target has equivalent setting, map directly
+- **MAPPED** — target achieves same intent differently (e.g., color schemes vs per-element pickers)
+- **CSS-ONLY** — design constant, hardcode in overrides (e.g., "Text Width: 25em", responsive padding)
+- **EXTEND** — real authoring need, add custom block
+- **CUSTOM-SECTION** — last resort, fork the section (breaks upgradability)
+- **DEPRECATE** — implementation artifact, handle programmatically (e.g., "Make it h1?" toggle)
+
+The table is written to the debug transcript for decision evaluation and included as structured data in summary.json and the section report for cross-section auditing.
+
+### Expanded Base Pull
+The targeted base pull was only fetching `templates/*` and `config/*`, leaving the agent unable to read base section code, snippets, JS, or block schemas. Now pulls `sections/*`, `snippets/*`, `blocks/*`, `layout/*`, `assets/*.css`, and `assets/*.js`. Pull-section Step 2 now requires reading all `{% render %}` calls, `<script>` tags, and block definitions. Hard stop if base-cache sections are missing.
+
 ## 0.9.3 — 2026-04-11
 
 **Third-party form integrations: port the JS, not just the HTML.** The bangalore footer pull preserved the Klaviyo form HTML correctly, but the form doesn't actually work on dev because the AJAX submission JS was never ported. The `data-ajax-submit` attribute needs JavaScript to intercept the submit event, and the success message div needs JS to toggle visibility.

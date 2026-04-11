@@ -155,7 +155,7 @@ When debug is active, save a complete transcript and all artifacts so a human or
 
 Every debug session MUST produce these files — a session missing any of them is incomplete:
 
-1. **`transcript.md`** — the step-by-step narrative. This is the MOST important artifact. Without it, screenshots and diffs lack context. **Write to it at EVERY step as you complete it.** Append each step's entry immediately after finishing that step, not later.
+1. **`transcript.md`** — the step-by-step narrative. This is the MOST important artifact. Without it, screenshots and diffs lack context. **Write to it at EVERY step as you complete it.** Append each step's entry immediately after finishing that step, not later. Must include the **full settings migration table** from Step 2.1 (every setting, its classification, and the target mechanism).
 2. **`screenshots/step4-live.png`** and **`screenshots/step4-dev.png`** — the "before" state. Without these, you can't see what the section looked like before fixes.
 3. **`screenshots/step8-verify.png`** — the "after" state. Must be a **section-level** screenshot, not full-page.
 4. **`summary.json`** — structured metadata with accurate counts.
@@ -307,7 +307,23 @@ At the end of pull-section, write `$DEBUG_DIR/summary.json`:
   "files_modified": [
     "config/settings_data.json",
     "assets/custom-migration.css"
-  ]
+  ],
+  "settings_migration": {
+    "total": 12,
+    "native": 2,
+    "mapped": 3,
+    "css_only": 4,
+    "extend": 1,
+    "custom_section": 0,
+    "deprecate": 2,
+    "approach": "target_section_with_overrides",
+    "upgradability": "high",
+    "settings": [
+      { "name": "Heading Text", "category": "native", "target": "text block → text setting" },
+      { "name": "Text Width", "category": "css_only", "target": "gldn-global-overrides.css", "value": "25em", "varies": false },
+      { "name": "Make it h1?", "category": "deprecate", "reason": "auto heading hierarchy" }
+    ]
+  }
 }
 ```
 
@@ -438,10 +454,15 @@ Where to find image references:
 1. Check if `scan` has already been run — look for this section in `.theme-forge/site-inventory.json`
    - If present, use the **resolved CSS** from the inventory (all Liquid variables already substituted with actual values). This saves significant time vs manual cross-referencing.
    - If not present, fall back to manual resolution (below)
-2. Read the **base theme's section `.liquid` file** — this is the PRIMARY code reference. Extract:
+2. Read the **base theme's section `.liquid` file** from `.theme-forge/base-cache/sections/` — this is the PRIMARY code reference. Extract:
    - The inline `<style>` block with all CSS rules, breakpoints, responsive behavior
    - The `{% schema %}` with available settings and their types
    - The HTML structure and Liquid logic
+   - **All `{% render %}` and `{% include %}` calls** — these reference snippets in `.theme-forge/base-cache/snippets/` that may contain form handlers, JS, tracking code, or reusable components. Read every referenced snippet.
+   - **All `<script>` tags and JS references** — inline scripts, external asset references (`{{ 'filename.js' | asset_url }}`). If the section uses JavaScript for form submission, AJAX, animations, or tracking, you need to understand and port it.
+   - **All block type references** — check `.theme-forge/base-cache/blocks/` for block definitions.
+
+   **If `.theme-forge/base-cache/sections/` is empty or missing the section file:** The base pull may have only fetched templates and config (old behavior). Re-run the targeted base pull with the full set of `--only` patterns (see orchestrator SKILL.md "Targeted Base Pull"). Do NOT proceed without reading the base section code — you will be guessing at how things are implemented instead of knowing.
 3. Read the **base theme's configured values** from `settings_data.json` first, then template JSON as fallback. `settings_data.json` is the source of truth for content because it reflects what the theme editor shows on the live site.
 4. **Resolve all Liquid variables in the section CSS** (skip if resolved CSS was loaded from inventory). If the base section's `<style>` block contains `{{settings.something}}` or `{{section.settings.something}}`, look up the actual values in `settings_data.json`. Pay special attention to:
    - Font family, weight, style, and letter-spacing
@@ -454,6 +475,115 @@ Where to find image references:
    - **Available options**: Settings like `font_size` may only accept specific values (e.g., `""`, `"0.625rem"`, `"0.75rem"`, etc.), not arbitrary pixel values. Settings like `line_height` may accept keywords (`"tight"`, `"normal"`, `"loose"`), not numeric values. Check the `options` array.
    - **Native block capabilities**: Check if the theme has native blocks for the content you need (e.g., `menu` for nav links, `social-links` for social icons, `email-signup` for newsletter, `footer-copyright` for copyright). Use native blocks first — they're editable in the theme editor. Only fall back to `custom-liquid` when no native block handles the content or when a third-party integration requires exact HTML.
 7. Read the **target theme's configured values** from template JSON
+
+### Step 2.1: Settings Migration Analysis
+
+**Before writing any code, classify every base section setting.** This analysis determines the implementation approach (JSON-only, CSS overrides, custom blocks, or custom section) and preserves the merchant's authoring capabilities without over-engineering.
+
+#### The Rubric
+
+Classify each setting from the base section's `{% schema %}` into one of six categories:
+
+**NATIVE** — Target theme has an equivalent setting. Map the value directly.
+- Example: base "Heading Text" → target `text` block with `text` setting
+- Example: base "Background Image" → target `image` setting on section
+- Implementation: JSON settings only. No code changes. Maximum upgradability.
+
+**MAPPED** — Target theme achieves the same outcome through a different mechanism. The merchant's intent is preserved but the control surface changes.
+- Example: per-element color pickers → target theme color scheme
+- Example: "Button Style: White" → target button settings or color scheme
+- Example: "Show Section" toggle → target theme's built-in section visibility
+- Implementation: JSON settings only. Different knob, same outcome.
+
+**CSS-ONLY** — The current value gets hardcoded in CSS overrides. No authoring capability needed because the merchant doesn't change this value.
+- Example: "Text Width: 25em", "Text Padding (Desktop): 7em 2em 0 0"
+- Example: "Text Shadow: [CSS value]", responsive padding/alignment per breakpoint
+- Implementation: CSS override file. Separate from theme code, survives updates.
+
+**EXTEND** — Real authoring capability the merchant uses, and the target theme can't provide natively. Requires a custom block type or extending an existing section's schema.
+- Example: base has a "Klaviyo list ID" the merchant changes per-form → custom block
+- Example: base has a "Video URL" the target section doesn't support → add video block
+- Implementation: Custom blocks are additive, don't modify existing section code. Good upgradability.
+
+**CUSTOM-SECTION** — The base section's authoring model is fundamentally different from the target's. No combination of native settings, CSS overrides, or custom blocks can preserve the merchant's editing workflow. Requires a fully custom `.liquid` section.
+- This is the **last resort**. The section is frozen at the target theme version it was forked from. Theme updates won't apply.
+- Implementation: Fork the target section. Document which version it was forked from.
+
+**DEPRECATE** — Implementation artifact, dead setting, or concern that should be handled programmatically. Drop it.
+- Example: "Make it h1?" → automatic heading hierarchy (first section gets h1)
+- Example: "Lazy Load?" → always lazy below fold, eager above
+- Example: settings where only one value was ever used across all instances
+- Example: responsive visibility toggles → CSS media queries
+
+#### How to Classify
+
+For each setting in the base section's `{% schema %}`:
+
+1. **Check usage**: Read `settings_data.json` for the configured value. Compare against the schema `default`. If value === default across all instances, the merchant never touched it → likely CSS-ONLY or DEPRECATE.
+
+2. **Check variation**: If this section type appears on multiple pages, do the setting values differ across instances? Variation = real authoring need. Uniform = design constant.
+
+3. **Check the target theme**: Does it have a native or mapped equivalent? Read the target section's schema and block schemas.
+
+4. **Apply the decision tree**:
+   - Setting value === schema default across all instances? → **CSS-ONLY** or **DEPRECATE**
+   - Target has equivalent setting? → **NATIVE**
+   - Target achieves same intent differently? → **MAPPED**
+   - Value varies AND no target equivalent → **EXTEND** (custom block)
+   - 5+ EXTEND settings requiring structural Liquid changes → consider **CUSTOM-SECTION**
+
+#### Produce the Settings Migration Table
+
+Write this table to the debug transcript AND include a summary in the section report.
+
+```
+SETTINGS MIGRATION: {section-name}
+═══════════════════════════════════════════════════════════════════════════════════
+| Base Setting           | Value(s)         | Varies? | Category       | Target Mechanism                |
+|------------------------|------------------|---------|----------------|---------------------------------|
+| Heading Text           | "$10 off..."     | yes     | NATIVE         | text block → text setting       |
+| Background Image       | shop_images/...  | yes     | NATIVE         | section → image setting         |
+| Text Width             | 25em             | no      | CSS-ONLY       | gldn-global-overrides.css       |
+| Text Padding Desktop   | 7em 2em 0 0      | no      | CSS-ONLY       | gldn-global-overrides.css       |
+| Text Padding Tablet    | 0 0 3em          | no      | CSS-ONLY       | gldn-global-overrides.css       |
+| Eyebrow Color          | #FDFDFD          | no      | MAPPED         | color scheme (scheme-1)         |
+| Title Color            | #FDFDFD          | no      | MAPPED         | color scheme (scheme-1)         |
+| Arrow Buttons Color    | #FDFDFD          | no      | MAPPED         | color scheme (scheme-1)         |
+| Text Shadow            | [css value]      | no      | CSS-ONLY       | gldn-global-overrides.css       |
+| Button Version         | White            | no      | MAPPED         | button style + color scheme     |
+| Make it h1?            | true             | yes*    | DEPRECATE      | auto heading hierarchy          |
+| Klaviyo List ID        | HMuMXy           | no      | EXTEND         | custom-liquid block             |
+═══════════════════════════════════════════════════════════════════════════════════
+SUMMARY: 2 NATIVE, 3 MAPPED, 4 CSS-ONLY, 1 EXTEND, 0 CUSTOM-SECTION, 1 DEPRECATE
+APPROACH: Target section + CSS overrides + 1 custom block
+UPGRADABILITY: HIGH — no modifications to target section code
+```
+
+* "varies by page position, not merchant choice" = DEPRECATE
+
+#### The Upgradability Decision
+
+The table summary drives the implementation approach:
+
+- **All NATIVE + MAPPED + CSS-ONLY + DEPRECATE** → Use the target theme's existing section. Best upgradability. This should be the outcome for most sections.
+- **Some EXTEND** → Target section + custom blocks. Blocks are additive, survive theme updates. Good upgradability.
+- **Heavy EXTEND (5+ settings needing structural Liquid changes)** → Flag for user: "This section needs N custom settings that can't be handled with custom blocks. Options: A) Accept reduced authoring capability, B) Fork as custom section (breaks upgradability for this section)."
+- **CUSTOM-SECTION** → Fork the target section. Document the fork version. Accept the maintenance cost.
+
+#### Patterns to Watch For
+
+**Developer-facing workarounds exposed as merchant settings** — DEPRECATE these:
+- Heading hierarchy (`h1`/`h2`/`h3` toggles) → handle programmatically
+- Responsive visibility toggles → CSS media queries
+- "Full Width?" → target theme's section width settings
+- "Lazy Load?" → standard browser lazy loading
+- Any setting with only one value ever used
+
+**Per-element color pickers that all use the same value** — MAPPED to a color scheme. If the base section has 5 color pickers (eyebrow, title, text, button, arrow) and they're all `#FDFDFD`, that's one color scheme, not 5 settings.
+
+**Responsive design tokens set once and never changed** — CSS-ONLY. Text width, padding per breakpoint, alignment per breakpoint, gap values. These are design decisions baked in during the original build.
+
+**This step gates Step 3.** Do not write JSON or CSS until the settings migration table is complete. The table IS the implementation plan for this section.
 
 ### Step 2.5: Resolve Final Computed CSS Values
 

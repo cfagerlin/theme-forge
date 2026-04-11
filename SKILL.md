@@ -120,7 +120,7 @@ After all sections complete, the debug directory contains a full audit trail. A 
 When `--full` is passed, run the complete pipeline in order. **Do not skip steps. Do not improvise.**
 
 1. **Check prerequisites**: `.theme-forge/config.json` must exist (run `onboard` first)
-2. **Targeted base pull**: `shopify theme pull --theme <live_theme_id> --only templates/ --only config/ --path .theme-forge/base-cache/` (~5 sec). Always gets fresh settings and templates from the live theme.
+2. **Targeted base pull**: Pull templates, config, sections, snippets, blocks, layout, and code assets (~10-15 sec). See "Targeted Base Pull" below for the full command.
 3. **Run scoped scan + map** for each page template found in the target theme's `templates/` directory. This creates section mappings in `.theme-forge/mappings/`.
 4. **Run `pull-header`** (header appears on every page, do it first). Commit changes.
 5. **Run `pull-footer`** (footer appears on every page, do it second). Commit changes.
@@ -158,7 +158,7 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 ├── settings-map.json        # Global settings cross-reference base→target (created by scan) — COMMITTED
 ├── class-map.json           # CSS class/property/component cross-reference (created by scan) — COMMITTED
 ├── plan.json                # Migration plan (created by scan) — COMMITTED (optional)
-├── base-cache/              # Targeted base theme pull (templates + config only) — GITIGNORED
+├── base-cache/              # Targeted base theme pull (templates, config, sections, snippets, blocks, layout, CSS/JS) — GITIGNORED
 ├── mappings/
 │   ├── sections/            # Per-section compatibility reports — COMMITTED
 │   │   ├── header.json
@@ -236,7 +236,7 @@ Multiple sessions can work on different pages simultaneously. **Git is the coord
 
 ### Targeted Base Pull
 
-Sessions do NOT need a full base theme export. The agent only needs templates and settings from the live theme for mapping and comparison.
+Sessions do NOT need a full base theme export. The agent needs templates, config, sections, snippets, blocks, and layout from the live theme for mapping, code analysis, and comparison.
 
 **The base-cache directory must be a git repo** (Shopify CLI requires it):
 
@@ -244,14 +244,25 @@ Sessions do NOT need a full base theme export. The agent only needs templates an
 mkdir -p .theme-forge/base-cache && git -C .theme-forge/base-cache init 2>/dev/null
 shopify theme pull --theme <live_theme_id> \
   --only 'templates/*' --only 'config/*' \
+  --only 'sections/*' --only 'snippets/*' \
+  --only 'blocks/*' --only 'layout/*' \
+  --only 'assets/*.css' --only 'assets/*.js' \
   --path .theme-forge/base-cache/
 ```
+
+**Why all these directories:**
+- `templates/*` + `config/*` — section composition and configured values
+- `sections/*` — base section Liquid code, schemas, CSS, HTML structure. **Without these, the agent cannot see how the base theme implements forms, JS handlers, conditional logic, or custom blocks.**
+- `snippets/*` — shared components the sections reference (form handlers, tracking scripts, utility includes)
+- `blocks/*` — block type definitions and schemas
+- `layout/*` — theme layout structure, global includes, script/style references
+- `assets/*.css` + `assets/*.js` — stylesheets and JavaScript (needed to understand form handlers, AJAX patterns, tracking code). Excludes images and fonts to keep the pull fast.
 
 **Note on `--only` patterns:** Use quoted globs (`'templates/*'`), not directory paths (`templates/`). The Shopify CLI `--only` flag uses glob matching, not directory filtering.
 
 **Legacy themes (liquid-only templates):** If the base theme uses `.liquid` templates instead of `.json` templates, the pull will still work — but section composition lives in `config/settings_data.json` under the `current` key, not in template JSON files. See "Legacy Theme Support" in the scan skill.
 
-This takes ~5 seconds and is always fresh. Each session runs it independently. The results are gitignored (session-local).
+This takes ~10-15 seconds and is always fresh. Each session runs it independently. The results are gitignored (session-local).
 
 ### Scoped Scan
 
