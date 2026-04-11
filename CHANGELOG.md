@@ -2,13 +2,13 @@
 
 ## 0.9.9 — 2026-04-11
 
-**Fix asset migration: referenced-only, no third-party CSS, smoke test.**
+**Tighten asset migration: referenced-only, no third-party CSS, smoke test.**
 
-The bangalore scan's asset migration (Step 5.9) broke the dev site by copying 38 files including third-party CSS with global selectors (`beam-stylesheet.css`, `yotpo-full-css.css`) and unreferenced font/image files. Three changes:
+The semarang scan's asset migration (Step 5.9) copied 38 base theme assets — all images, all fonts, and third-party CSS. The bulk copy caused transient 502 errors while the dev server synced, and the "copy everything" approach risks future conflicts from third-party CSS with global selectors. Four guardrails added:
 
-1. **Referenced-only policy**: Images and fonts are now copied ONLY if referenced by migrated code (`asset_url`, `@font-face`). No more "copy all images" or "copy all fonts."
-2. **Third-party CSS banned**: Full CSS files from integrations (Beam, Yotpo, etc.) are NEVER copied — they contain global selectors, resets, and layout rules that conflict with the target theme. Added to cutover checklist instead; apps should load their own CSS via CDN.
-3. **Mandatory smoke test**: After copying assets, the agent must screenshot the dev site and verify it still renders before committing. If broken, revert and investigate.
+1. **Referenced-only policy**: Images and fonts are now copied ONLY if referenced by migrated code (`asset_url`, `@font-face`). No more "copy all images" or "copy all fonts" — reduces unnecessary files and sync time.
+2. **Third-party CSS banned**: Full CSS files from integrations (Beam, Yotpo, etc.) are NEVER copied — they contain global selectors, resets, and layout rules that can conflict with the target theme. Added to cutover checklist instead; apps should load their own CSS via CDN.
+3. **Mandatory smoke test**: After copying assets, the agent must screenshot the dev site and verify it still renders before committing. Would have caught the transient 502s and prevented false alarm.
 4. **SVG font detection**: SVG files are now inspected — icon font SVGs (with `<glyph>` elements) are classified as fonts, not images.
 
 ## 0.9.8 — 2026-04-11
