@@ -8,7 +8,10 @@ description: >
 
 # capture — Section Screenshot Capture
 
-Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) with optional computed style extraction. This skill is deterministic — follow the exact commands below. No alternatives, no fallbacks to full-page screenshots.
+Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile). This skill is deterministic — follow the exact commands below. No alternatives, no fallbacks to full-page screenshots.
+
+> **Computed style extraction has moved to `find-variances`.** capture is screenshots only.
+> Use `/theme-forge find-variances` for extraction + comparison.
 
 ## Hard Rules
 
@@ -26,7 +29,7 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 ## Arguments
 
 ```
-/theme-forge capture <url> --section <selector> [--output <dir>] [--extract-styles] [--reference <name>]
+/theme-forge capture <url> --section <selector> [--output <dir>] [--reference <name>]
 ```
 
 - `<url>` — Full page URL (live site or dev server)
@@ -34,7 +37,6 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
   - CSS selector: `#shopify-section-hero`, `section-hero`, `.shopify-section:nth-child(3)`
   - Numeric index: `0`, `1`, `2` (0-indexed position among `.shopify-section` elements)
 - `--output <dir>` — Output directory (default: `.theme-forge/tmp/capture/`). **Always use `.theme-forge/tmp/` instead of `/tmp/`** — workspace sandboxing may block writes outside the project directory.
-- `--extract-styles` — Run computed style extraction at each breakpoint
 - `--reference <name>` — Store results in `.theme-forge/references/<name>/` (committed to git)
 
 ## Output
@@ -44,9 +46,6 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) w
 ├── desktop.png          # 1280px viewport
 ├── tablet.png           # 768px viewport
 ├── mobile.png           # 375px viewport
-├── desktop.styles.json  # (if --extract-styles)
-├── tablet.styles.json   # (if --extract-styles)
-├── mobile.styles.json   # (if --extract-styles)
 └── meta.json            # (if --reference) capture metadata
 ```
 
@@ -179,18 +178,6 @@ After mobile capture, restore desktop viewport:
 mcp__playwright__browser_resize width=1280 height=720
 ```
 
-### Step 5A: Extract Computed Styles (if `--extract-styles`)
-
-Use `mcp__playwright__browser_evaluate` to run the extraction script. Unlike gstack browse, Playwright MCP handles long JS cleanly — no shell escaping issues.
-
-```
-mcp__playwright__browser_evaluate function="() => { function dq(root, sel) { let r = root.querySelector(sel); if (r) return r; for (const el of root.querySelectorAll('*')) { if (el.shadowRoot) { r = dq(el.shadowRoot, sel); if (r) return r; } } return null; } function dqAll(root, sel) { let results = [...root.querySelectorAll(sel)]; for (const el of root.querySelectorAll('*')) { if (el.shadowRoot) { results = results.concat(dqAll(el.shadowRoot, sel)); } } return results; } const s = document.querySelector('<selector>') || document.querySelectorAll('.shopify-section')[<N>]; if (!s) return JSON.stringify({error: 'Section not found'}); const cs = getComputedStyle(s); const h = dq(s, 'h1,h2,h3'); const p = dq(s, 'p'); const btn = dq(s, '.button,a[class*=button]'); const imgs = dqAll(s, 'img'); return JSON.stringify({ bg: cs.backgroundColor, fg: cs.color, padding: { top: cs.paddingTop, bottom: cs.paddingBottom }, height: s.getBoundingClientRect().height, heading: h ? { fontFamily: getComputedStyle(h).fontFamily, fontWeight: getComputedStyle(h).fontWeight, fontSize: getComputedStyle(h).fontSize, letterSpacing: getComputedStyle(h).letterSpacing, textAlign: getComputedStyle(h).textAlign } : null, body: p ? { fontFamily: getComputedStyle(p).fontFamily, fontSize: getComputedStyle(p).fontSize, letterSpacing: getComputedStyle(p).letterSpacing, lineHeight: getComputedStyle(p).lineHeight } : null, button: btn ? { classes: btn.className.toString(), bg: getComputedStyle(btn).backgroundColor, color: getComputedStyle(btn).color, borderRadius: getComputedStyle(btn).borderRadius, padding: getComputedStyle(btn).padding } : null, images: imgs.slice(0, 10).map(img => { const ics = getComputedStyle(img); const ir = img.getBoundingClientRect(); const parent = img.parentElement; const pr = parent.getBoundingClientRect(); const pcs = getComputedStyle(parent); return { src: img.src.split('/').pop().split('?')[0], alt: (img.alt || '').substring(0, 40), imgWidth: Math.round(ir.width), imgHeight: Math.round(ir.height), containerWidth: Math.round(pr.width), containerHeight: Math.round(pr.height), objectFit: ics.objectFit, objectPosition: ics.objectPosition, aspectRatio: pcs.aspectRatio, overflow: pcs.overflow }; }), liquidErrors: s.innerHTML.includes('Liquid error'), boundingBoxes: (() => { const sectionRect = s.getBoundingClientRect(); const els = dqAll(s, 'h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]'); return els.slice(0, 20).map(el => { const r = el.getBoundingClientRect(); return { tag: el.tagName, classes: el.className.toString().substring(0, 60), text: el.textContent ? el.textContent.trim().substring(0, 30) : null, x: Math.round(r.x), relativeY: Math.round(r.y - sectionRect.y), width: Math.round(r.width), height: Math.round(r.height) }; }); })() }); }"
-```
-
-Replace `<selector>` and `<N>` with actual values. Save the result as `<output>/<breakpoint>.styles.json`.
-
-Run this for each breakpoint (resize viewport, navigate, scroll, then extract).
-
 ---
 
 ## Path B: gstack browse (fallback)
@@ -290,118 +277,6 @@ $B screenshot "<selector_or_--viewport>" <output>/mobile.png
 - If `--section` is a CSS selector: `$B screenshot "<selector>" <output>/<breakpoint>.png`
 - If `--section` is a numeric index: after scrolling to section, use `$B screenshot --viewport <output>/<breakpoint>.png`
 
-### Step 5B: Extract Computed Styles (if `--extract-styles`)
-
-For each breakpoint, after the screenshot, run the extraction script in the same Bash call (page is still loaded).
-
-**IMPORTANT: Do NOT pass the extraction script as an inline `$B js "..."` one-liner.** Long inline JS is corrupted by shell escaping (this causes `SyntaxError: Unexpected token 'var'` and similar errors). Instead, write the script to a file first, then execute it:
-
-```bash
-cat > .theme-forge/tmp/extract.js << 'EXTRACTJS'
-(function(){
-  // Deep query — works for both regular DOM and Shadow DOM (Horizon)
-  function dq(root, sel) {
-    let r = root.querySelector(sel);
-    if (r) return r;
-    for (const el of root.querySelectorAll('*')) {
-      if (el.shadowRoot) { r = dq(el.shadowRoot, sel); if (r) return r; }
-    }
-    return null;
-  }
-  function dqAll(root, sel) {
-    let results = [...root.querySelectorAll(sel)];
-    for (const el of root.querySelectorAll('*')) {
-      if (el.shadowRoot) { results = results.concat(dqAll(el.shadowRoot, sel)); }
-    }
-    return results;
-  }
-
-  const s = document.querySelector('<selector>') || document.querySelectorAll('.shopify-section')[<N>];
-  if (!s) return JSON.stringify({error: 'Section not found'});
-
-  const cs = getComputedStyle(s);
-  const h = dq(s, 'h1,h2,h3');
-  const p = dq(s, 'p');
-  const btn = dq(s, '.button,a[class*=button]');
-  const imgs = dqAll(s, 'img');
-
-  return JSON.stringify({
-    bg: cs.backgroundColor,
-    fg: cs.color,
-    padding: { top: cs.paddingTop, bottom: cs.paddingBottom },
-    height: s.getBoundingClientRect().height,
-    heading: h ? {
-      fontFamily: getComputedStyle(h).fontFamily,
-      fontWeight: getComputedStyle(h).fontWeight,
-      fontSize: getComputedStyle(h).fontSize,
-      letterSpacing: getComputedStyle(h).letterSpacing,
-      textAlign: getComputedStyle(h).textAlign
-    } : null,
-    body: p ? {
-      fontFamily: getComputedStyle(p).fontFamily,
-      fontSize: getComputedStyle(p).fontSize,
-      letterSpacing: getComputedStyle(p).letterSpacing,
-      lineHeight: getComputedStyle(p).lineHeight
-    } : null,
-    button: btn ? {
-      classes: btn.className.toString(),
-      bg: getComputedStyle(btn).backgroundColor,
-      color: getComputedStyle(btn).color,
-      borderRadius: getComputedStyle(btn).borderRadius,
-      padding: getComputedStyle(btn).padding
-    } : null,
-    images: imgs.slice(0, 10).map(function(img) {
-      var ics = getComputedStyle(img);
-      var ir = img.getBoundingClientRect();
-      var parent = img.parentElement;
-      var pr = parent.getBoundingClientRect();
-      var pcs = getComputedStyle(parent);
-      return {
-        src: img.src.split('/').pop().split('?')[0],
-        alt: (img.alt || '').substring(0, 40),
-        imgWidth: Math.round(ir.width),
-        imgHeight: Math.round(ir.height),
-        containerWidth: Math.round(pr.width),
-        containerHeight: Math.round(pr.height),
-        objectFit: ics.objectFit,
-        objectPosition: ics.objectPosition,
-        aspectRatio: pcs.aspectRatio,
-        overflow: pcs.overflow
-      };
-    }),
-    liquidErrors: s.innerHTML.includes('Liquid error'),
-    boundingBoxes: (function() {
-      var sectionRect = s.getBoundingClientRect();
-      var els = dqAll(s, 'h1,h2,h3,h4,p,img,.button,a[class*=button],.rte,[class*=content]');
-      return els.slice(0, 20).map(function(el) {
-        var r = el.getBoundingClientRect();
-        return {
-          tag: el.tagName,
-          classes: el.className.toString().substring(0, 60),
-          text: el.textContent ? el.textContent.trim().substring(0, 30) : null,
-          x: Math.round(r.x),
-          relativeY: Math.round(r.y - sectionRect.y),
-          width: Math.round(r.width),
-          height: Math.round(r.height)
-        };
-      });
-    })()
-  });
-})()
-EXTRACTJS
-```
-
-Replace `<selector>` and `<N>` with the actual values before writing the file.
-
-Then execute it:
-```bash
-$B js "$(cat .theme-forge/tmp/extract.js)"
-```
-
-Save the output as `<output>/<breakpoint>.styles.json`.
-
-**Why file-based:** The extraction script is ~80 lines of JS. Passing it as a shell string causes escaping issues (quotes inside quotes, backslashes, regex). Writing to a file and reading it back avoids all shell escaping problems.
-
 ---
 
 ## Step 6: Store Reference (if `--reference`)
@@ -413,13 +288,6 @@ mkdir -p .theme-forge/references/<name>/
 cp <output>/desktop.png .theme-forge/references/<name>/
 cp <output>/tablet.png .theme-forge/references/<name>/
 cp <output>/mobile.png .theme-forge/references/<name>/
-```
-
-If `--extract-styles` was also passed:
-```bash
-cp <output>/desktop.styles.json .theme-forge/references/<name>/
-cp <output>/tablet.styles.json .theme-forge/references/<name>/
-cp <output>/mobile.styles.json .theme-forge/references/<name>/
 ```
 
 Write `meta.json`:
@@ -444,11 +312,15 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 4.1 Live reference:
   Check .theme-forge/references/{section}-{page}/meta.json
   IF exists → use stored reference screenshots (all three breakpoints)
-  IF not exists → run capture workflow with --reference --extract-styles
+  IF not exists → run capture workflow with --reference
 
 4.2 Dev site:
-  Run capture workflow on dev URL with --extract-styles
+  Run capture workflow on dev URL
   Output to .theme-forge/tmp/capture-dev/
+
+4.3 Extraction:
+  Run find-variances for computed style extraction + comparison
+  Writes variance array to section report
 ```
 
 **Step 8 of pull-section (verify fix):**
@@ -457,6 +329,7 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 8.1 Run capture workflow on dev URL (all three breakpoints)
 8.2 Compare each breakpoint against stored live reference
     (Live reference is NOT re-captured)
+8.3 Run find-variances for full re-extraction + comparison
 ```
 
 ## Recapturing References
@@ -464,7 +337,7 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 If the live site changes, the user recaptures manually:
 
 ```
-/theme-forge capture https://example.com --section "#shopify-section-hero" --reference hero-index --extract-styles
+/theme-forge capture https://example.com --section "#shopify-section-hero" --reference hero-index
 ```
 
 This overwrites the stored reference. No automatic staleness detection.
