@@ -68,8 +68,8 @@ These rules are non-negotiable. They override everything else in this document. 
 
 ### Thrash loop prevention
 - **If you revert a commit, STOP and escalate to the user.** A revert means your approach isn't working. Do NOT immediately try a v6 after reverting v5. Instead, present the user with what you tried, why it failed, and ask for direction.
-- **Before each iteration, review what changed in the previous iteration and WHY it failed.** Read the git diff of your last commit. If you can't explain why the previous approach failed, you will repeat the mistake.
-- **3 iterations maximum.** If you've done 3 rounds of CSS changes on the same section without resolving the variances, escalate via `AskUserQuestion`. You are likely fighting a structural issue (Shadow DOM, wrong selector, settings conflict) that more CSS won't fix.
+- **Before retrying a failed fix, review the diff and explain WHY it failed.** Read the git diff of your last commit. If you can't explain why the previous approach failed, you will repeat the mistake.
+- **3 failed attempts at the SAME variance = escalate.** If you've tried 3 different approaches to fix the same property (e.g., font-weight on the price) and none worked, escalate via `AskUserQuestion`. You are likely fighting a structural issue (Shadow DOM, wrong selector, settings conflict) that more CSS won't fix. But making 20 small *successful* verified changes is fine — the limit is on thrashing, not on forward progress.
 
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
@@ -1018,7 +1018,7 @@ If the variance requires HTML/Liquid changes:
 
    Any FAIL row is a variance that must be fixed before proceeding. Do not rely on "the screenshots look close enough" — 1px font-size differences and 0.5px letter-spacing differences are invisible in screenshots but accumulate across sections into a noticeable quality gap.
 
-5. If any FAIL rows remain, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
+5. If any FAIL rows remain, go back to Step 6. **Retry each FAIL property up to 3 times** (3 different approaches for the same variance). Making many small successful fixes is fine — the limit is on thrashing at the same problem, not on total iterations.
 
    > **HARD RULE: If a FAIL row shows the SAME dev value as before your fix, your selector
    > is wrong.** Do NOT retry with the same selector. Go back to Step 5.5 and re-inspect

@@ -18,6 +18,9 @@ If you revert a commit, STOP and escalate — don't try v6 after reverting v5. B
 ### One change at a time (Step 6)
 Apply ONE CSS fix, save, wait for hot-reload, verify visually, then move to the next fix. Do not batch multiple unrelated CSS changes — when something breaks you can't isolate the cause. The v5 regression bundled swatch circles + side-by-side layout + 6-col grid + ATC color + installments into one commit.
 
+### Iteration limit refined
+Changed from "3 iterations maximum on a section" to "3 failed attempts at the SAME variance." The autoresearch loop means many small successful changes — the limit should catch thrashing at one problem, not cap total forward progress.
+
 ### Learnings after every fix attempt
 Learnings are mandatory after every fix attempt (successful or not), not just after completion. Six iterations with zero learnings is a critical failure.
 
