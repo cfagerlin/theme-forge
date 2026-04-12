@@ -156,27 +156,96 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 
 #### Phase 3: Dev Server
 
-5. **Start dev server** (if not already running): Check if a Shopify dev server is serving this theme on any port 9292-9295.
+5. **Start or reconnect to this session's dev server.** Follow the Dev Server Protocol below.
+
+---
+
+### Dev Server Protocol
+
+Every session owns exactly one dev server, identified by its **port + theme ID** pair. Multiple agents can run in parallel without conflicts because each discovers its own open port and binds to its own theme.
+
+#### Starting the dev server
+
+1. **Check config** for an existing `dev_port`. If set, verify the process is still running:
    ```bash
-   for port in 9292 9293 9294 9295; do
-     if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$port" 2>/dev/null | grep -q "200\|301\|302"; then
-       echo "DEV_PORT=$port"
-       break
+   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <target_theme_id>" | grep -v grep
+   ```
+   - **If a matching process exists**: The server is already running. Reconnect by setting `dev_url` to `http://127.0.0.1:<dev_port>`. Skip to "Present session URLs."
+   - **If no matching process**: The server was stopped (by the user or a crash). Clear `dev_port` from config and continue to step 2.
+
+2. **Find an open port.** Scan 9292-9299 for the first port with no listener:
+   ```bash
+   for port in 9292 9293 9294 9295 9296 9297 9298 9299; do
+     if ! lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
+       echo "AVAILABLE: $port"; break
      fi
    done
    ```
-   - **If found**: Use that port for dev comparisons.
-   - **If not found**: Start one in the background:
-     ```bash
-     # Find the first available port
-     for port in 9292 9293 9294 9295; do
-       if ! lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
-         DEV_PORT=$port; break
-       fi
-     done
-     shopify theme dev --store <dev_store> --theme <target_theme_id> --port $DEV_PORT --path . &
-     ```
-     Wait for the dev server to print its preview URL before proceeding. If `target_theme_id` is not in config, use `shopify theme list --store <dev_store>` to find the development/unpublished theme.
+
+3. **Start the server** with both `--theme` and `--port` explicitly set:
+   ```bash
+   shopify theme dev --store <dev_store> --theme <target_theme_id> --port $DEV_PORT --path . &
+   ```
+   Wait for the Shopify CLI to print its output (preview URL, editor URL). This takes 5-15 seconds.
+
+4. **Capture the session URLs** from the CLI output. Shopify CLI prints:
+   ```
+   ┃  Preview your theme
+   ┃  http://127.0.0.1:9293
+   ┃
+   ┃  Customize your theme in the Theme Editor
+   ┃  https://store.myshopify.com/admin/themes/157960011907/editor
+   ```
+   Parse both URLs from the output.
+
+5. **Save to config** (`.theme-forge/config.json`):
+   ```json
+   {
+     "dev_port": 9293,
+     "dev_url": "http://127.0.0.1:9293",
+     "dev_preview_url": "http://127.0.0.1:9293",
+     "dev_editor_url": "https://store.myshopify.com/admin/themes/157960011907/editor"
+   }
+   ```
+
+6. **Present session URLs** to the user:
+   ```
+   DEV SERVER
+   ══════════════════════════════════════════════════
+   Port:     9293
+   Theme:    157960011907
+   Preview:  http://127.0.0.1:9293
+   Editor:   https://store.myshopify.com/admin/themes/157960011907/editor
+   ══════════════════════════════════════════════════
+   ```
+
+#### Restarting the dev server (cache invalidation)
+
+When you need to restart the dev server (e.g., to clear Shopify's asset cache):
+
+1. **Read `dev_port` and `target_theme_id` from config.**
+2. **Find the process by port + theme ID** (not by a stored PID, the user may have restarted it):
+   ```bash
+   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <target_theme_id>" | grep -v grep | awk '{print $2}'
+   ```
+3. **If found**: `kill <pid>`, wait 2 seconds, then restart with the same port + theme ID.
+4. **If not found** (user killed it, or it crashed): Just start fresh on the same port.
+5. **If something unexpected is on your port** (different theme ID): Do NOT kill it. Escalate to the user:
+   ```
+   ⚠ Port <dev_port> is running theme <other_id>, not <target_theme_id>.
+   Another session may have taken this port. Options:
+   A) Kill it and reclaim the port
+   B) Find a new open port
+   ```
+
+#### Hard rules
+
+- **Always start with `--theme <target_theme_id>` and `--port <dev_port>`.** Never start without both flags. Omitting `--theme` serves the live/published theme, which is wrong. Omitting `--port` risks colliding with another session.
+- **Never kill a process unless it matches BOTH your port AND your theme ID.** If only one matches, escalate.
+- **The config is the source of truth for this session's port.** Other sessions have their own configs in their own worktrees.
+- **Present the preview and editor URLs after every start/restart.** The user needs these to interact with the dev theme.
+
+---
 
 #### Phase 4: Globals (Header + Footer)
 

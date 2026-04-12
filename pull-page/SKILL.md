@@ -124,15 +124,11 @@ B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE 
 
 ### Step 0.8: Start Dev Server
 
-Start the Shopify dev server with a page-specific environment and unique port:
+Follow the **Dev Server Protocol** in the orchestrator `SKILL.md`. This finds an open port, starts with `--theme` + `--port`, saves `dev_port`/`dev_url`/`dev_preview_url`/`dev_editor_url` to config, and presents the session URLs to the user.
 
-```bash
-shopify theme dev --environment page-{page} --port {port} --path . &
-```
+If the server is already running (config has `dev_port` and the process matches port + theme ID), reconnect to it. Do not start a second server.
 
-Port assignment: 9292 for index, 9293 for product, 9294 for collection, etc. The `--environment` flag gives each session its own development theme on the Shopify store, preventing conflicts between parallel sessions.
-
-Wait for the dev server to print its preview URL before proceeding. The dev server runs in the background for the duration of the session and hot-reloads local file changes automatically.
+The dev server runs in the background for the duration of the session and hot-reloads local file changes automatically.
 
 ### Step 1: Parse Template
 

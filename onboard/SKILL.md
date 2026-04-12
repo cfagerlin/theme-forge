@@ -197,41 +197,26 @@ If Shopify CLI is available, record the live theme's ID from `shopify theme list
 
 Note: A full base theme export is no longer needed. Sessions pull templates, config, sections, snippets, blocks, layout, and code assets (~10-15 seconds) into the gitignored `.theme-forge/base-cache/` directory.
 
-### Step 4: Detect Dev Server
+### Step 4: Start Dev Server
 
-A dev server on port 9292 might belong to a different project. Do NOT assume any running server is for this theme.
+Follow the **Dev Server Protocol** in the orchestrator `SKILL.md` to start or reconnect to this session's dev server. The protocol:
 
-**Find the right port:**
+1. Checks config for an existing `dev_port` and verifies the process is still running (matching both port + theme ID).
+2. If no server is running, finds an open port (9292-9299) and starts `shopify theme dev --store <dev_store> --theme <target_theme_id> --port <port> --path .`
+3. Captures the preview URL and theme editor URL from the Shopify CLI output.
+4. Saves `dev_port`, `dev_url`, `dev_preview_url`, and `dev_editor_url` to config.
+5. Presents the session URLs to the user.
 
-Scan common ports (9292-9295) for a Shopify dev server serving THIS theme:
+If Shopify CLI is not available (`shopify_cli: false` in capabilities), set `dev_url: null` and tell the user:
 
-```bash
-for port in 9292 9293 9294 9295; do
-  if lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
-    echo "Port $port: occupied"
-  else
-    echo "Port $port: available"
-  fi
-done
-```
-
-**If all common ports are occupied**, pick the first available port starting at 9292.
-
-**Set `dev_url: null` in config** (no dev server is running for this theme yet) and tell the user:
-
-> No dev server running for this theme yet. Start one in a separate terminal:
+> No Shopify CLI available. Start a dev server manually in a separate terminal:
 > ```
 > cd <absolute_path_to_target_theme>
-> shopify theme dev --store <dev_store> --theme <target_theme_id> --port <first_available_port>
+> shopify theme dev --store <dev_store> --theme <target_theme_id> --port <port>
 > ```
-> theme-forge will detect it automatically on the next pull-section run.
-> Use `--port` if the default 9292 is already taken by another project.
+> Then re-run onboard to detect it.
 
-**If the user says a dev server IS running for this theme**, ask which port and verify:
-```bash
-curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:<port>
-```
-If it responds, set `dev_url: "http://127.0.0.1:<port>"` in config.
+**Important:** Never start a dev server without both `--theme` and `--port` flags. Omitting `--theme` serves the live/published theme. Omitting `--port` risks colliding with another session's server.
 
 ### Step 5: Write Config
 
@@ -253,9 +238,15 @@ Create `.theme-forge/config.json` in the target theme root:
     "computer_use": true,
     "shopify_cli": true
   },
-  "auto_upgrade": false
+  "auto_upgrade": false,
+  "dev_port": 9293,
+  "dev_url": "http://127.0.0.1:9293",
+  "dev_preview_url": "http://127.0.0.1:9293",
+  "dev_editor_url": "https://store.myshopify.com/admin/themes/147980124204/editor"
 }
 ```
+
+The `dev_port`, `dev_url`, `dev_preview_url`, and `dev_editor_url` fields are set by the Dev Server Protocol (Step 4). They identify this session's dev server. Each worktree has its own config, so parallel sessions don't conflict.
 
 Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) which pulls sections, snippets, blocks, layout, and code assets alongside templates and config.
 

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.11.1 — 2026-04-12
+
+**Thread-safe dev server management.**
+
+Parallel agent sessions were stepping on each other's dev servers. One session would start a server on a port already used by another, or kill/restart the wrong process. The root cause: no session owned its port, and servers were started without `--theme` flags.
+
+### Dev Server Protocol
+
+New protocol in the orchestrator that all skills reference:
+
+- Each session finds an open port (9292-9299) and starts with both `--theme` and `--port` flags. The port + theme ID pair is saved to `.theme-forge/config.json` in the session's worktree.
+- Restarts match by port + theme ID (not PID). If the user manually kills/restarts the server, the agent reconnects cleanly.
+- If an unexpected theme is on the session's port (another agent took it), the agent escalates instead of killing it.
+- Preview URL and theme editor URL are captured from Shopify CLI output, saved to config, and presented to the user after every start/restart.
+
+### Config additions
+
+New fields in `.theme-forge/config.json`: `dev_port`, `dev_url`, `dev_preview_url`, `dev_editor_url`.
+
+### Updated skills
+
+- **orchestrator**: Phase 3 rewritten with full Dev Server Protocol
+- **pull-header**: Step 2 references Dev Server Protocol
+- **pull-footer**: Step 2 references Dev Server Protocol
+- **pull-page**: Step 0.8 references Dev Server Protocol (removes fixed per-page port assignment)
+- **onboard**: Step 4 rewritten to start server via protocol, config schema updated
+
 ## 0.11.0 — 2026-04-12
 
 **New `/find-variances` skill: structured variance discovery with test conditions.**
