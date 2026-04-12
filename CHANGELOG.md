@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.10.3 — 2026-04-11
+
+**New `/refine-section` skill: Karpathy autoresearch experiment loop for closing extraction FAILs.**
+
+The semarang agent batched 5 unrelated CSS changes per commit, used wrong selectors, extracted from the wrong product, and wrote zero learnings across 6 iterations. The existing pull-section rules (one-at-a-time, DOM inspection, learnings) were scattered across Steps 5-9 as guidelines. The agent read them as a waterfall and batched anyway.
+
+### New skill: refine-section
+
+Modeled on [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). A tight experiment loop where the structure enforces the rules:
+
+1. **Build variance queue** from extraction FAIL rows, prioritized: structural → settings → CSS
+2. **Loop per variance**: hypothesize (inspect DOM, choose simplest approach) → apply ONE change to ONE file → verify (re-extract computed style) → accept (commit) or revert → log learning
+3. **Final verification**: re-extract ALL properties to catch regressions
+4. **Report**: experiments run, passed, failed, escalated
+
+Hard rules enforced by the loop structure, not guidelines:
+- One change per iteration (loop enforces it, you verify before next)
+- Git as state machine (commit each PASS, revert each REGRESSION)
+- Settings > CSS custom properties > CSS class overrides (simplicity criterion)
+- 3 failed attempts on same variance = escalate, don't thrash
+- Learning entry after every experiment, success or failure
+- No positional selectors, same product URL for live/dev
+
+### Auto-handoff from pull-section
+
+pull-section Step 9 now auto-invokes refine-section when FAIL rows remain after Step 8. The old manual Step 5→8 loop is superseded by the experiment loop for variance closing.
+
 ## 0.10.2 — 2026-04-11
 
 **Anti-thrash: no positional selectors, extraction consistency, iteration limits.**

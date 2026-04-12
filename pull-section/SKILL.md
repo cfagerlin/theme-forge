@@ -1151,9 +1151,27 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
 
 These image properties are the most common cause of "the image looks different" variances. The image file is identical, but the container and positioning differ.
 
-### Step 9: Next Variance
+### Step 9: Next Variance or Hand Off to refine-section
 
-Return to Step 5 for the next visual difference. Repeat Steps 5-8 until all variances are resolved or logged.
+After Step 8, check whether FAIL rows remain in the extraction table.
+
+**If ALL rows are PASS:** Proceed to Step 10 (Final Validation Gate).
+
+**If FAIL rows remain:** Auto-invoke the `refine-section` skill to close them with the tight experiment loop. Pass these arguments:
+
+```
+/theme-forge refine-section <section-key> --page <page>
+```
+
+refine-section receives:
+- The section key (e.g., `product-information`)
+- The page template (e.g., `product`)
+- The dev and live URLs from `.theme-forge/config.json`
+- The current FAIL table from Step 8
+
+refine-section runs the Karpathy autoresearch loop: one atomic change → verify → keep/revert → log → next variance. It commits each verified fix individually. When it finishes (0 FAIL rows or all remaining escalated), return here and proceed to Step 10.
+
+**Do NOT continue the old Step 5→8 loop manually when refine-section is available.** The experiment loop in refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally, not as guidelines.
 
 ### Step 10: Final Validation Gate
 

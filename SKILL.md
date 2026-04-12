@@ -1,8 +1,8 @@
 ---
 name: theme-forge
 description: >
-  **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, review, cutover, status, upgrade.
-  - MANDATORY TRIGGERS: theme-forge, theme pull, migrate theme, pull section, pull page, pull header, pull footer, scan theme, map section, map page, theme migration, theme status, theme review
+  **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, refine-section, review, cutover, status, upgrade.
+  - MANDATORY TRIGGERS: theme-forge, theme pull, migrate theme, pull section, pull page, pull header, pull footer, refine section, fix variances, close FAILs, scan theme, map section, map page, theme migration, theme status, theme review
 ---
 
 # theme-forge — Shopify Theme Migration Toolkit
@@ -31,6 +31,7 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-forge status             — Human-readable migration progress report
 /theme-forge status --page <t>  — List all sections on a page with pull commands
 /theme-forge status --next      — Show the next section to pull
+/theme-forge refine-section <name> [--page <template>] — Autoresearch experiment loop to close extraction FAILs
 /theme-forge capture <url> --section <sel> — Section-scoped screenshot at all breakpoints
 /theme-forge cutover            — Show cutover checklist for production go-live
 /theme-forge upgrade            — Check for and apply updates
