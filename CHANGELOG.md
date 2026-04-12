@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.10.2 — 2026-04-11
+
+**Anti-thrash: no positional selectors, extraction consistency, iteration limits.**
+
+The semarang agent thrashed through 6 product page iterations (v2→v3→v4→v5→revert), each time writing large CSS blocks with positional selectors (`:nth-child(2)`) that broke on products with different variant counts. Zero learnings written across all iterations. Extraction data was from a different product than the one being compared visually.
+
+### No positional CSS selectors for variant options
+Banned `:first-child`, `:nth-child(N)` for targeting variant option types. These break when products have different numbers of options. Must use option-name-based selectors (`[data-option-name="Material"]`) instead. CSS must work across all product variant configurations.
+
+### Extraction consistency
+Live and dev style extractions must be from the SAME product URL. Record which product was extracted in the report. Contradictory extraction data (dark ATC in extraction, light in screenshots) usually means wrong product.
+
+### Thrash loop prevention
+If you revert a commit, STOP and escalate — don't try v6 after reverting v5. Before each iteration, review the previous diff and explain why it failed. 3 iterations maximum on the same section before mandatory escalation.
+
+### Learnings after every fix attempt
+Learnings are mandatory after every fix attempt (successful or not), not just after completion. Six iterations with zero learnings is a critical failure.
+
 ## 0.10.1 — 2026-04-11
 
 **DOM inspection before CSS, settings-first, selector verification loop.**
