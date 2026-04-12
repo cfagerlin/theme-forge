@@ -12,17 +12,7 @@ Convenience command that runs `pull-section` on the site header. The header is a
 ## Workflow
 
 1. Read `.theme-forge/config.json`
-2. **Start Dev Server** (if not already running):
-   ```bash
-   # Check if a dev server is already running for this theme
-   curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9292 2>/dev/null
-   ```
-   - If no dev server responds, start one:
-     ```bash
-     cd <target_theme_path>
-     shopify theme dev --store <dev_store> --theme <target_theme_id> --port 9292 --path . &
-     ```
-   - Wait for the dev server to print its preview URL before proceeding.
+2. **Start Dev Server** — follow the **Dev Server Protocol** in the orchestrator `SKILL.md`. This finds an open port, starts with `--theme` + `--port`, saves `dev_port`/`dev_url`/`dev_preview_url`/`dev_editor_url` to config, and presents the session URLs to the user. If the server is already running (config has `dev_port` and the process matches), reconnect to it.
    - **Without a dev server, pull-section falls back to code-only mode (no visual verification).** This defeats the purpose of theme-forge. Do NOT proceed without a running dev server unless the user explicitly chooses code-only mode.
 3. Identify the header section:
    - Check `.theme-forge/base-cache/sections/header-group.json` (or `{base_theme}/sections/header-group.json`) for the header section reference
