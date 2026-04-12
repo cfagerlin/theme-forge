@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.10.3 — 2026-04-11
+
+**New `/refine-section` skill: Karpathy autoresearch experiment loop for closing extraction FAILs.**
+
+The semarang agent batched 5 unrelated CSS changes per commit, used wrong selectors, extracted from the wrong product, and wrote zero learnings across 6 iterations. The existing pull-section rules (one-at-a-time, DOM inspection, learnings) were scattered across Steps 5-9 as guidelines. The agent read them as a waterfall and batched anyway.
+
+### New skill: refine-section
+
+Modeled on [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). A tight experiment loop where the structure enforces the rules:
+
+1. **Build variance queue** from extraction FAIL rows, prioritized: structural → settings → CSS
+2. **Loop per variance**: hypothesize (inspect DOM, choose simplest approach) → apply ONE change to ONE file → verify (re-extract computed style) → accept (commit) or revert → log learning
+3. **Final verification**: re-extract ALL properties to catch regressions
+4. **Report**: experiments run, passed, failed, escalated
+
+Hard rules enforced by the loop structure, not guidelines:
+- One change per iteration (loop enforces it, you verify before next)
+- Git as state machine (commit each PASS, revert each REGRESSION)
+- Settings > CSS custom properties > CSS class overrides (simplicity criterion)
+- 3 failed attempts on same variance = escalate, don't thrash
+- Learning entry after every experiment, success or failure
+- No positional selectors, same product URL for live/dev
+
+### Auto-handoff from pull-section
+
+pull-section Step 9 now auto-invokes refine-section when FAIL rows remain after Step 8. The old manual Step 5→8 loop is superseded by the experiment loop for variance closing.
+
+## 0.10.2 — 2026-04-11
+
+**Anti-thrash: no positional selectors, extraction consistency, iteration limits.**
+
+The semarang agent thrashed through 6 product page iterations (v2→v3→v4→v5→revert), each time writing large CSS blocks with positional selectors (`:nth-child(2)`) that broke on products with different variant counts. Zero learnings written across all iterations. Extraction data was from a different product than the one being compared visually.
+
+### No positional CSS selectors for variant options
+Banned `:first-child`, `:nth-child(N)` for targeting variant option types. These break when products have different numbers of options. Must use option-name-based selectors (`[data-option-name="Material"]`) instead. CSS must work across all product variant configurations.
+
+### Extraction consistency
+Live and dev style extractions must be from the SAME product URL. Record which product was extracted in the report. Contradictory extraction data (dark ATC in extraction, light in screenshots) usually means wrong product.
+
+### Thrash loop prevention
+If you revert a commit, STOP and escalate — don't try v6 after reverting v5. Before each iteration, review the previous diff and explain why it failed. 3 iterations maximum on the same section before mandatory escalation.
+
+### One change at a time (Step 6)
+Apply ONE CSS fix, save, wait for hot-reload, verify visually, then move to the next fix. Do not batch multiple unrelated CSS changes — when something breaks you can't isolate the cause. The v5 regression bundled swatch circles + side-by-side layout + 6-col grid + ATC color + installments into one commit.
+
+### Iteration limit refined
+Changed from "3 iterations maximum on a section" to "3 failed attempts at the SAME variance." The autoresearch loop means many small successful changes — the limit should catch thrashing at one problem, not cap total forward progress.
+
+### Learnings after every fix attempt
+Learnings are mandatory after every fix attempt (successful or not), not just after completion. Six iterations with zero learnings is a critical failure.
+
 ## 0.10.1 — 2026-04-11
 
 **DOM inspection before CSS, settings-first, selector verification loop.**

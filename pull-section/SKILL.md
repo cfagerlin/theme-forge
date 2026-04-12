@@ -57,6 +57,20 @@ These rules are non-negotiable. They override everything else in this document. 
 - **"Requires custom section" is NEVER a valid skip reason.** If you write `status: "skipped"` with reason "requires custom section," that is a bug. The only valid skip reasons are: (1) it's an app embed/widget that loads at runtime, or (2) the user explicitly approved the skip via `AskUserQuestion`.
 - **Below-fold content is NOT optional.** Collapsible product details, FAQ accordions, trust badges, recommendation carousels — if it's visible on the live page, it must be replicated. "Below the fold" does not mean "low priority."
 
+### No positional CSS selectors for variant options
+- **NEVER use `:first-child`, `:nth-child(2)`, `:nth-child(3)` to target variant option types (Material, Size, Color, etc.).** These break when a product has a different number of variant options. A selector targeting `:nth-child(3)` for Size will match Finish on a 3-option product and nothing on a 2-option product.
+- **Use option-name-based selectors instead.** Inspect the rendered DOM to find data attributes or classes that identify the option type (e.g., `[data-option-name="Material"]`, `[data-option="Size"]`). If no data attributes exist, use the option label text content to identify which option group you're styling.
+- **Test with multiple products.** If your CSS works on a ring (2 options: Material, Size) but would break on a necklace (3 options: Material, Finish, Length), it's wrong. CSS must be robust across all product variant configurations.
+
+### Extraction consistency
+- **Extract styles from the SAME product on live and dev.** If you extract live styles from "Kindred Birthstone Necklace" but dev styles from "Diamond Pavé Flow Ring," the comparison is meaningless. Navigate to the same product URL path on both sites.
+- **Record which product URL you extracted from** in the transcript or report. If extraction data shows contradictory values (e.g., ATC is dark on live but you see a light button in screenshots), the extraction was likely from a different product.
+
+### Thrash loop prevention
+- **If you revert a commit, STOP and escalate to the user.** A revert means your approach isn't working. Do NOT immediately try a v6 after reverting v5. Instead, present the user with what you tried, why it failed, and ask for direction.
+- **Before retrying a failed fix, review the diff and explain WHY it failed.** Read the git diff of your last commit. If you can't explain why the previous approach failed, you will repeat the mistake.
+- **3 failed attempts at the SAME variance = escalate.** If you've tried 3 different approaches to fix the same property (e.g., font-weight on the price) and none worked, escalate via `AskUserQuestion`. You are likely fighting a structural issue (Shadow DOM, wrong selector, settings conflict) that more CSS won't fix. But making 20 small *successful* verified changes is fine — the limit is on thrashing, not on forward progress.
+
 ### Section identity
 - **Verify you are comparing the correct live section** before screenshotting. Confirm the content matches the mapping. Log the selector used.
 
@@ -66,8 +80,9 @@ These rules are non-negotiable. They override everything else in this document. 
 
 ### Learnings are mandatory
 - **After completing any section, write learnings to `.theme-forge/learnings/{section-key}.json`.** Each section gets its own file (e.g., `learnings/hero-1_index.json`, `learnings/header.json`). This prevents merge conflicts when parallel sessions write learnings simultaneously. The file contains an array of learning objects for that section.
+- **After EVERY fix attempt (successful or not), write a learning.** Especially capture: which CSS selectors work vs don't work on this theme, Shadow DOM boundaries discovered, settings that control specific properties, variant option DOM structure. These prevent the next iteration from repeating the same mistakes.
 - **Before starting any section, read ALL files in `.theme-forge/learnings/` and apply matching learnings.** If a prior section discovered that Horizon headings default to font-weight 700 but the live site uses 200, apply that override proactively — don't wait to rediscover it.
-- **An empty `.theme-forge/learnings/` directory after 2+ sections is a red flag.** Stop and review what you learned from previous sections.
+- **An empty `.theme-forge/learnings/` directory after 2+ sections is a red flag.** Stop and review what you learned from previous sections. Six iterations on the product page with zero learnings is a critical failure — you're repeating mistakes you should have captured.
 - **Migration from single file:** If `.theme-forge/learnings.json` exists (old format), read it, split entries by `created_by`/`source.section` into per-section files in `learnings/`, then delete the old file.
 
 ## Prerequisites
@@ -958,6 +973,8 @@ For CSS variances, apply fixes in order of preference:
 4. **Extension CSS file** (e.g., `assets/custom.css`) — for overriding core sections. Use selectors verified in Step 5.5.
 5. **Inline `style` attribute via Liquid** — for per-instance values driven by settings
 
+**One change at a time.** Apply ONE CSS fix, save the file, wait for hot-reload, then verify visually (screenshot or browser check) before writing the next fix. Do NOT batch multiple unrelated CSS changes into one edit — when something breaks, you can't tell which change caused it. Commit after each verified fix, not after a batch of untested changes.
+
 Guidelines:
 - **Use only selectors verified against the actual rendered DOM (Step 5.5).** Never write a CSS selector by guessing from the `.liquid` source.
 - Use component-scoped selectors (class-based, not IDs or element selectors)
@@ -1001,7 +1018,7 @@ If the variance requires HTML/Liquid changes:
 
    Any FAIL row is a variance that must be fixed before proceeding. Do not rely on "the screenshots look close enough" — 1px font-size differences and 0.5px letter-spacing differences are invisible in screenshots but accumulate across sections into a noticeable quality gap.
 
-5. If any FAIL rows remain, go back to Step 6. **Retry up to `default_retry_limit` times** (from `config.json`, default 3).
+5. If any FAIL rows remain, go back to Step 6. **Retry each FAIL property up to 3 times** (3 different approaches for the same variance). Making many small successful fixes is fine — the limit is on thrashing at the same problem, not on total iterations.
 
    > **HARD RULE: If a FAIL row shows the SAME dev value as before your fix, your selector
    > is wrong.** Do NOT retry with the same selector. Go back to Step 5.5 and re-inspect
@@ -1134,9 +1151,27 @@ Run these checks on the dev site's rendered HTML for this section. These catch i
 
 These image properties are the most common cause of "the image looks different" variances. The image file is identical, but the container and positioning differ.
 
-### Step 9: Next Variance
+### Step 9: Next Variance or Hand Off to refine-section
 
-Return to Step 5 for the next visual difference. Repeat Steps 5-8 until all variances are resolved or logged.
+After Step 8, check whether FAIL rows remain in the extraction table.
+
+**If ALL rows are PASS:** Proceed to Step 10 (Final Validation Gate).
+
+**If FAIL rows remain:** Auto-invoke the `refine-section` skill to close them with the tight experiment loop. Pass these arguments:
+
+```
+/theme-forge refine-section <section-key> --page <page>
+```
+
+refine-section receives:
+- The section key (e.g., `product-information`)
+- The page template (e.g., `product`)
+- The dev and live URLs from `.theme-forge/config.json`
+- The current FAIL table from Step 8
+
+refine-section runs the Karpathy autoresearch loop: one atomic change → verify → keep/revert → log → next variance. It commits each verified fix individually. When it finishes (0 FAIL rows or all remaining escalated), return here and proceed to Step 10.
+
+**Do NOT continue the old Step 5→8 loop manually when refine-section is available.** The experiment loop in refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally, not as guidelines.
 
 ### Step 10: Final Validation Gate
 
