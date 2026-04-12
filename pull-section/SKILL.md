@@ -973,6 +973,8 @@ For CSS variances, apply fixes in order of preference:
 4. **Extension CSS file** (e.g., `assets/custom.css`) — for overriding core sections. Use selectors verified in Step 5.5.
 5. **Inline `style` attribute via Liquid** — for per-instance values driven by settings
 
+**One change at a time.** Apply ONE CSS fix, save the file, wait for hot-reload, then verify visually (screenshot or browser check) before writing the next fix. Do NOT batch multiple unrelated CSS changes into one edit — when something breaks, you can't tell which change caused it. Commit after each verified fix, not after a batch of untested changes.
+
 Guidelines:
 - **Use only selectors verified against the actual rendered DOM (Step 5.5).** Never write a CSS selector by guessing from the `.liquid` source.
 - Use component-scoped selectors (class-based, not IDs or element selectors)

@@ -15,6 +15,9 @@ Live and dev style extractions must be from the SAME product URL. Record which p
 ### Thrash loop prevention
 If you revert a commit, STOP and escalate — don't try v6 after reverting v5. Before each iteration, review the previous diff and explain why it failed. 3 iterations maximum on the same section before mandatory escalation.
 
+### One change at a time (Step 6)
+Apply ONE CSS fix, save, wait for hot-reload, verify visually, then move to the next fix. Do not batch multiple unrelated CSS changes — when something breaks you can't isolate the cause. The v5 regression bundled swatch circles + side-by-side layout + 6-col grid + ATC color + installments into one commit.
+
 ### Learnings after every fix attempt
 Learnings are mandatory after every fix attempt (successful or not), not just after completion. Six iterations with zero learnings is a critical failure.
 
