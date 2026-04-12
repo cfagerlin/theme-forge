@@ -804,7 +804,7 @@ Check if a reference already exists at `.theme-forge/references/{section}-{page}
 
 **If reference exists:** Use the stored screenshots and computed styles. Read `desktop.png` with the Read tool to confirm it still looks correct.
 
-**If no reference exists:** Run the capture workflow with `--reference {section}-{page} --extract-styles`:
+**If no reference exists:** Run the capture workflow with `--reference {section}-{page}`:
 - URL: the live site page URL
 - Section: the CSS selector or index for this section
 - Output: `.theme-forge/references/{section}-{page}/`
@@ -813,12 +813,24 @@ After capture, **read `desktop.png`** with the Read tool. Verify the screenshot 
 
 #### 4.2 Dev site capture
 
-Run the capture workflow with `--extract-styles`:
+Run the capture workflow (screenshots only):
 - URL: the dev server URL (e.g., `http://127.0.0.1:9292`)
 - Section: same selector as live site
 - Output: `.theme-forge/tmp/capture-dev/`
 
-#### 4.3 Compare at each breakpoint
+#### 4.3 Run find-variances (extraction + comparison)
+
+Invoke the `find-variances` skill to extract computed styles from both sites and build the variance array:
+
+```
+/theme-forge find-variances <section-key> --page <page>
+```
+
+find-variances navigates both live and dev sites, extracts computed styles at all 3 breakpoints, compares property-by-property, runs the rendered output validation checklist, and writes the structured variance array to the section report. Each variance includes a test condition for refine-section to execute.
+
+After find-variances completes, the section report at `.theme-forge/reports/sections/{section-key}.json` contains the `variances` array.
+
+#### 4.4 Compare screenshots at each breakpoint
 
 For **desktop, tablet, and mobile**:
 1. Read the live reference screenshot and the dev screenshot side by side
@@ -827,9 +839,8 @@ For **desktop, tablet, and mobile**:
    - **Element presence/absence**: missing or extra elements
    - **Colors and typography**: fonts, weights, sizes, spacing
    - **Images**: loaded vs placeholder, sizing, cropping
-3. Compare the computed styles JSON files (live vs dev) to catch variances invisible in screenshots (1px spacing, letter-spacing, font-weight)
-4. Combine visual + computed style differences into a single work list per breakpoint
-5. Categorize by severity (HIGH / MEDIUM / LOW)
+3. Cross-reference visual differences against the variance array from find-variances. If you see a visual difference NOT captured in the variance array, add it manually: `/theme-forge find-variances <section-key> --add "description of what you see"`
+4. Categorize remaining visual-only differences by severity (HIGH / MEDIUM / LOW)
 
 **Responsive-specific variances** (only visible at tablet/mobile):
 - Layout changes (side-by-side → stacked)
@@ -996,39 +1007,21 @@ If the variance requires HTML/Liquid changes:
 
 ### Step 8: Verify the Fix
 
-1. Run the `capture` workflow on the dev URL with `--extract-styles`. Output to `.theme-forge/tmp/capture-verify/`. This produces screenshots at all three breakpoints (desktop, tablet, mobile).
+1. Run the `capture` workflow on the dev URL. Output to `.theme-forge/tmp/capture-verify/`. This produces screenshots at all three breakpoints (desktop, tablet, mobile).
 2. For each breakpoint, read the dev screenshot and compare against the stored live reference in `.theme-forge/references/{section}-{page}/`. The live reference is NOT re-captured.
 3. Compare against the live site screenshot. Check:
    - The specific variance — is it fixed?
    - No regressions — did the fix break anything else?
-4. **Run the FULL extraction script** (see below) on BOTH live and dev sites. This is mandatory, not optional. Compare every property in the output. Write the comparison to the transcript as a structured table:
+4. **Run find-variances for full re-extraction.** This is mandatory, not optional. find-variances re-extracts dev styles, compares against cached live values, and updates the variance array in the section report. It runs the full rendered output validation checklist (18 checks). Each variance entry's status is updated: `fixed` if dev now matches live, `open` if still different.
 
-   ```
-   COMPUTED STYLE VALIDATION: {section-name}
-   Breakpoint: desktop (1280px)
+   Read the updated variance table from the section report. Any `open` entries are FAILs that must be fixed.
 
-   Property               | Live value      | Dev value       | Delta    | Status
-   -----------------------|-----------------|-----------------|----------|-------
-   h2 font-size           | 34.88px         | 34.88px         | 0        | PASS
-   h2 letter-spacing      | -0.32px         | -0.32px         | 0        | PASS
-   body font-weight       | 300             | 400             | +100     | FAIL
-   container padding-top  | 80px            | 80px            | 0        | PASS
-   button font-size       | 12px            | 16px            | +4px     | FAIL
-   ```
+5. If any `open` variances remain, go to Step 9 (hand off to refine-section).
 
-   Any FAIL row is a variance that must be fixed before proceeding. Do not rely on "the screenshots look close enough" — 1px font-size differences and 0.5px letter-spacing differences are invisible in screenshots but accumulate across sections into a noticeable quality gap.
-
-5. If any FAIL rows remain, go back to Step 6. **Retry each FAIL property up to 3 times** (3 different approaches for the same variance). Making many small successful fixes is fine — the limit is on thrashing at the same problem, not on total iterations.
-
-   > **HARD RULE: If a FAIL row shows the SAME dev value as before your fix, your selector
-   > is wrong.** Do NOT retry with the same selector. Go back to Step 5.5 and re-inspect
-   > the actual rendered DOM. The most common cause is a Shadow DOM boundary between your
-   > selector and the target element. Switch to CSS custom properties or JSON settings.
-   >
-   > Example: You wrote `.price-money { font-weight: 300 !important }` but extraction shows
-   > font-weight is still 500. This means `.price-money` doesn't match the actual element.
-   > Inspect the DOM → discover it's inside a shadow root → use `--price-font-weight` custom
-   > property instead.
+   > **HARD RULE: If a variance shows the SAME dev value as before your fix, your selector
+   > is wrong.** The variance's test condition includes the selector used. If the test condition
+   > has `custom_property` set, try overriding that custom property instead of direct CSS.
+   > If it has `shadow_host` set, your selector needs to target through or around the Shadow DOM.
 
 #### ⛔ Escalation protocol (retries exhausted)
 
@@ -1049,33 +1042,15 @@ C) Skip this section entirely
 D) I'll fix it manually — move on
 ```
 
-**Only option B creates an accepted variance**, and it sets `user_approved: true` in the report. The agent CANNOT set `user_approved: true` on its own.
+**Only option B creates an accepted variance**, and it sets `user_approved: true` in the variance entry AND the report. The agent CANNOT set `user_approved: true` on its own.
 
-If all retries are exhausted without escalation (should not happen), classify the error (see Error Classification) and log as outstanding.
 6. **Capture learnings — on EVERY successful fix, not just retries.**
-   After verification passes, review each CSS override or settings change you made. For each fix, ask: *"Would this same issue appear in other sections?"* If yes, write a learning to `.theme-forge/learnings.json`.
+   After verification passes, review each CSS override or settings change you made. For each fix, ask: *"Would this same issue appear in other sections?"* If yes, write a learning to `.theme-forge/learnings/{section-key}.json`.
 
    **When to capture:**
-   - **Retry fixes** (first attempt failed): Record the anti-pattern AND the working fix. Trigger = why the first approach failed.
-   - **Theme default overrides** (first attempt succeeded but you overrode a target theme default): The same default applies to every section. Capture it so future sections apply the override proactively.
-   - **Pattern recognition**: You've now seen the same fix on 2+ sections. Promote it to a learning.
-
-   **What to capture:**
-   - The trigger condition (what to look for — e.g., "target theme applies text-wrap: balance to headings")
-   - The action (what to do — e.g., "add text-wrap: wrap !important to override")
-   - The scope (`target_theme` if it's a theme-wide default, `section_type` if specific to a section pattern)
-   - The anti-pattern (what NOT to do, if applicable)
-
-   **Example — theme default override (first-attempt success):**
-   You discovered the target theme sets `text-wrap: balance` on headings, which changes line breaks. You fixed it with `text-wrap: wrap !important`. This wasn't a retry — you got it right the first time. But every heading in every section will have this same default. Capture it:
-   ```json
-   {
-     "trigger": { "condition": "target_theme_heading_text_wrap", "property": "text-wrap", "description": "Target theme applies text-wrap: balance to headings, changing line break positions vs the live site" },
-     "action": { "description": "Override with text-wrap: wrap !important on headings", "anti_pattern": "Leaving text-wrap: balance (default) — line breaks won't match live site" },
-     "scope": "target_theme",
-     "confidence": "medium"
-   }
-   ```
+   - **Retry fixes** (first attempt failed): Record the anti-pattern AND the working fix.
+   - **Theme default overrides** (first attempt succeeded but overrode a target theme default): The same default applies to every section.
+   - **Pattern recognition**: Same fix on 2+ sections. Promote to a learning.
 
    The key insight: **if you had to override a theme default to match the live site, the next section will have that same default.** Capture it now so the next section one-shots it.
 
@@ -1097,79 +1072,19 @@ After completing the FIRST section (usually header), identify values that are th
 - Section-specific font sizes (hero h1 is larger than footer h2)
 - Layout dimensions (grid columns, flex ratios, container max-widths)
 
-**Example from GLDN → Horizon migration:**
-After the header pull, these theme constants should have been captured:
-- Heading font-weight: 200 (Horizon defaults to 700)
-- Heading letter-spacing: -0.02em (Horizon defaults to 0.06em)
-- Body font-weight: 300 (Horizon defaults to 400)
-- Body letter-spacing: 0.01em
-- Strong/bold: font-weight 400 (not 700)
-- Button: font-size 12px, letter-spacing 1.2px, font-weight 400, uppercase
-
-Instead, these were rediscovered independently in the footer pull AND all 5 homepage sections. That's 7 sessions repeating the same work because zero learnings were written after the header.
-
-#### Rendered Output Validation Checklist
-
-Run these checks on the dev site's rendered HTML for this section. These catch issues that source code review misses because they only manifest at render time.
-
-**Use the browse tool** to fetch the rendered page and run JavaScript to extract these values. For gstack_browse: `$B js "..."`. Compare each against the live site.
-
-| # | Check | How to extract | Fail condition |
-|---|-------|---------------|----------------|
-| 1 | **Background color** | `getComputedStyle(sectionEl).backgroundColor` | RGB values differ from live site |
-| 2 | **Foreground color** | `getComputedStyle(sectionEl).color` | RGB values differ from live |
-| 3 | **Light/dark polarity** | Sum RGB of background: >384 = light, <384 = dark | Polarity flipped vs live |
-| 4 | **Font family** | `getComputedStyle(heading).fontFamily` | Different font family |
-| 5 | **Font weight (headings)** | `getComputedStyle(heading).fontWeight` | Differs by >100 from live |
-| 6 | **Font size (body)** | `getComputedStyle(bodyText).fontSize` | Differs by >1px from live |
-| 7 | **Letter spacing** | `getComputedStyle(bodyText).letterSpacing` | Differs by >0.5px from live |
-| 8 | **Section padding** | `getComputedStyle(sectionEl).paddingTop/Bottom` | Differs by >8px from live |
-| 9 | **Content alignment** | Text-align + flexbox/grid alignment properties | Different alignment |
-| 10 | **Button classes** | Check for primary/secondary class on CTA buttons | Wrong variant |
-| 11 | **Overlay opacity** | Computed opacity on overlay element or pseudo-element | Differs by >0.05 |
-| 12 | **No Liquid errors** | Search rendered HTML for "Liquid error" | Any Liquid error text present |
-| 13 | **No empty CSS values** | Search for `rgb()` (empty), `font-family: , ;`, `border-width: px` | Any broken CSS value |
-| 14 | **No placeholder images** | Check `<img>` src attributes, flag SVG data URIs where real images expected | Placeholder instead of real image |
-| 15 | **Section height** | `sectionEl.getBoundingClientRect().height` | Differs by >20% from live |
-| 16 | **Element bounding boxes** | `getBoundingClientRect()` for all headings, paragraphs, images, buttons, containers | x, width, or height differs by >2px; relativeY differs by >2px (after normalizing for section offset) |
-| 17 | **Image container size** | `getBoundingClientRect()` on image wrapper/container element | Container width or height differs by >2px from live |
-| 18 | **Image sizing properties** | `getComputedStyle(img).objectFit`, `objectPosition`, container `aspectRatio` | Different `object-fit` (cover vs contain), different `object-position`, or different `aspect-ratio` — these control which part of the image is visible |
-
-**Extraction script:** The computed style extraction script lives in `capture/SKILL.md` and runs automatically when `--extract-styles` is passed. The output is a JSON file at each breakpoint (`desktop.styles.json`, `tablet.styles.json`, `mobile.styles.json`). Compare the live and dev results property by property. Every difference is a variance that needs fixing.
-
-**Bounding box comparison**: Match elements between live and dev by tag + text content. For each matched pair, flag any property where the values differ by >2px. Common findings:
-- **Width differs** — text container has different max-width or grid column sizing
-- **Height differs** — font size, line-height, or padding causing different text wrapping
-- **x differs** — alignment or margin difference
-- **relativeY differs** — padding, margin, or element ordering difference
-
-**Image comparison**: Match images by filename or alt text. For each matched pair, check:
-- **Container size** — the wrapper element's width/height determines the visible area of the image. If containers differ, the same image shows different content. Fix via CSS width/height or aspect-ratio on the container.
-- **object-fit** — `cover` crops the image to fill the container (most common for hero/banner images). `contain` shows the whole image with possible gaps. `fill` stretches. If live uses `cover` and dev uses `contain`, the image will look completely different.
-- **object-position** — controls which part of the image is visible when cropped. `50% 50%` (center) vs `50% 30%` (focus higher) changes what the user sees. Extract from live and match exactly.
-- **aspect-ratio** — some themes set `aspect-ratio` on the container instead of explicit height. Compare the computed aspect ratio between live and dev.
-
-These image properties are the most common cause of "the image looks different" variances. The image file is identical, but the container and positioning differ.
-
 ### Step 9: Next Variance or Hand Off to refine-section
 
-After Step 8, check whether FAIL rows remain in the extraction table.
+After Step 8, check the variance array in the section report for `open` entries.
 
-**If ALL rows are PASS:** Proceed to Step 10 (Final Validation Gate).
+**If ALL variances are `fixed` or `accepted`:** Proceed to Step 10 (Final Validation Gate).
 
-**If FAIL rows remain:** Auto-invoke the `refine-section` skill to close them with the tight experiment loop. Pass these arguments:
+**If `open` variances remain:** Auto-invoke the `refine-section` skill to close them with the tight experiment loop. Pass these arguments:
 
 ```
 /theme-forge refine-section <section-key> --page <page>
 ```
 
-refine-section receives:
-- The section key (e.g., `product-information`)
-- The page template (e.g., `product`)
-- The dev and live URLs from `.theme-forge/config.json`
-- The current FAIL table from Step 8
-
-refine-section runs the Karpathy autoresearch loop: one atomic change → verify → keep/revert → log → next variance. It commits each verified fix individually. When it finishes (0 FAIL rows or all remaining escalated), return here and proceed to Step 10.
+refine-section reads the variance array from the section report as its work queue. Each variance entry has a structured test condition that refine-section executes directly (no improvised JS). refine-section commits each verified fix individually and updates the variance entry status. When it finishes (0 open variances or all remaining escalated), return here and proceed to Step 10.
 
 **Do NOT continue the old Step 5→8 loop manually when refine-section is available.** The experiment loop in refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally, not as guidelines.
 
@@ -1177,30 +1092,27 @@ refine-section runs the Karpathy autoresearch loop: one atomic change → verify
 
 **You cannot declare a section "done" without passing this gate.** This is not optional.
 
-1. **Use the computed styles from the last Step 8 capture** (both live reference and dev). You already have styles at all three breakpoints from the capture workflow. No need to re-extract.
+1. **Read the variance array from the section report.** Every entry must have `status: "fixed"` or `status: "accepted"`. No `open` or `escalated` entries allowed.
 
-2. **Build the final delta table at each breakpoint.** For every property in the extraction output, compare live vs dev:
+2. **Display the final variance table** from the report:
 
 ```
-Breakpoint | Property                | Live          | Dev           | Delta    | Status
------------|-------------------------|---------------|---------------|----------|--------
-desktop    | heading fontWeight      | 400           | 400           | 0        | PASS
-desktop    | heading fontSize        | 24px          | 24px          | 0        | PASS
-desktop    | body letterSpacing      | 0.96px        | 0.96px        | 0        | PASS
-desktop    | image[0] objectFit      | cover         | cover         | -        | PASS
-tablet     | heading fontSize        | 20px          | 20px          | 0        | PASS
-tablet     | padding top             | 24px          | 24px          | 0        | PASS
-mobile     | heading fontSize        | 18px          | 18px          | 0        | PASS
-mobile     | padding top             | 16px          | 16px          | 0        | PASS
+Breakpoint | Element              | Property         | Live         | Dev          | Status
+-----------|----------------------|------------------|--------------|--------------|--------
+desktop    | h1                   | fontWeight       | 200          | 200          | fixed
+desktop    | .price-money         | fontWeight       | 300          | 300          | fixed
+desktop    | .add-to-cart         | fontSize         | 13px         | 13px         | fixed
+tablet     | h1                   | fontWeight       | 200          | 200          | fixed
+mobile     | section              | paddingTop       | 80px         | 80px         | fixed
 ```
 
-3. **If ANY row has a non-zero delta or mismatched value: FAIL.** Go back to Step 6 and fix it. Do not proceed to Step 11.
+3. **If ANY entry has `status: "open"`: FAIL.** Go back to refine-section. Do not proceed.
 
-4. **Read the final screenshots** (desktop, tablet, mobile) from the last Step 8 capture. Visually confirm they match the live references at each breakpoint. If you see ANY visual difference not captured in the delta table, investigate and fix it.
+4. **Read the final screenshots** (desktop, tablet, mobile) from the last Step 8 capture. Visually confirm they match the live references at each breakpoint. If you see ANY visual difference not captured in the variance array, add it with `/theme-forge find-variances <section> --add "description"` and fix it.
 
 5. No separate responsive pass is needed. All three breakpoints have been compared throughout the entire fix loop (Steps 4-8-10).
 
-**You MUST show the final delta table in your output.** The user needs to see the evidence that every property matches at all breakpoints. A section reported as "complete" without a passing delta table is a bug in your process.
+**You MUST show the final variance table in your output.** The user needs to see the evidence that every variance is fixed or accepted. A section reported as "complete" without a passing variance table is a bug in your process.
 
 ### Step 10.5: Present Final Screenshots to User
 

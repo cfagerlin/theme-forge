@@ -14,10 +14,10 @@ one atomic change per iteration, verified before the next, with git as state mac
 
 ## When this runs
 
-1. **Auto-invoked by pull-section** after Step 8 when FAIL rows remain in the extraction table.
-   pull-section passes: section key, page, dev URL, live URL, and the current FAIL table.
+1. **Auto-invoked by pull-section** after Step 9 when `open` variances remain in the section report.
+   The variance array (with structured test conditions) is already in the report from find-variances.
 2. **Manually invoked** by the user: `/theme-forge refine-section <section-key> --page <page>`
-   Re-extracts live vs dev and builds the variance queue from scratch.
+   Reads the variance array from the section report. If no variance array exists, runs find-variances first.
 
 ## Arguments
 
@@ -62,34 +62,39 @@ These override everything else in this document.
 ### No positional selectors
 - **Never use `:first-child`, `:nth-child(N)` for variant options.** Use option-name-based selectors or data attributes. Positional selectors break across products with different variant counts.
 
-## Step 1: Build Variance Queue
+## Step 1: Load Variance Queue from Section Report
 
-If invoked with a FAIL table from pull-section, use it. Otherwise, re-extract:
+Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
 
-1. Read `.theme-forge/config.json` for `live_url` and `dev_url`.
-2. Navigate to the live page and run the extraction script on the target section. Record every computed property (font-size, font-weight, letter-spacing, color, padding, margin, width, height, display, flex properties, grid properties, text-transform, text-decoration, object-fit, object-position, aspect-ratio).
-3. Navigate to the dev page (same URL path) and run the same extraction.
-4. Compare property by property. Every difference is a FAIL row.
-5. Build the queue, prioritized:
-   - **Structural** (element missing, wrong position) — must fix first
-   - **Settings** (value controlled by a JSON setting) — simplest fix
-   - **CSS** (needs selector + override) — most common
-6. Display the queue:
+**If the report has a `variances` array:** Filter for entries with `status: "open"`. These are the work queue. Each entry includes a structured test condition — do NOT improvise verification.
+
+**If no variance array exists:** Run find-variances first:
+```
+/theme-forge find-variances <section-key> --page <page>
+```
+Then re-read the report.
+
+1. Display the queue (from the variance array):
 
 ```
 VARIANCE QUEUE: {section-key}
 ════════════════════════════════════════════════════════════
-#  Property                    Live           Dev            Type
-1  h1 font-weight              200            700            setting
-2  price font-weight            300            500            css
-3  ATC font-size               13px           16px           css
-4  ATC text-transform          uppercase      none           css
-5  variant-label letter-spacing 0.1em          normal         css
+#  Element              Property         Live           Dev            Type     Test
+1  h1                   fontWeight       200            700            setting  --heading-font-weight
+2  .price-money         fontWeight       300            500            css      shadow:product-info
+3  .add-to-cart         fontSize         13px           16px           css      direct selector
+4  .add-to-cart         textTransform    uppercase      none           css      direct selector
+5  .variant-label       letterSpacing    0.1em          normal         css      direct selector
 ════════════════════════════════════════════════════════════
-METRIC: 5 FAIL → target: 0
+METRIC: 5 open → target: 0
 ```
 
-7. Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learning says "Horizon price component uses `--price-font-weight` custom property," apply that knowledge in Step 2.1.
+The "Test" column shows the verification method from each variance's test condition:
+- `--custom-prop-name` — CSS custom property override (through Shadow DOM)
+- `shadow:host-tag` — element inside Shadow DOM, needs special selector
+- `direct selector` — standard CSS selector works
+
+2. Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learning says "Horizon price component uses `--price-font-weight` custom property," apply that knowledge in Step 2.1.
 
 ## Step 2: The Experiment Loop
 
@@ -134,14 +139,28 @@ For each variance in the queue:
 
 ### 2.3 VERIFY
 
-1. Re-extract the specific property from the dev site:
+1. **Execute the test condition from the variance entry.** Do NOT improvise — use exactly what the variance's `test` field specifies.
+
+   **Structured test** (most variances):
    ```javascript
-   // Example: check if font-weight changed on the price element
-   const el = deepQuery(document, '.price-money') || document.querySelector('price-money');
-   getComputedStyle(el).fontWeight;
+   // Read test.selector, test.property, test.expected, test.shadow_host from the variance
+   let root = document;
+   if (test.shadow_host) {
+     const host = document.querySelector(test.shadow_host);
+     root = host?.shadowRoot || host || document;
+   }
+   const el = root.querySelector(test.selector);
+   const value = getComputedStyle(el)[test.property];
+   // Compare value against test.expected
    ```
 
-2. Compare against the target (live) value.
+   **Custom JS test** (layout/bounding box variances):
+   ```javascript
+   const value = eval(test.js);
+   // Compare value against test.expected_js
+   ```
+
+2. Compare against the expected value (from `test.expected` or `test.expected_js`).
 
 3. Record the result:
    ```
@@ -156,12 +175,12 @@ For each variance in the queue:
 
 ### 2.4 ACCEPT or REVERT
 
-**PASS** — the FAIL row is now PASS:
+**PASS** — the variance is now fixed:
 ```bash
-git add <modified-file>
+git add <modified-file> .theme-forge/reports/sections/{section-key}.json
 git commit -m "refine: {section} — {property} {old_value} → {new_value}"
 ```
-Pop this variance from the queue. Move to next.
+Update the variance entry in the report: set `status: "fixed"`, record the attempt in `attempts`. Move to next.
 
 **FAIL (same value)** — the change had no effect:
 - Your selector is wrong, or the property is controlled by something else.
@@ -214,7 +233,26 @@ B) Accept this variance (user approves)
 C) I'll fix it manually — move on
 ```
 
-Only option B sets `user_approved: true`. Move to next variance regardless of choice.
+Only option B sets `user_approved: true` in the variance entry. Move to next variance regardless of choice.
+
+### Test Condition Correction
+
+If a variance shows PASS but the user reports it's still wrong (e.g., during Step 10.5 of pull-section):
+
+1. The test condition was checking the wrong element or property.
+2. Ask the user what they see. Inspect the DOM to find the correct element.
+3. Update the `test` field in the variance entry with the corrected selector/property.
+4. Write a learning to `.theme-forge/learnings/{section-key}.json`:
+   ```json
+   {
+     "type": "test_correction",
+     "original_test": {"selector": "h1", "property": "fontWeight"},
+     "corrected_test": {"selector": "h1", "property": "fontWeight", "shadow_host": "product-title"},
+     "reason": "Element inside product-title shadow root, direct selector misses it",
+     "timestamp": "2026-04-12T..."
+   }
+   ```
+5. find-variances uses these learnings to generate better test conditions for similar elements in future runs.
 
 **← Loop back to 2.1 for the next variance in the queue.**
 
@@ -222,9 +260,13 @@ Only option B sets `user_approved: true`. Move to next variance regardless of ch
 
 After the queue is empty (or all remaining items are escalated):
 
-1. **Re-extract ALL properties** (full table, not just the ones you fixed). This catches regressions that slipped through per-element verification.
-2. If new FAIL rows appeared: add them to the queue and go back to Step 2.
-3. Take a final verification screenshot at all 3 breakpoints (desktop, tablet, mobile).
+1. **Run find-variances for full re-extraction** to catch regressions that slipped through per-element verification:
+   ```
+   /theme-forge find-variances <section-key> --page <page>
+   ```
+   find-variances re-extracts dev styles, compares against cached live values, and updates the variance array with merge-not-replace semantics (preserving attempts and approvals).
+2. If new `open` variances appeared in the report: add them to the queue and go back to Step 2.
+3. Take a final verification screenshot at all 3 breakpoints (desktop, tablet, mobile) using the capture skill.
 4. Compare against the live reference screenshots in `.theme-forge/references/{section}-{page}/`.
 
 ## Step 4: Report

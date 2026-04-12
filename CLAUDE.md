@@ -18,3 +18,4 @@ Key routing rules:
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
 - Refine section, fix variances, close FAILs → invoke theme-forge refine-section
+- Find variances, extract styles, compare styles → invoke theme-forge find-variances

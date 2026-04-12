@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.11.0 — 2026-04-12
+
+**New `/find-variances` skill: structured variance discovery with test conditions.**
+
+Variance discovery was scattered across pull-section Steps 4-8 with no persistent artifact, no user input channel, and no per-variance test conditions. The agent thrashed because it re-discovered variances each iteration and improvised its verification checks.
+
+### New skill: find-variances
+
+Extracts computed styles from live and dev sites at all 3 breakpoints, compares property-by-property, runs the full 18-check rendered output validation, and writes a structured variance array to the section report.
+
+Each variance entry includes:
+- Stable ID (`{element}:{property}:{breakpoint}`) for merge-not-replace semantics
+- Structured test condition (`{selector, property, expected}`) with optional JS escape hatch
+- Shadow DOM metadata (host tag, discovered custom properties)
+- Type classification (structural, setting, css, layout, content)
+- Status tracking (open, fixed, escalated, accepted)
+- Attempt history (logged by refine-section)
+
+### Shadow DOM custom property auto-discovery
+
+When extraction finds elements inside Shadow DOM boundaries, find-variances scans the host component's stylesheets for `var(--xxx)` usage and maps discovered properties to CSS property names. Confidence levels (high/medium/low) indicate reliability.
+
+### Test condition correction learning loop
+
+When a test says PASS but the user reports the variance still exists, the corrected test condition is saved as a learning. Future find-variances runs apply corrections to generate better tests for similar elements.
+
+### Integration changes
+
+- **capture/SKILL.md**: Extraction JS and `--extract-styles` flag removed. Screenshots only.
+- **pull-section/SKILL.md**: Step 4 calls capture (screenshots) then find-variances (extraction). Step 8 calls find-variances for re-extraction. Step 10 reads variance array for final gate. Rendered output validation checklist moved to find-variances.
+- **refine-section/SKILL.md**: Step 1 reads variance array from section report as work queue. Step 2.3 executes structured test conditions from variance entries (no improvised JS). Step 3 calls find-variances for full re-extraction with merge semantics.
+
+### Flags
+
+- `--force` — bypass live extraction cache
+- `--add "description"` — add a user-defined variance interactively
+
+### Live extraction caching
+
+Live site values are cached in the section report. Only dev values are re-extracted on subsequent runs, cutting per-iteration verify time in half.
+
 ## 0.10.3 — 2026-04-11
 
 **New `/refine-section` skill: Karpathy autoresearch experiment loop for closing extraction FAILs.**
