@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.3 — 2026-04-12
+
+**Hard gates to enforce find-variances and refine-section usage.**
+
+Audit of a parallel agent session revealed it had access to the new skills but never invoked them — it followed old-style inline extraction patterns. The skills were referenced but not enforced.
+
+### Enforcement gates added to pull-section
+
+- **Top-level hard rules**: "find-variances is MANDATORY" and "refine-section is MANDATORY" added to non-negotiable rules section. Agents running inline `getComputedStyle()` extraction are told to STOP.
+- **Step 4.3 gate**: Marked as MANDATORY with explicit warning that Steps 5-10 will block without it. Post-completion verification: confirm `variances` array exists in report.
+- **Step 5 gate**: Hard pre-condition check — if section report has no `variances` array, STOP and go back to find-variances. Old-style counter fields (`variances_found`/`variances_fixed`) are explicitly rejected.
+- **Step 9 gate**: Rewritten as "MANDATORY" — if open variances remain, agent MUST invoke refine-section. Includes self-test: "if you are writing CSS after Step 8 without invoking refine-section, you are doing it wrong."
+- **Step 10 gate**: Hard pre-condition check — report without `variances` array is INVALID, cannot pass final validation.
+
 ## 0.11.2 — 2026-04-12
 
 **Thread-safe dev server with parallel session isolation and live theme safeguards.**
