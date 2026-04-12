@@ -162,88 +162,200 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 
 ### Dev Server Protocol
 
-Every session owns exactly one dev server, identified by its **port + theme ID** pair. Multiple agents can run in parallel without conflicts because each discovers its own open port and binds to its own theme.
+Every session owns exactly one dev server, identified by its **port + theme ID** pair. The first session on a machine uses the normal `[development]` theme. Additional parallel sessions each create their own unpublished theme so file syncs never collide.
 
-#### Starting the dev server
+#### Step 1: Pre-flight safety check
 
-1. **Check config** for an existing `dev_port`. If set, verify the process is still running:
-   ```bash
-   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <target_theme_id>" | grep -v grep
-   ```
-   - **If a matching process exists**: The server is already running. Reconnect by setting `dev_url` to `http://127.0.0.1:<dev_port>`. Skip to "Present session URLs."
-   - **If no matching process**: The server was stopped (by the user or a crash). Clear `dev_port` from config and continue to step 2.
+Before anything else, identify the live theme and block it:
 
-2. **Find an open port.** Scan 9292-9299 for the first port with no listener:
-   ```bash
-   for port in 9292 9293 9294 9295 9296 9297 9298 9299; do
-     if ! lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
-       echo "AVAILABLE: $port"; break
-     fi
-   done
-   ```
+```bash
+shopify theme list --store <dev_store> --json 2>/dev/null
+```
 
-3. **Start the server** with both `--theme` and `--port` explicitly set:
-   ```bash
-   shopify theme dev --store <dev_store> --theme <target_theme_id> --port $DEV_PORT --path . &
-   ```
-   Wait for the Shopify CLI to print its output (preview URL, editor URL). This takes 5-15 seconds.
+Parse the output. Find the theme with `"role": "live"`. Store its ID as `live_theme_id` in config if not already set.
 
-4. **Capture the session URLs** from the CLI output. Shopify CLI prints:
-   ```
-   ┃  Preview your theme
-   ┃  http://127.0.0.1:9293
-   ┃
-   ┃  Customize your theme in the Theme Editor
-   ┃  https://store.myshopify.com/admin/themes/157960011907/editor
-   ```
-   Parse both URLs from the output.
+**HARD BLOCK: If `target_theme_id` equals `live_theme_id`, ABORT immediately:**
+```
+🛑 SAFETY BLOCK: target_theme_id matches the LIVE theme.
+Dev server would sync local files to the production site.
+Aborting. Check .theme-forge/config.json — target_theme_id must
+point to a development or unpublished theme, never the live theme.
+```
 
-5. **Save to config** (`.theme-forge/config.json`):
-   ```json
-   {
-     "dev_port": 9293,
-     "dev_url": "http://127.0.0.1:9293",
-     "dev_preview_url": "http://127.0.0.1:9293",
-     "dev_editor_url": "https://store.myshopify.com/admin/themes/157960011907/editor"
-   }
-   ```
+Also verify the target theme's role:
+```bash
+shopify theme info --theme <target_theme_id> --store <dev_store> --json 2>/dev/null
+```
+The role must be `development` or `unpublished`. If it's `live` or `demo`, ABORT with the same safety block.
 
-6. **Present session URLs** to the user:
-   ```
-   DEV SERVER
-   ══════════════════════════════════════════════════
-   Port:     9293
-   Theme:    157960011907
-   Preview:  http://127.0.0.1:9293
-   Editor:   https://store.myshopify.com/admin/themes/157960011907/editor
-   ══════════════════════════════════════════════════
-   ```
+#### Step 2: Check for existing session
+
+Check config for an existing `dev_port` and `dev_theme_id`. If both are set, verify the process is still running:
+
+```bash
+ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <dev_theme_id>" | grep -v grep
+```
+
+- **If a matching process exists**: The server is already running. Reconnect — set `dev_url` to `http://127.0.0.1:<dev_port>`. Skip to Step 6 (Present session URLs).
+- **If no matching process**: The server was stopped (by the user or a crash). Continue to Step 3.
+
+#### Step 3: Detect parallel sessions
+
+Check if another `shopify theme dev` process is already running for this store:
+
+```bash
+ps aux | grep "shopify theme dev" | grep -- "--store <dev_store>" | grep -v grep
+```
+
+- **If NO other dev server is running**: This is the first session. Use `target_theme_id` (the `[development]` theme) directly. Set `dev_theme_id = target_theme_id` and `dev_theme_created = false`. Continue to Step 4.
+- **If another dev server IS running**: This is an additional session. Create an unpublished theme:
+
+  ```bash
+  shopify theme push --unpublished --store <dev_store> --path . --json 2>&1
+  ```
+
+  Parse the theme ID from the JSON output. Name it for identification:
+
+  ```bash
+  # Rename via the API so it's identifiable in the theme list
+  shopify theme rename --theme <new_id> --name "[TF] <worktree-name or section-name>" --store <dev_store>
+  ```
+
+  Set `dev_theme_id = <new_id>` and `dev_theme_created = true`.
+
+  **Verify the new theme's role** before proceeding:
+  ```bash
+  shopify theme info --theme <new_id> --store <dev_store> --json 2>/dev/null
+  ```
+  Confirm `"role": "unpublished"`. If not, ABORT — something went wrong.
+
+#### Step 4: Find an open port
+
+Scan 9292-9299 for the first port with no listener:
+
+```bash
+for port in 9292 9293 9294 9295 9296 9297 9298 9299; do
+  if ! lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
+    echo "AVAILABLE: $port"; break
+  fi
+done
+```
+
+#### Step 5: Start the server
+
+```bash
+shopify theme dev --store <dev_store> --theme <dev_theme_id> --port $DEV_PORT --path . &
+```
+
+Wait for the Shopify CLI to print its output (preview URL, editor URL). This takes 5-15 seconds. Capture both URLs from the output:
+
+```
+┃  Preview your theme
+┃  http://127.0.0.1:9293
+┃
+┃  Customize your theme in the Theme Editor
+┃  https://store.myshopify.com/admin/themes/157960011907/editor
+```
+
+Save to config (`.theme-forge/config.json`):
+
+```json
+{
+  "dev_port": 9293,
+  "dev_theme_id": 157960011907,
+  "dev_theme_created": false,
+  "dev_url": "http://127.0.0.1:9293",
+  "dev_preview_url": "http://127.0.0.1:9293",
+  "dev_editor_url": "https://store.myshopify.com/admin/themes/157960011907/editor"
+}
+```
+
+When `dev_theme_created` is `true`, the theme was created by this session and must be cleaned up on completion.
+
+#### Step 6: Present session URLs
+
+Show the user their dev server details after every start or reconnect:
+
+```
+DEV SERVER
+══════════════════════════════════════════════════
+Port:     9293
+Theme:    157960011907 (development)
+Preview:  http://127.0.0.1:9293
+Editor:   https://store.myshopify.com/admin/themes/157960011907/editor
+══════════════════════════════════════════════════
+```
+
+If this is an unpublished theme session, include a note:
+```
+Mode:     parallel (unpublished theme — will be deleted on completion)
+```
 
 #### Restarting the dev server (cache invalidation)
 
 When you need to restart the dev server (e.g., to clear Shopify's asset cache):
 
-1. **Read `dev_port` and `target_theme_id` from config.**
-2. **Find the process by port + theme ID** (not by a stored PID, the user may have restarted it):
+1. **Read `dev_port` and `dev_theme_id` from config.**
+2. **Find the process by port + theme ID** (not by a stored PID — the user may have restarted it):
    ```bash
-   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <target_theme_id>" | grep -v grep | awk '{print $2}'
+   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <dev_theme_id>" | grep -v grep | awk '{print $2}'
    ```
 3. **If found**: `kill <pid>`, wait 2 seconds, then restart with the same port + theme ID.
 4. **If not found** (user killed it, or it crashed): Just start fresh on the same port.
 5. **If something unexpected is on your port** (different theme ID): Do NOT kill it. Escalate to the user:
    ```
-   ⚠ Port <dev_port> is running theme <other_id>, not <target_theme_id>.
+   ⚠ Port <dev_port> is running theme <other_id>, not <dev_theme_id>.
    Another session may have taken this port. Options:
    A) Kill it and reclaim the port
    B) Find a new open port
    ```
 
+#### Cleanup: deleting unpublished themes
+
+When a section or page is approved (pull-section Step 12, after commit), check `dev_theme_created` in config:
+
+- **If `false`**: This session used the `[development]` theme. Nothing to clean up.
+- **If `true`**: This session created an unpublished theme. Delete it:
+  ```bash
+  # Stop the dev server first
+  ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <dev_theme_id>" | grep -v grep | awk '{print $2}' | xargs kill 2>/dev/null
+  sleep 2
+  # Delete the unpublished theme
+  shopify theme delete --theme <dev_theme_id> --store <dev_store> --force
+  ```
+  Clear `dev_port`, `dev_theme_id`, `dev_theme_created`, `dev_url`, `dev_preview_url`, and `dev_editor_url` from config.
+
+  Confirm deletion succeeded. If it fails (e.g., theme is in use), warn the user:
+  ```
+  ⚠ Could not delete unpublished theme <dev_theme_id>.
+  Clean it up manually: Shopify Admin > Themes > [TF] <name> > Delete
+  ```
+
+#### Orphan cleanup
+
+On session start (before Step 1), scan for orphaned theme-forge themes:
+
+```bash
+shopify theme list --store <dev_store> --json 2>/dev/null
+```
+
+Look for themes with names starting with `[TF]`. For each, check if a `shopify theme dev` process is running with that theme ID. If not, it's an orphan — delete it:
+
+```bash
+shopify theme delete --theme <orphan_id> --store <dev_store> --force
+```
+
+This prevents theme accumulation from crashed sessions. Shopify has a 99-theme limit.
+
 #### Hard rules
 
-- **Always start with `--theme <target_theme_id>` and `--port <dev_port>`.** Never start without both flags. Omitting `--theme` serves the live/published theme, which is wrong. Omitting `--port` risks colliding with another session.
-- **Never kill a process unless it matches BOTH your port AND your theme ID.** If only one matches, escalate.
-- **The config is the source of truth for this session's port.** Other sessions have their own configs in their own worktrees.
+- **NEVER start a dev server against the live theme.** The pre-flight check (Step 1) blocks this. If you somehow bypass it, you risk syncing development files to production.
+- **NEVER start without both `--theme` and `--port` flags.** Omitting `--theme` defaults to the `[development]` theme, which may belong to another session. Omitting `--port` risks colliding with another session.
+- **NEVER kill a process unless it matches BOTH your port AND your theme ID.** If only one matches, escalate to the user.
+- **NEVER delete a theme with role `live`, `development`, or `demo`.** Only delete themes with role `unpublished` that have the `[TF]` name prefix.
+- **The config is the source of truth for this session's port and theme.** Other sessions have their own configs in their own worktrees.
 - **Present the preview and editor URLs after every start/restart.** The user needs these to interact with the dev theme.
+- **Clean up unpublished themes promptly.** Do not leave them lingering after the work is approved.
 
 ---
 

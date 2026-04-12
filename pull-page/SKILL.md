@@ -199,6 +199,8 @@ For each section:
 
    **Verify the push succeeded** — check that `git log origin/$(git branch --show-current) --oneline -1` shows your commit. If it doesn't, the push failed. Fix it before continuing.
 
+   **Clean up unpublished theme (if applicable):** After a successful push, check `dev_theme_created` in `.theme-forge/config.json`. If `true`, follow the **Cleanup** section of the Dev Server Protocol in the orchestrator `SKILL.md` to delete the unpublished theme. This frees a theme slot (99-theme limit).
+
 ### Step 3.5: Completeness Gate
 
 Before proceeding to full-page comparison, verify coverage:

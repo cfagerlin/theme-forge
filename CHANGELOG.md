@@ -1,31 +1,35 @@
 # Changelog
 
-## 0.11.1 — 2026-04-12
+## 0.11.2 — 2026-04-12
 
-**Thread-safe dev server management.**
+**Thread-safe dev server with parallel session isolation and live theme safeguards.**
 
-Parallel agent sessions were stepping on each other's dev servers. One session would start a server on a port already used by another, or kill/restart the wrong process. The root cause: no session owned its port, and servers were started without `--theme` flags.
+Parallel agents were sharing the same Shopify development theme, causing file sync collisions. The root cause: Shopify assigns one `[development]` theme per device, so all agents on the same machine were syncing to the same remote theme regardless of port.
 
-### Dev Server Protocol
+### Multi-session dev server protocol
 
-New protocol in the orchestrator that all skills reference:
+- **First session** uses the normal `[development]` theme (local dev as usual)
+- **Additional sessions** auto-detect the first via `ps aux` and create an unpublished theme (`shopify theme push --unpublished`). Named with `[TF]` prefix for identification
+- **Cleanup on approval**: unpublished themes are deleted when the section/page work is approved (Shopify has a 99-theme limit)
+- **Orphan cleanup**: on session start, scans for `[TF]`-prefixed themes with no active dev server and deletes them
 
-- Each session finds an open port (9292-9299) and starts with both `--theme` and `--port` flags. The port + theme ID pair is saved to `.theme-forge/config.json` in the session's worktree.
-- Restarts match by port + theme ID (not PID). If the user manually kills/restarts the server, the agent reconnects cleanly.
-- If an unexpected theme is on the session's port (another agent took it), the agent escalates instead of killing it.
-- Preview URL and theme editor URL are captured from Shopify CLI output, saved to config, and presented to the user after every start/restart.
+### Live theme safeguards
+
+- **Pre-flight check**: before starting any dev server, verifies `target_theme_id` is NOT the live theme via `shopify theme list`. Hard abort if it matches
+- **Role verification**: confirms theme role is `development` or `unpublished` before starting. Blocks `live` and `demo` roles
+- **Delete guard**: only deletes themes with role `unpublished` and `[TF]` name prefix. Never touches `live`, `development`, or `demo` themes
 
 ### Config additions
 
-New fields in `.theme-forge/config.json`: `dev_port`, `dev_url`, `dev_preview_url`, `dev_editor_url`.
+New fields: `dev_port`, `dev_theme_id`, `dev_theme_created`, `dev_url`, `dev_preview_url`, `dev_editor_url`. Preview and editor URLs captured from Shopify CLI output and presented to user.
 
 ### Updated skills
 
-- **orchestrator**: Phase 3 rewritten with full Dev Server Protocol
-- **pull-header**: Step 2 references Dev Server Protocol
-- **pull-footer**: Step 2 references Dev Server Protocol
-- **pull-page**: Step 0.8 references Dev Server Protocol (removes fixed per-page port assignment)
-- **onboard**: Step 4 rewritten to start server via protocol, config schema updated
+- **orchestrator**: Phase 3 rewritten with full multi-session Dev Server Protocol
+- **pull-section**: Step 12 triggers unpublished theme cleanup on approval
+- **pull-page**: Step 3 section completion triggers cleanup
+- **pull-header/pull-footer**: Step 2 references Dev Server Protocol
+- **onboard**: Step 4 + config schema updated with new fields
 
 ## 0.11.0 — 2026-04-12
 

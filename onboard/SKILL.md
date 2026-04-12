@@ -240,13 +240,21 @@ Create `.theme-forge/config.json` in the target theme root:
   },
   "auto_upgrade": false,
   "dev_port": 9293,
+  "dev_theme_id": 147980124204,
+  "dev_theme_created": false,
   "dev_url": "http://127.0.0.1:9293",
   "dev_preview_url": "http://127.0.0.1:9293",
   "dev_editor_url": "https://store.myshopify.com/admin/themes/147980124204/editor"
 }
 ```
 
-The `dev_port`, `dev_url`, `dev_preview_url`, and `dev_editor_url` fields are set by the Dev Server Protocol (Step 4). They identify this session's dev server. Each worktree has its own config, so parallel sessions don't conflict.
+The `dev_*` fields are set by the Dev Server Protocol (Step 4). They identify this session's dev server and theme:
+- `dev_port` — the port this session's server runs on
+- `dev_theme_id` — the Shopify theme ID this session syncs to (may differ from `target_theme_id` for parallel sessions)
+- `dev_theme_created` — `true` if this session created an unpublished theme (must be deleted on completion)
+- `dev_url`, `dev_preview_url`, `dev_editor_url` — URLs for the user to interact with the dev theme
+
+Each worktree has its own config, so parallel sessions don't conflict.
 
 Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) which pulls sections, snippets, blocks, layout, and code assets alongside templates and config.
 

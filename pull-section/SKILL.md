@@ -1203,7 +1203,7 @@ Save to `.theme-forge/reports/sections/{section-key}.json` (e.g., `featured-coll
 
 **`outstanding_issues`** should contain ONLY items genuinely blocked by a platform limitation or requiring user decision. If an item is fixable with CSS or JSON, it should not appear here — it should have been fixed. "Could add CSS override" is not an outstanding issue, it's unfinished work.
 
-### Step 12: Commit and Push
+### Step 12: Commit, Push, and Clean Up
 
 **This step is mandatory.** Uncommitted work is invisible to parallel sessions and lost on crash.
 
@@ -1219,6 +1219,8 @@ git push
 ```
 
 Replace `{status}` with the report's `final_status` (e.g., `completed`, `incomplete`, `failed`).
+
+**Clean up unpublished theme (if applicable):** After a successful commit, check `dev_theme_created` in `.theme-forge/config.json`. If `true`, this session created an unpublished theme for parallel development. Follow the **Cleanup** section of the Dev Server Protocol in the orchestrator `SKILL.md` to delete it. This frees a theme slot on the store (99-theme limit).
 
 #### Cutover Checklist
 
