@@ -24,6 +24,11 @@ These rules are non-negotiable. They override everything else in this document. 
 - **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
 - **Write transcript FIRST at each step, THEN do the work.** This ensures crashes leave partial transcripts, not empty ones.
 
+### Dev server MUST use the script (no manual startup)
+- **NEVER run `shopify theme dev` directly.** Always use `eval "$(scripts/dev-server.sh start)"`. The script handles safety checks (blocks live themes), parallel session isolation (unpublished themes), port discovery, and URL capture. Running `shopify theme dev` manually bypasses all of these safeguards.
+- **For restarts, use `scripts/dev-server.sh restart`.** Do not kill and restart the process yourself.
+- **For cleanup, use `scripts/dev-server.sh cleanup`.** This deletes unpublished themes and scans for orphans.
+
 ### find-variances is MANDATORY (no inline extraction)
 - **You MUST invoke the `find-variances` skill at Step 4.3.** Do NOT extract computed styles yourself with inline `page.evaluate()` or browse tool JS. find-variances produces the structured `variances` array in the section report. Without this array, Steps 5-10 cannot function.
 - **The `variances` array in the section report is the ONLY valid work queue.** If you reach Step 5 and the section report does not contain a `variances` array, STOP. Go back and run find-variances. Old-style `variances_found`/`variances_fixed`/`variances_remaining` counter fields are NOT a substitute.

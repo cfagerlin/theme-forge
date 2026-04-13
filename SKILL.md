@@ -506,6 +506,7 @@ NEVER modify the target theme's core files. This preserves upstream upgradabilit
 
 ### Safety Rules
 
+- **NEVER run `shopify theme dev` directly.** Always use `scripts/dev-server.sh start`. The script enforces safety checks (blocks live themes), handles parallel session isolation (unpublished themes for concurrent agents), discovers open ports, and captures session URLs. Running `shopify theme dev` manually bypasses all of these safeguards and risks syncing to the wrong theme or colliding with another session.
 - **NEVER run `shopify theme push` or `shopify theme publish` without explicit user approval.** All theme work happens locally. The `shopify theme dev` server hot-reloads local files, so pushing is unnecessary during development. When the user is ready to push, they will tell you. This is a bright red line — no exceptions, no "just pushing config", no "only pushing one file".
 - **NEVER access the production store's Shopify admin.** The live site is read-only (public storefront only).
 - **NEVER modify the base theme files.** The base theme export is a read-only reference.
