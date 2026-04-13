@@ -70,6 +70,13 @@ These override everything else in this document.
 ### Match the responsive mechanism, not just the pixel value
 - **Read `height_mechanism` before fixing height variances.** A live site using `padding-top: 38%` (width-relative) must NOT be mapped to `section_height_custom` (which produces `svh` units). Match the authored CSS unit type. See the mapping table in Step 2.1.
 
+### No hardcoded pixel values for layout spacing
+- **CSS overrides for `padding`, `margin`, `gap`, `column-gap`, `row-gap`, and `padding-inline`/`padding-block` MUST use responsive units, not fixed pixels.** Values measured at 1440px do not scale. At narrower viewports, fixed spacing consumes a disproportionate share of available width, crushing content columns.
+- Use `clamp(min, preferred, max)` where `preferred` is a `vw` value that reproduces the live measurement at 1440px. Formula: `preferred = (live_px / 1440) * 100`vw. Example: live padding is 96px at 1440px → `clamp(24px, 6.67vw, 96px)`.
+- The `min` value in the clamp should be a reasonable mobile floor (16-24px for padding, 12-20px for gaps).
+- **This rule applies to any CSS override that controls whitespace in a multi-column layout.** Single-column sections (mobile stacks) are less affected, but still prefer responsive units for consistency.
+- If the live site uses fixed pixels at all breakpoints (verified by extracting at 1440, 1024, and 768), then fixed pixels are acceptable. But this is rare. Most Shopify themes use responsive spacing.
+
 ## Step 1: Load Variance Queue from Section Report
 
 Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
@@ -174,6 +181,23 @@ For each variance in the queue:
    | `fixed` | CSS override: `max-height: Xpx` | `section_height_custom` (unless value maps to svh) |
 
    **The rule:** match the responsive behavior, not just the pixel value at one viewport size.
+
+   **Layout spacing variances (padding, gap, margin on grid containers):**
+   When overriding spacing on a multi-column layout, convert the live pixel measurement to
+   a responsive `clamp()` value. Do NOT write `padding-inline: 96px` because you measured
+   96px at 1440px wide.
+
+   | Live measurement at 1440px | Correct CSS override | WRONG override |
+   |---------------------------|---------------------|----------------|
+   | `padding-inline: 96px` | `padding-inline: clamp(24px, 6.67vw, 96px)` | `padding-inline: 96px` |
+   | `column-gap: 123px` | `column-gap: clamp(20px, 8.54vw, 123px)` | `column-gap: 123px` |
+   | `margin-inline: 40px` | `margin-inline: clamp(16px, 2.78vw, 40px)` | `margin-inline: 40px` |
+
+   Formula: `preferred_vw = (live_px / 1440) * 100`. Use a sensible floor (16-24px for padding,
+   12-20px for gaps) so mobile doesn't collapse to zero. The `max` is the live value you measured.
+
+   **Exception:** If you extract the live site at 1440, 1024, AND 768 and confirm the spacing
+   is identical fixed pixels at all three widths, then fixed pixels are correct. This is rare.
 
 3. **Record the hypothesis** before applying:
    ```
@@ -345,6 +369,68 @@ This overrides the conflicting global min-height AND sets the correct responsive
    VISIBILITY GATE: FAIL ✗  (h1 "About GLDN Jewelry" clipped by .hero overflow:hidden)
    → Treating as REGRESSION. Reverting.
    ```
+
+5. **CROSS-BREAKPOINT CHECK (layout CSS overrides only):** If the change was a CSS override
+   affecting layout properties (padding, margin, gap, grid-template-columns, width, height,
+   max-width, max-height, aspect-ratio), verify it doesn't break at other breakpoints.
+
+   **Skip this step if** the change was a JSON setting, a typography-only CSS property
+   (font-size, font-weight, color, letter-spacing, line-height), or a non-layout override.
+
+   Run the same extraction at two additional viewport widths: **1024px** and **768px**.
+   You don't need pixel-perfect matches at these sizes, but check for:
+
+   - **Content overflow:** Is text being pushed outside its container or off-screen?
+   - **Column collapse:** In a multi-column grid, does the content column still have
+     reasonable width? (Minimum ~250px for a text column with body copy.)
+   - **Spacing ratio:** Does the spacing between columns look proportional, or is it
+     consuming >40% of the available width?
+
+   ```javascript
+   // Quick layout health check at a given viewport width
+   ((sectionSelector, viewportWidth) => {
+     const section = document.querySelector(sectionSelector);
+     if (!section) return JSON.stringify({ error: 'section not found' });
+     const columns = section.querySelectorAll('[class*="grid"] > *, [class*="columns"] > *');
+     const results = [];
+     for (const col of columns) {
+       const r = col.getBoundingClientRect();
+       results.push({
+         class: col.className.split(' ').slice(0, 2).join(' '),
+         width: Math.round(r.width),
+         height: Math.round(r.height),
+         overflow: r.right > viewportWidth || r.left < 0
+       });
+     }
+     const sectionRect = section.getBoundingClientRect();
+     const gap = columns.length >= 2
+       ? Math.round(columns[1].getBoundingClientRect().left - columns[0].getBoundingClientRect().right)
+       : 0;
+     return JSON.stringify({
+       viewport: viewportWidth,
+       section_width: Math.round(sectionRect.width),
+       columns: results,
+       gap: gap,
+       spacing_ratio: Math.round((gap / sectionRect.width) * 100) + '%'
+     });
+   })('SECTION_SELECTOR', VIEWPORT_WIDTH)
+   ```
+
+   ```
+   CROSS-BREAKPOINT CHECK: founder_section grid layout
+     1440px: ✓ text=432px, image=661px, gap=123px (9% of width)
+     1024px: ✗ text=178px, image=308px, gap=123px (17% of width) — text column too narrow
+     768px:  ✗ text=34px, image=91px, gap=123px (22% of width) — layout broken
+   → FAIL: fixed-pixel gap/padding doesn't scale. Switching to clamp() values.
+   ```
+
+   **If the cross-breakpoint check fails:**
+   - Mark as `REGRESSION ✗` (layout breaks at narrower viewport)
+   - Revert the change (`git checkout -- <file>`)
+   - Go back to 2.1 with a responsive-unit approach (see "No hardcoded pixel values" hard rule)
+   - Log the viewport widths where it broke and why
+
+   **If it passes at all three widths:** proceed to 2.4.
 
 ### 2.4 ACCEPT or REVERT
 
