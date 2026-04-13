@@ -332,12 +332,14 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     info "Parallel session detected (existing PIDs: $(echo "$other_pids" | tr '\n' ' '))"
     info "Creating unpublished theme for isolation..."
 
-    # Name: [TF] <store-prefix> / <branch>
+    # Name: [TF] <repo> / <branch>
     # e.g. "[TF] gldn-hrzn4 / pull-megamenus"
-    local branch_name store_prefix
+    local branch_name repo_name
     branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
-    store_prefix=$(echo "$dev_store" | sed 's/\.myshopify\.com$//')
-    local tf_name="[TF] ${store_prefix} / ${branch_name}"
+    repo_name=$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null \
+      | sed 's|.*[:/]\([^/]*/[^/]*\)\.git$|\1|;s|.*[:/]\([^/]*/[^/]*\)$|\1|' \
+      | sed 's|.*/||' || echo "unknown")
+    local tf_name="[TF] ${repo_name} / ${branch_name}"
 
     # --theme accepts a name string (not just ID) when combined with --unpublished
     # Capture stderr separately so progress bars don't corrupt JSON on stdout
