@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.5 — 2026-04-13
+
+**Fix dev-server.sh: look up existing themes by name to prevent session clobbering.**
+
+- **Fix**: Before creating a new unpublished theme, the script now runs `shopify theme list --json` and looks for an existing `[TF] <repo> / <branch>` theme matching the current branch. If found, reuses that theme ID and syncs files to it instead of creating a duplicate.
+- This prevents a 3rd parallel session from creating a new theme and clobbering an existing session's port/process.
+- Theme naming convention: `[TF] <repo-name> / <branch-name>` (e.g., `[TF] gldn-hrzn4 / pull-megamenus`).
+
 ## 0.15.4 — 2026-04-13
 
 **Fix dev-server.sh: correct flag for unpublished theme naming.**
