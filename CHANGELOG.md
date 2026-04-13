@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.15.2 — 2026-04-13
+
+**Responsive spacing guardrails for refine-section CSS overrides.**
+
+### New hard rule: No hardcoded pixel values for layout spacing
+
+CSS overrides for padding, margin, gap, and column-gap must use `clamp()` with viewport-relative
+preferred values, not fixed pixels. Values measured at 1440px (e.g., `padding-inline: 96px`)
+don't scale down. At 1024px, fixed spacing consumes a disproportionate share of available width,
+crushing content columns. Formula: `clamp(floor, (live_px / 1440 * 100)vw, live_px)`.
+
+### New verification gate: Cross-breakpoint check for layout CSS overrides
+
+Step 2.3 VERIFY now includes a cross-breakpoint check (item 5) that runs after any layout CSS
+override passes at the primary viewport. Extracts column widths, gap, and spacing ratio at
+1024px and 768px. Fails if content columns drop below 250px or spacing exceeds 40% of section
+width. On failure, reverts the change and redirects to a clamp()-based approach.
+
+### Updated approach table: Layout spacing variances
+
+Step 2.1 HYPOTHESIZE now includes a spacing-specific table showing correct clamp() patterns
+alongside the existing height mechanism table. Provides the conversion formula and common
+examples (padding-inline, column-gap, margin-inline).
+
 ## 0.15.1 — 2026-04-13
 
 **Two-axis multi-resolution probe for accurate responsive classification.**
