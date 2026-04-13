@@ -13,11 +13,42 @@
 # Output: Machine-parseable KEY=VALUE lines on stdout.
 #         Human-readable messages on stderr.
 #
-# Usage: scripts/dev-server.sh <start|stop|restart|cleanup|status>
+# Usage: scripts/dev-server.sh <start|stop|restart|cleanup|status> [--path <project-root>]
+#
+# The script determines the project root in this order:
+#   1. --path argument (if provided)
+#   2. Current working directory (if it contains .theme-forge/config.json)
+#   3. Error — must be run from the project root or pass --path
 
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Parse --path argument if provided
+PROJECT_ROOT=""
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --path)
+      PROJECT_ROOT="$2"; shift 2 ;;
+    *)
+      ARGS+=("$1"); shift ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+# Resolve project root: --path > cwd > error
+if [[ -z "$PROJECT_ROOT" ]]; then
+  if [[ -f "$(pwd)/.theme-forge/config.json" ]]; then
+    PROJECT_ROOT="$(pwd)"
+  else
+    echo "🛑 Cannot find .theme-forge/config.json in current directory ($(pwd))." >&2
+    echo "   Either run this script from the project root, or pass --path <project-root>." >&2
+    echo "   Example: scripts/dev-server.sh start --path /path/to/theme" >&2
+    echo "DEV_STATUS=error"
+    echo "DEV_ERROR=config_not_found"
+    exit 1
+  fi
+fi
+
 CONFIG_FILE="$PROJECT_ROOT/.theme-forge/config.json"
 LOG_DIR="/tmp/theme-forge-dev"
 PORT_MIN=9292

@@ -156,9 +156,13 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 
 #### Phase 3: Dev Server
 
-5. **Start the dev server** using the deterministic script:
+5. **Start the dev server** using the deterministic script. Run it from the project root:
    ```bash
    eval "$(scripts/dev-server.sh start)"
+   ```
+   If the script is installed globally (e.g., `~/.claude/skills/theme-forge/scripts/`), pass `--path`:
+   ```bash
+   eval "$(~/.claude/skills/theme-forge/scripts/dev-server.sh start --path .)"
    ```
    This outputs `DEV_PORT`, `DEV_THEME_ID`, `DEV_URL`, `DEV_PREVIEW_URL`, `DEV_EDITOR_URL`, `DEV_MODE`, and `DEV_STATUS` as environment variables. The script handles everything:
    - Pre-flight safety check (blocks live themes)
@@ -167,9 +171,13 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
    - Finds open port, starts server, captures URLs
    - Writes all `dev_*` fields to config
 
+   **If the script fails (non-zero exit or `DEV_STATUS=error`): STOP.** Do NOT continue the workflow without a running dev server. Fix the error first. Common issues:
+   - `config_not_found`: Run from the project root or pass `--path`
+   - Missing `dev_store` or `target_theme_id`: Run `/theme-forge onboard` first
+
    **Present the preview and editor URLs to the user** after the script runs. The user needs these to interact with the dev theme.
 
-   Other script commands:
+   Other script commands (always pass `--path` if not running from the project root):
    ```bash
    scripts/dev-server.sh status    # Check if running
    scripts/dev-server.sh restart   # Cache invalidation (same port + theme)
