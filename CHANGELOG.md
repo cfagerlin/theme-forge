@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.15.0 — 2026-04-13
+
+**Decouple pull-section from refine-section, add user-provided variance priorities, new refine-page command.**
+
+### Changed: pull-section no longer auto-invokes refine-section
+
+pull-section now completes after its first-pass fixes and reports remaining variances with
+status `needs_refinement`. The user decides whether to run refine-section separately.
+This saves tokens on sections that are close enough on the first pull.
+
+Step 9 changed from "Hand Off to refine-section (MANDATORY)" to "Report & Recommend".
+Step 10 now accepts `needs_refinement` as a valid final status when open variances remain.
+
+### New: User-provided variance priorities (refine-section)
+
+refine-section now accepts `--variances "element:property, ..."` to specify which variances
+matter most to the user. These are marked with `priority: "user"` and sort to the top of
+the queue (above visibility, structural, layout, etc.). find-variances still runs to discover
+all variances, but user-provided ones are processed first.
+
+Dedup rule: if find-variances independently discovers a user-specified variance, the existing
+entry's priority is upgraded rather than creating a duplicate.
+
+### New: refine-page command
+
+`/theme-forge refine-page [page-path]` runs refine-section on all sections of a page that
+have status `needs_refinement`. Similar to pull-page but for the refinement pass. Supports
+`--variances` flag (applied to all sections). Commits and pushes after each section.
+
+### Changed: pull-page reports needs_refinement count
+
+pull-page Step 5 now reports `sections_completed` and `sections_needs_refinement` separately,
+and recommends `/theme-forge refine-page` when sections need refinement. Step 3 skips
+sections with `needs_refinement` status (refinement is a separate step).
+
 ## 0.14.0 — 2026-04-13
 
 **Three fixes to refine-section and find-variances to prevent CSS mapping failures.**

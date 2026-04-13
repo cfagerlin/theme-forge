@@ -2,7 +2,7 @@
 name: refine-section
 description: >
   Autoresearch-style experiment loop for closing CSS/settings variances on a pulled section.
-  Auto-invoked by pull-section when FAIL rows remain. Can also be invoked directly.
+  Invoked separately after pull-section to close remaining gaps. Accepts user-provided priority variances.
   - MANDATORY TRIGGERS: theme-forge refine-section, refine section, fix variances, close FAILs
 ---
 
@@ -14,19 +14,21 @@ one atomic change per iteration, verified before the next, with git as state mac
 
 ## When this runs
 
-1. **Auto-invoked by pull-section** after Step 9 when `open` variances remain in the section report.
+1. **Invoked by the user** after pull-section reports `needs_refinement` status with open variances.
    The variance array (with structured test conditions) is already in the report from find-variances.
-2. **Manually invoked** by the user: `/theme-forge refine-section <section-key> --page <page>`
+2. **Invoked by refine-page** which runs refine-section on all sections of a page that have open variances.
+3. **Invoked directly** at any time: `/theme-forge refine-section <section-key> --page <page>`
    Reads the variance array from the section report. If no variance array exists, runs find-variances first.
 
 ## Arguments
 
 ```
-/theme-forge refine-section <section-key> [--page <page>]
+/theme-forge refine-section <section-key> [--page <page>] [--variances "<element>:<property>, ..."]
 ```
 
 - `section-key` — e.g., `product-information`, `header`, `hero-1`
 - `--page` — the template page (e.g., `product`, `index`). Defaults to the page in the section report.
+- `--variances` — optional comma-separated list of user-specified priority variances. Format: `"element:property"` pairs (e.g., `"h1:fontWeight, .price:fontSize"`). These become the highest-priority items in the queue. find-variances still runs to discover all variances, but user-provided ones sort to the top.
 
 ## Prerequisites
 
@@ -80,11 +82,23 @@ Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
 ```
 Then re-read the report.
 
-1. **Sort the queue by priority (responsive-first ordering).** This ordering is critical. Fix the
-   responsive skeleton before tuning CSS details. find-variances already assigns these types:
+### 1.1 Merge User-Provided Variances
+
+If `--variances` was passed, parse the comma-separated `"element:property"` pairs and merge them into the queue:
+
+1. **For each user-provided variance**, check if find-variances already discovered it (match by element + property).
+   - **If found:** Mark the existing entry with `priority: "user"`. This sorts it above all other priorities.
+   - **If NOT found:** Create a new variance entry with `priority: "user"`, `source: "user"`, and `status: "open"`. The test condition will be generated when this variance is first processed in Step 2.1 (inspect the DOM to build the selector and expected value).
+
+2. **Dedup rule:** A user-provided variance that matches an existing find-variances entry does NOT create a duplicate. It upgrades the existing entry's priority.
+
+### 1.2 Sort the Queue
+
+**Sort the queue by priority (responsive-first ordering).** This ordering is critical. Fix the responsive skeleton before tuning CSS details. find-variances already assigns these types:
 
    ```
    PRIORITY ORDER:
+   0. user        — ★ user-specified variances (highest priority)
    1. visibility  — hard gate, text invisible on dev
    2. structural  — element missing or wrong position
    3. layout      — height, width, responsive behavior (fix these BEFORE typography)
@@ -93,22 +107,26 @@ Then re-read the report.
    6. content     — text/image differences (flag only)
    ```
 
-2. Display the queue (from the variance array, sorted by priority):
+### 1.3 Display the Queue
+
+Display the queue (from the variance array, sorted by priority):
 
 ```
 VARIANCE QUEUE: {section-key}
 ════════════════════════════════════════════════════════════
 #  Element              Property         Live           Dev            Type        Test
-1  section              height           547px          603px          layout      probe:width-relative
-2  h1                   visibility       visible        clipped        visibility  js-assertion
-3  h1                   fontWeight       200            700            setting     --heading-font-weight
-4  .price-money         fontWeight       300            500            css         shadow:product-info
+★1 h1                   fontWeight       200            700            setting     --heading-font-weight
+★2 .price-money         fontWeight       300            500            css         shadow:product-info
+3  section              height           547px          603px          layout      probe:width-relative
+4  h1                   visibility       visible        clipped        visibility  js-assertion
 5  .add-to-cart         fontSize         13px           16px           css         direct selector
 ════════════════════════════════════════════════════════════
-METRIC: 5 open → target: 0
+METRIC: 5 open → target: 0 (★ = user priority)
 ```
 
-   **Why layout first:** If the section height is wrong, text positioning is wrong, and overflow
+User-priority variances are marked with ★ in the display. Within the user-priority group, maintain the order the user specified (their first item is most important to them).
+
+   **Why layout first (after user priorities):** If the section height is wrong, text positioning is wrong, and overflow
    clips content. Fixing font-weight on an invisible element is wasted work. Lock in the
    responsive skeleton, then tune the details.
 
@@ -116,8 +134,11 @@ The "Test" column shows the verification method from each variance's test condit
 - `--custom-prop-name` — CSS custom property override (through Shadow DOM)
 - `shadow:host-tag` — element inside Shadow DOM, needs special selector
 - `direct selector` — standard CSS selector works
+- `(pending)` — user-provided variance, test condition will be generated in Step 2.1
 
-3. Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learning says "Horizon price component uses `--price-font-weight` custom property," apply that knowledge in Step 2.1.
+### 1.4 Load Learnings
+
+Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learning says "Horizon price component uses `--price-font-weight` custom property," apply that knowledge in Step 2.1.
 
 ## Step 2: The Experiment Loop
 
@@ -487,4 +508,4 @@ FAIL rows:    0 remaining
 ════════════════════════════════════════════════════════════
 ```
 
-If invoked from pull-section, return control to pull-section Step 10 (Final Validation Gate).
+If all variances are closed (0 remaining), update the section report status from `needs_refinement` to `completed`.

@@ -172,6 +172,7 @@ For each section:
 1. **`git pull`** to get the latest state (another session may have completed sections since we started)
 2. Check if a report already exists at `.theme-forge/reports/sections/{section-type}.json`
    - If yes and `status` is `completed` or `completed_code_only`, skip
+   - If yes and `status` is `needs_refinement`, skip (refinement is a separate step via `refine-page`)
    - If yes and `status` is `failed`, skip (use `--retry-failed` to delete failed reports first)
    - If yes and `status` is `skipped`, skip
 3. Run `pull-section` on it. **Pass `--css-file assets/custom-migration-{page}.css`** so CSS overrides go to the per-page file. **Thread debug mode through:** if `--debug` was passed to pull-page, or if `.theme-forge/config.json` has `"debug": true` (and `--no-debug` was NOT passed), invoke pull-section with `--debug` so each section gets its own debug directory.
@@ -181,7 +182,7 @@ For each section:
    - Check: `screenshots` array is non-empty (visual verification happened)
    - Check: every entry in `variances_accepted` (if any) has `user_approved: true`
    - Check: `variances_found == variances_fixed + variances_remaining` (math checks out)
-   - Check: `final_status` is NOT `"completed"` when `variances_remaining > 0`
+   - Check: `status` is `completed` or `needs_refinement` (not still `in_progress` or missing)
    - Check: responsive breakpoints were verified (tablet + mobile, not just desktop)
    - **If any check fails**, flag via `AskUserQuestion`:
      ```
@@ -247,6 +248,8 @@ Save to `.theme-forge/reports/pages/{page-path}.json`:
   "page": "index",
   "status": "complete",
   "sections_pulled": 8,
+  "sections_completed": 6,
+  "sections_needs_refinement": 2,
   "sections_skipped": 0,
   "sections_with_issues": 2,
   "full_page_variances": [
@@ -268,7 +271,25 @@ Save to `.theme-forge/reports/pages/{page-path}.json`:
 }
 ```
 
-After writing the page report, display the cutover items summary if any exist:
+After writing the page report, display the page summary:
+
+```
+PAGE PULL COMPLETE: {page}
+════════════════════════════════════════════════════════════
+Sections pulled:            {total}
+  Completed (all fixed):    {completed_count}
+  Needs refinement:         {needs_refinement_count}
+  Skipped:                  {skipped_count}
+════════════════════════════════════════════════════════════
+```
+
+If `sections_needs_refinement > 0`, recommend:
+```
+To close remaining variances, run:
+  /theme-forge refine-page {page}
+```
+
+Display the cutover items summary if any exist:
 
 ```
 CUTOVER ITEMS (2):
