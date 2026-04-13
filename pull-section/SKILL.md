@@ -13,6 +13,11 @@ Execute the full compare→fix→verify methodology on a single section. This is
 
 These rules are non-negotiable. They override everything else in this document. If you find yourself about to violate one, stop and re-read it.
 
+### Dev server MUST use the script (no manual startup)
+- **NEVER run `shopify theme dev` directly.** Always use `eval "$(scripts/dev-server.sh start)"`. The script handles safety checks (blocks live themes), parallel session isolation (unpublished themes), port discovery, and URL capture. Running `shopify theme dev` manually bypasses all of these safeguards.
+- **For restarts, use `scripts/dev-server.sh restart`.** Do not kill and restart the process yourself.
+- **For cleanup, use `scripts/dev-server.sh cleanup`.** This deletes unpublished themes and scans for orphans.
+
 ### Screenshots are MANDATORY before code changes
 - **You MUST capture live site screenshots BEFORE making any code changes.** No exceptions. The capture step (Step 4) must run before Steps 5-7. If you skip capture and go straight to code, you are flying blind. STOP and go back.
 - **ALL screenshots are taken by the `capture` skill.** Do not run browse tool commands directly. Invoke `capture/SKILL.md` for every screenshot. This ensures section-scoped capture, proper `wait --networkidle`, popup dismissal, and all three breakpoints (desktop, tablet, mobile).
@@ -23,6 +28,15 @@ These rules are non-negotiable. They override everything else in this document. 
 - **`transcript.md` is mandatory.** Write to it incrementally at every step, not at the end. A debug session without a transcript is a failed debug session. Do not skip it.
 - **All 5 mandatory artifacts must exist**: transcript.md, step4-live.png, step4-dev.png, step8-verify.png, summary.json.
 - **Write transcript FIRST at each step, THEN do the work.** This ensures crashes leave partial transcripts, not empty ones.
+
+### find-variances is MANDATORY (no inline extraction)
+- **You MUST invoke the `find-variances` skill at Step 4.3.** Do NOT extract computed styles yourself with inline `page.evaluate()` or browse tool JS. find-variances produces the structured `variances` array in the section report. Without this array, Steps 5-10 cannot function.
+- **The `variances` array in the section report is the ONLY valid work queue.** If you reach Step 5 and the section report does not contain a `variances` array, STOP. Go back and run find-variances. Old-style `variances_found`/`variances_fixed`/`variances_remaining` counter fields are NOT a substitute.
+- **If you find yourself writing JS to extract `getComputedStyle()` inline, STOP.** That is find-variances' job. The only exception is ad-hoc element inspection during fix work (Step 5.5 selector discovery).
+
+### refine-section is MANDATORY for remaining variances
+- **If Step 8 leaves `open` variances, you MUST hand off to `refine-section` at Step 9.** Do NOT continue the old Step 5→8 loop manually. refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally.
+- **If you find yourself applying CSS fixes without running refine-section's test conditions, STOP.** Each variance has a structured test condition that refine-section executes. Improvised visual checks are not a substitute.
 
 ### Extraction FAIL = must fix (no rationalizing)
 - **If the computed style extraction marks a row as FAIL, you MUST fix it or escalate.** You may not reclassify a FAIL as "measurement artifact," "visually equivalent," or "not a real difference." The extraction compares exact computed values from the browser. If live says `text-align: center` and dev says `text-align: left`, that is a real difference — fix it. Do not argue that "the container is narrow so they look the same."
@@ -818,9 +832,13 @@ Run the capture workflow (screenshots only):
 - Section: same selector as live site
 - Output: `.theme-forge/tmp/capture-dev/`
 
-#### 4.3 Run find-variances (extraction + comparison)
+#### 4.3 Run find-variances (extraction + comparison) — MANDATORY
 
-Invoke the `find-variances` skill to extract computed styles from both sites and build the variance array:
+> **This step is NOT optional.** Steps 5-10 depend on the structured `variances` array
+> that only find-variances produces. If you skip this step, you will be blocked at Step 5
+> and again at Step 10. Do not attempt to extract computed styles yourself.
+
+Invoke the `find-variances` skill:
 
 ```
 /theme-forge find-variances <section-key> --page <page>
@@ -828,7 +846,7 @@ Invoke the `find-variances` skill to extract computed styles from both sites and
 
 find-variances navigates both live and dev sites, extracts computed styles at all 3 breakpoints, compares property-by-property, runs the rendered output validation checklist, and writes the structured variance array to the section report. Each variance includes a test condition for refine-section to execute.
 
-After find-variances completes, the section report at `.theme-forge/reports/sections/{section-key}.json` contains the `variances` array.
+**Verify after completion:** Read the section report and confirm the `variances` array exists. If it doesn't, find-variances failed — check its output for errors and retry.
 
 #### 4.4 Compare screenshots at each breakpoint
 
@@ -874,6 +892,12 @@ C) Skip this section
 **Do NOT proceed to Step 5 until the user responds.** In batch mode (`pull-page` or `--full`), auto-select A and log "batch mode: auto-proceeding" in the transcript.
 
 ### Step 5: Identify Variances
+
+> **HARD GATE: Before proceeding, verify the `variances` array exists in the section report.**
+> Read `.theme-forge/reports/sections/{section-key}.json` and check for the `variances` field.
+> - **If `variances` array exists**: Proceed. This is your work queue.
+> - **If `variances` array is missing**: STOP. Go back and run Step 4.3 (`/theme-forge find-variances`). You cannot identify or fix variances without the structured extraction.
+> - **If the report has old-style `variances_found`/`variances_fixed` counters but no `variances` array**: The report was written by an older workflow. Run find-variances to upgrade it — find-variances will merge new entries without losing existing data.
 
 **ZERO TOLERANCE: Every measurable difference between the live and dev rendering is a defect that MUST be fixed.** There is no category of "acceptable" variance based on size or severity. If it can be measured (font weight, letter spacing, container width, padding, color), it must be corrected. "Could add if needed" is not a valid resolution.
 
@@ -1072,13 +1096,19 @@ After completing the FIRST section (usually header), identify values that are th
 - Section-specific font sizes (hero h1 is larger than footer h2)
 - Layout dimensions (grid columns, flex ratios, container max-widths)
 
-### Step 9: Next Variance or Hand Off to refine-section
+### Step 9: Hand Off to refine-section (MANDATORY)
+
+> **HARD GATE: If `open` variances remain, you MUST invoke refine-section.**
+> Do NOT continue applying CSS fixes manually. Do NOT loop back to Step 5-8.
+> refine-section exists specifically to close remaining variances with a disciplined
+> one-change-at-a-time experiment loop. Bypassing it produces the same thrashing
+> pattern that the old workflow suffered from.
 
 After Step 8, check the variance array in the section report for `open` entries.
 
 **If ALL variances are `fixed` or `accepted`:** Proceed to Step 10 (Final Validation Gate).
 
-**If `open` variances remain:** Auto-invoke the `refine-section` skill to close them with the tight experiment loop. Pass these arguments:
+**If `open` variances remain:** Invoke `refine-section`:
 
 ```
 /theme-forge refine-section <section-key> --page <page>
@@ -1086,11 +1116,16 @@ After Step 8, check the variance array in the section report for `open` entries.
 
 refine-section reads the variance array from the section report as its work queue. Each variance entry has a structured test condition that refine-section executes directly (no improvised JS). refine-section commits each verified fix individually and updates the variance entry status. When it finishes (0 open variances or all remaining escalated), return here and proceed to Step 10.
 
-**Do NOT continue the old Step 5→8 loop manually when refine-section is available.** The experiment loop in refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally, not as guidelines.
+**How to tell if you're bypassing this gate:** If you are writing CSS fixes after Step 8 without having invoked `/theme-forge refine-section`, you are doing it wrong. STOP. The experiment loop in refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally — not as guidelines you can choose to follow.
 
 ### Step 10: Final Validation Gate
 
 **You cannot declare a section "done" without passing this gate.** This is not optional.
+
+> **HARD GATE: The section report MUST contain a `variances` array.**
+> If the report does not have a `variances` array, you skipped find-variances. STOP.
+> Go back to Step 4.3 and run find-variances before declaring anything "done."
+> A report with only `variances_found`/`variances_fixed` counters (no array) is INVALID.
 
 1. **Read the variance array from the section report.** Every entry must have `status: "fixed"` or `status: "accepted"`. No `open` or `escalated` entries allowed.
 
@@ -1219,6 +1254,12 @@ git push
 ```
 
 Replace `{status}` with the report's `final_status` (e.g., `completed`, `incomplete`, `failed`).
+
+**Clean up unpublished theme (if applicable):** After a successful commit, run:
+```bash
+scripts/dev-server.sh cleanup
+```
+This stops the dev server, deletes the unpublished theme if this session created one, and scans for orphaned `[TF]` themes. This frees theme slots on the store (99-theme limit).
 
 #### Cutover Checklist
 

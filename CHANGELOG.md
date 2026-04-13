@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.12.0 — 2026-04-13
+
+**Deterministic dev server script + hard gates for find-variances/refine-section.**
+
+### New: `scripts/dev-server.sh`
+
+The Dev Server Protocol was 200 lines of SKILL.md prose that agents could misread or skip. Now it's a shell script with subcommands: `start`, `stop`, `restart`, `cleanup`, `status`. Machine-parseable KEY=VALUE output on stdout. Agent usage: `eval "$(scripts/dev-server.sh start)"`.
+
+What the script handles:
+- **Safety**: Verifies theme role via `shopify theme info --json`. Hard blocks live/demo themes.
+- **Parallel isolation**: Detects existing dev servers via `ps aux`. First session uses `[development]` theme; additional sessions auto-create unpublished themes named `[TF] <worktree>`.
+- **Port discovery**: Scans 9292-9299 for first available port.
+- **Reconnect**: If config has `dev_port` and the process matches, outputs existing session info without restarting.
+- **Cleanup**: Stops server, deletes unpublished theme if created, scans for orphaned `[TF]` themes (Shopify 99-theme limit).
+- **URL capture**: Parses preview and editor URLs from Shopify CLI output, writes to config, presents to user.
+
+### Hard gates for find-variances and refine-section
+
+Audit of a parallel agent session showed it had access to the new skills but never invoked them. Added blocking gates:
+- **Top-level hard rules**: "find-variances is MANDATORY" and "refine-section is MANDATORY" — agents running inline `getComputedStyle()` extraction are told to STOP
+- **Step 4.3 gate**: Marked MANDATORY with warning that Steps 5-10 will block without it
+- **Step 5 gate**: Pre-condition check — no `variances` array → STOP
+- **Step 9 gate**: MANDATORY handoff to refine-section for open variances
+- **Step 10 gate**: Report without `variances` array is INVALID
+
+### Safety rule: never run `shopify theme dev` directly
+
+Added explicit NEVER rules to orchestrator and pull-section: always use `scripts/dev-server.sh`, never invoke `shopify theme dev` manually. Bypassing the script skips live theme checks, parallel isolation, and port management.
+
+### SKILL.md reduction
+
+Orchestrator Phase 3 went from ~200 lines to ~20 lines referencing the script. Sub-skills use a single `eval` call.
+
 ## 0.11.1 — 2026-04-12
 
 **Thread-safe dev server management.**
