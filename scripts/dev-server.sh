@@ -332,20 +332,9 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     info "Parallel session detected (existing PIDs: $(echo "$other_pids" | tr '\n' ' '))"
     info "Creating unpublished theme for isolation..."
 
-    # Name the theme for identification in Shopify admin.
-    # Conductor layout: .../workspaces/<repo>/<workspace> → "[TF] repo - workspace"
-    # Fallback (standalone clone): just use dirname → "[TF] dirname"
-    local tf_name
-    local parent_dir
-    parent_dir=$(basename "$(dirname "$PROJECT_ROOT")")
-    local project_dir
-    project_dir=$(basename "$PROJECT_ROOT")
-    if [[ "$parent_dir" != "/" && "$parent_dir" != "$HOME" && "$parent_dir" != "$(whoami)" \
-          && "$parent_dir" != "$project_dir" ]]; then
-      tf_name="[TF] ${parent_dir} - ${project_dir}"
-    else
-      tf_name="[TF] ${project_dir}"
-    fi
+    local branch_name
+    branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
+    local tf_name="[TF] ${branch_name}"
     local push_output
     push_output=$(shopify theme push --unpublished --name "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
       warn "Theme push output: $push_output"
