@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.3 — 2026-04-13
+
+**Fix dev-server.sh: unpublished theme creation + PID lifecycle tracking.**
+
+- **Fix**: `shopify theme push --unpublished` now passes `--name` for non-interactive mode. Without it, parallel session isolation silently failed.
+- **PID tracking**: Dev server PID is stored in `config.json` (`dev_pid`). On reconnect, the script checks `kill -0 $pid` first (fast, exact), falling back to `ps aux` grep only if PID is missing or stale. Dead PIDs trigger fresh start with port scan.
+- All subcommands (`start`, `stop`, `restart`, `status`, `cleanup`) now emit `DEV_PID` in machine output and persist it in config.
+
 ## 0.15.2 — 2026-04-13
 
 **Responsive spacing guardrails for refine-section CSS overrides.**
