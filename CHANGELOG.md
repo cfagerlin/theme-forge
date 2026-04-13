@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.16.0 — 2026-04-13
+
+**Two-axis multi-resolution probe for accurate responsive classification.**
+
+### Fixed: Multi-resolution probe now varies both width AND height
+
+The old probe only varied viewport width (1024, 1440, 1920) while keeping height constant.
+This meant it could confirm `width-relative` sizing (vw, %) but could not distinguish
+`fixed` from `viewport-height` (vh, svh, dvh), since both show constant element height
+when only viewport width changes.
+
+The probe now runs two sweeps:
+- **Width sweep** (1024×900, 1440×900, 1920×900): detects width-relative scaling
+- **Height sweep** (1440×600, 1440×900, 1440×1200): detects viewport-height scaling
+
+Classification uses a 2D matrix: width-ratio constant + height constant = `width-relative`,
+width constant + height-ratio constant = `viewport-height`, both constant = `fixed`, etc.
+
+Probe data structure updated from flat keys (`"1024"`, `"1440"`, `"1920"`) to nested
+`width_sweep` and `height_sweep` objects. refine-section reads `responsive_type` and
+`classification` only, so no downstream changes needed.
+
 ## 0.15.0 — 2026-04-13
 
 **Decouple pull-section from refine-section, add user-provided variance priorities, new refine-page command.**
