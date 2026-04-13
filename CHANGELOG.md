@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.16.0 — 2026-04-13
+## 0.15.1 — 2026-04-13
 
 **Two-axis multi-resolution probe for accurate responsive classification.**
 
