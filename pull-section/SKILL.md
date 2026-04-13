@@ -1250,7 +1250,11 @@ git push
 
 Replace `{status}` with the report's `final_status` (e.g., `completed`, `incomplete`, `failed`).
 
-**Clean up unpublished theme (if applicable):** After a successful commit, check `dev_theme_created` in `.theme-forge/config.json`. If `true`, this session created an unpublished theme for parallel development. Follow the **Cleanup** section of the Dev Server Protocol in the orchestrator `SKILL.md` to delete it. This frees a theme slot on the store (99-theme limit).
+**Clean up unpublished theme (if applicable):** After a successful commit, run:
+```bash
+scripts/dev-server.sh cleanup
+```
+This stops the dev server, deletes the unpublished theme if this session created one, and scans for orphaned `[TF]` themes. This frees theme slots on the store (99-theme limit).
 
 #### Cutover Checklist
 

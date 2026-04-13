@@ -199,15 +199,15 @@ Note: A full base theme export is no longer needed. Sessions pull templates, con
 
 ### Step 4: Start Dev Server
 
-Follow the **Dev Server Protocol** in the orchestrator `SKILL.md` to start or reconnect to this session's dev server. The protocol:
+If Shopify CLI is available (`shopify_cli: true` in capabilities):
 
-1. Checks config for an existing `dev_port` and verifies the process is still running (matching both port + theme ID).
-2. If no server is running, finds an open port (9292-9299) and starts `shopify theme dev --store <dev_store> --theme <target_theme_id> --port <port> --path .`
-3. Captures the preview URL and theme editor URL from the Shopify CLI output.
-4. Saves `dev_port`, `dev_url`, `dev_preview_url`, and `dev_editor_url` to config.
-5. Presents the session URLs to the user.
+```bash
+eval "$(scripts/dev-server.sh start)"
+```
 
-If Shopify CLI is not available (`shopify_cli: false` in capabilities), set `dev_url: null` and tell the user:
+The script handles everything: safety checks (blocks live themes), parallel session detection, port discovery, unpublished theme creation if needed, and URL capture. Present `DEV_PREVIEW_URL` and `DEV_EDITOR_URL` to the user.
+
+If Shopify CLI is not available (`shopify_cli: false`), set `dev_url: null` and tell the user:
 
 > No Shopify CLI available. Start a dev server manually in a separate terminal:
 > ```
@@ -215,8 +215,6 @@ If Shopify CLI is not available (`shopify_cli: false` in capabilities), set `dev
 > shopify theme dev --store <dev_store> --theme <target_theme_id> --port <port>
 > ```
 > Then re-run onboard to detect it.
-
-**Important:** Never start a dev server without both `--theme` and `--port` flags. Omitting `--theme` serves the live/published theme. Omitting `--port` risks colliding with another session's server.
 
 ### Step 5: Write Config
 

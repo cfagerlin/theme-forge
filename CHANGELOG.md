@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.0 — 2026-04-13
+
+**Deterministic dev server script replaces prose protocol.**
+
+The Dev Server Protocol was 200 lines of SKILL.md prose that agents could misread or skip. Now it's a shell script (`scripts/dev-server.sh`) that handles the full lifecycle deterministically.
+
+### New: `scripts/dev-server.sh`
+
+Subcommands: `start`, `stop`, `restart`, `cleanup`, `status`. Machine-parseable KEY=VALUE output on stdout, human-readable status on stderr. Agent usage: `eval "$(scripts/dev-server.sh start)"`.
+
+What the script handles:
+- **Safety**: Verifies theme role via `shopify theme info --json`. Hard blocks live/demo themes.
+- **Parallel isolation**: Detects existing dev servers via `ps aux`. First session uses `[development]` theme; additional sessions auto-create unpublished themes named `[TF] <worktree>`.
+- **Port discovery**: Scans 9292-9299 for first available port.
+- **Reconnect**: If config has `dev_port` and the process matches, outputs existing session info without restarting.
+- **Cleanup**: Stops server, deletes unpublished theme if created, scans for orphaned `[TF]` themes.
+- **URL capture**: Parses preview and editor URLs from Shopify CLI output, writes to config, presents to user.
+
+### SKILL.md reduction
+
+The orchestrator Phase 3 went from ~200 lines of inline protocol to ~20 lines referencing the script. Sub-skills (pull-header, pull-footer, pull-page, onboard) now use a single `eval "$(scripts/dev-server.sh start)"` call.
+
 ## 0.11.3 — 2026-04-12
 
 **Hard gates to enforce find-variances and refine-section usage.**

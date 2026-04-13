@@ -124,9 +124,11 @@ B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE 
 
 ### Step 0.8: Start Dev Server
 
-Follow the **Dev Server Protocol** in the orchestrator `SKILL.md`. This finds an open port, starts with `--theme` + `--port`, saves `dev_port`/`dev_url`/`dev_preview_url`/`dev_editor_url` to config, and presents the session URLs to the user.
+```bash
+eval "$(scripts/dev-server.sh start)"
+```
 
-If the server is already running (config has `dev_port` and the process matches port + theme ID), reconnect to it. Do not start a second server.
+Present the `DEV_PREVIEW_URL` and `DEV_EDITOR_URL` to the user. The script handles port discovery, parallel session detection (creates unpublished theme if needed), and safety checks (blocks live themes).
 
 The dev server runs in the background for the duration of the session and hot-reloads local file changes automatically.
 
@@ -199,7 +201,7 @@ For each section:
 
    **Verify the push succeeded** — check that `git log origin/$(git branch --show-current) --oneline -1` shows your commit. If it doesn't, the push failed. Fix it before continuing.
 
-   **Clean up unpublished theme (if applicable):** After a successful push, check `dev_theme_created` in `.theme-forge/config.json`. If `true`, follow the **Cleanup** section of the Dev Server Protocol in the orchestrator `SKILL.md` to delete the unpublished theme. This frees a theme slot (99-theme limit).
+   **Clean up unpublished theme (if applicable):** After a successful push, run `scripts/dev-server.sh cleanup` to delete the unpublished theme if this session created one. This frees a theme slot (99-theme limit).
 
 ### Step 3.5: Completeness Gate
 
