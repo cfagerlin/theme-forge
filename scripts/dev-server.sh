@@ -335,21 +335,17 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     local branch_name
     branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
     local tf_name="[TF] ${branch_name}"
+    # --theme accepts a name string (not just ID) when combined with --unpublished
     local push_output
-    push_output=$(shopify theme push --unpublished --name "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
+    push_output=$(shopify theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
       warn "Theme push output: $push_output"
       die "Failed to create unpublished theme. See output above."
     }
 
     dev_theme_id=$(echo "$push_output" | jq -r '.theme.id // empty' 2>/dev/null || echo "")
     if [[ -z "$dev_theme_id" ]]; then
-      # Try alternate JSON path
-      dev_theme_id=$(echo "$push_output" | grep -oE '"id":\s*[0-9]+' | head -1 | grep -oE '[0-9]+' || echo "")
-    fi
-
-    if [[ -z "$dev_theme_id" ]]; then
       warn "Push output: $push_output"
-      die "Could not parse theme ID from push output."
+      die "Could not parse theme ID from push output. Check Shopify CLI version and auth."
     fi
 
     # Verify the new theme is safe

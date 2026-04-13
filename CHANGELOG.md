@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.4 — 2026-04-13
+
+**Fix dev-server.sh: correct flag for unpublished theme naming.**
+
+- **Fix**: Use `--theme` (not `--name`) to name unpublished themes. `--name` doesn't exist in Shopify CLI. `--theme` accepts a name string when combined with `--unpublished`. Tested and confirmed on CLI 3.77 and 3.93.
+- Theme names use branch name: `[TF] <branch>` for easy identification in Shopify admin.
+
 ## 0.15.3 — 2026-04-13
 
 **Fix dev-server.sh: unpublished theme creation + PID lifecycle tracking.**
