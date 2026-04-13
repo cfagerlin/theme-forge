@@ -14,9 +14,16 @@ Execute the full compare→fix→verify methodology on a single section. This is
 These rules are non-negotiable. They override everything else in this document. If you find yourself about to violate one, stop and re-read it.
 
 ### Dev server MUST use the script (no manual startup)
-- **NEVER run `shopify theme dev` directly.** Always use `eval "$(scripts/dev-server.sh start)"`. The script handles safety checks (blocks live themes), parallel session isolation (unpublished themes), port discovery, and URL capture. Running `shopify theme dev` manually bypasses all of these safeguards.
-- **For restarts, use `scripts/dev-server.sh restart`.** Do not kill and restart the process yourself.
-- **For cleanup, use `scripts/dev-server.sh cleanup`.** This deletes unpublished themes and scans for orphans.
+- **NEVER run `shopify theme dev` directly.** Always use the dev-server script. The script handles safety checks (blocks live themes), parallel session isolation (unpublished themes), port discovery, and URL capture. Running `shopify theme dev` manually bypasses all of these safeguards.
+  ```bash
+  # Find the script (project-local or global install)
+  DS="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/dev-server.sh"
+  [ -x "$DS" ] || DS="$HOME/.claude/skills/theme-forge/scripts/dev-server.sh"
+  eval "$("$DS" start --path .)"
+  ```
+  **If the script fails (non-zero exit or `DEV_STATUS=error`): STOP.** Do not continue without a running dev server.
+- **For restarts, use `"$DS" restart --path .`.** Do not kill and restart the process yourself.
+- **For cleanup, use `"$DS" cleanup --path .`.** This deletes unpublished themes and scans for orphans.
 
 ### Screenshots are MANDATORY before code changes
 - **You MUST capture live site screenshots BEFORE making any code changes.** No exceptions. The capture step (Step 4) must run before Steps 5-7. If you skip capture and go straight to code, you are flying blind. STOP and go back.

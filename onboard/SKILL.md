@@ -202,8 +202,13 @@ Note: A full base theme export is no longer needed. Sessions pull templates, con
 If Shopify CLI is available (`shopify_cli: true` in capabilities):
 
 ```bash
-eval "$(scripts/dev-server.sh start)"
+# Find the script (project-local or global install)
+DS="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/dev-server.sh"
+[ -x "$DS" ] || DS="$HOME/.claude/skills/theme-forge/scripts/dev-server.sh"
+eval "$("$DS" start --path .)"
 ```
+
+**If the script fails (non-zero exit or `DEV_STATUS=error`): STOP.** Do not continue onboarding without a running dev server.
 
 The script handles everything: safety checks (blocks live themes), parallel session detection, port discovery, unpublished theme creation if needed, and URL capture. Present `DEV_PREVIEW_URL` and `DEV_EDITOR_URL` to the user.
 

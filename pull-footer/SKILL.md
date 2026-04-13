@@ -12,11 +12,15 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
 ## Workflow
 
 1. Read `.theme-forge/config.json`
-2. **Start Dev Server:**
+2. **Start Dev Server** — find and run the dev-server script:
    ```bash
-   eval "$(scripts/dev-server.sh start)"
+   # Find the script (project-local or global install)
+   DS="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/dev-server.sh"
+   [ -x "$DS" ] || DS="$HOME/.claude/skills/theme-forge/scripts/dev-server.sh"
+   eval "$("$DS" start --path .)"
    ```
-   Present the `DEV_PREVIEW_URL` and `DEV_EDITOR_URL` to the user. The script handles port discovery, parallel session isolation, and safety checks.
+   **If the script fails, STOP. Do not continue without a running dev server.**
+   Present the `DEV_PREVIEW_URL` and `DEV_EDITOR_URL` to the user.
    - **Without a dev server, pull-section falls back to code-only mode (no visual verification).** This defeats the purpose of theme-forge. Do NOT proceed without a running dev server unless the user explicitly chooses code-only mode.
 3. Identify the footer section:
    - Check `.theme-forge/base-cache/sections/footer-group.json` (or `{base_theme}/sections/footer-group.json`) for the footer section reference

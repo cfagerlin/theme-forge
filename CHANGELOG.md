@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.1 — 2026-04-13
+
+**Fix: dev-server.sh path resolution + script discovery pattern across all skills.**
+
+- `scripts/dev-server.sh` now accepts `--path <project-root>` argument. Previously resolved PROJECT_ROOT from script location (`dirname "$0"`), which broke when the script was installed globally at `~/.claude/skills/theme-forge/scripts/`. Now uses `--path` arg > `pwd` > error with clear message.
+- All skills (pull-header, pull-footer, pull-page, pull-section, onboard) updated with script discovery pattern: try project-local first (`git rev-parse --show-toplevel`), fall back to global install.
+- All skills now include explicit "if the script fails, STOP" gate. Agents were continuing workflows without a running dev server and finding phantom errors.
+- Script outputs `DEV_STATUS=error` and `DEV_ERROR=config_not_found` on failure for machine-parseable error detection.
+
 ## 0.12.0 — 2026-04-13
 
 **Deterministic dev server script + hard gates for find-variances/refine-section.**
