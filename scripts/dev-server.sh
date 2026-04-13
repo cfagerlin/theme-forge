@@ -332,15 +332,25 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     info "Parallel session detected (existing PIDs: $(echo "$other_pids" | tr '\n' ' '))"
     info "Creating unpublished theme for isolation..."
 
-    local branch_name
+    # Name: [TF] <store-prefix> / <branch>
+    # e.g. "[TF] gldn-hrzn4 / pull-megamenus"
+    local branch_name store_prefix
     branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
-    local tf_name="[TF] ${branch_name}"
+    store_prefix=$(echo "$dev_store" | sed 's/\.myshopify\.com$//')
+    local tf_name="[TF] ${store_prefix} / ${branch_name}"
+
     # --theme accepts a name string (not just ID) when combined with --unpublished
+    # Capture stderr separately so progress bars don't corrupt JSON on stdout
+    local push_stderr_file
+    push_stderr_file=$(mktemp /tmp/tf-push-XXXXXX)
     local push_output
-    push_output=$(shopify theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
-      warn "Theme push output: $push_output"
+    push_output=$(shopify theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$push_stderr_file") || {
+      warn "Theme push stderr: $(cat "$push_stderr_file")"
+      warn "Theme push stdout: $push_output"
+      rm -f "$push_stderr_file"
       die "Failed to create unpublished theme. See output above."
     }
+    rm -f "$push_stderr_file"
 
     dev_theme_id=$(echo "$push_output" | jq -r '.theme.id // empty' 2>/dev/null || echo "")
     if [[ -z "$dev_theme_id" ]]; then
