@@ -124,16 +124,23 @@ Check which tools are available in the current environment:
 ```
 capabilities:
   browse        — Can we take screenshots and inspect computed styles on live/dev sites?
-  browse_method — Which browse tool to use (gstack_browse, playwright_mcp, mcp_chrome)
-  computer_use  — Can we use computer-use tools for screenshots and interaction?
+  browse_method — Which browse tool to use (playwright_cli, gstack_browse)
   shopify_cli   — Is `shopify` CLI available for `theme dev`?
 ```
 
 **Detection method (check in this order, use the first one found):**
 
-1. **Playwright MCP** (preferred): Check if `mcp__playwright__browser_navigate` is available in the tool list. Playwright MCP has stable browser sessions, no daemon timeout issues, and inline screenshot results.
+1. **Playwright CLI** (preferred): Check if the `screenshot.sh` script is available and `@playwright/cli` is installed:
 
-   If found → set `browse: true`, `browse_method: "playwright_mcp"`
+   ```bash
+   # Check for screenshot.sh script
+   SS="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/screenshot.sh"
+   [ -x "$SS" ] || SS="$HOME/.claude/skills/theme-forge/scripts/screenshot.sh"
+   # Check for playwright-cli
+   npx --no-install playwright-cli --version 2>/dev/null || npx @playwright/cli --version 2>/dev/null
+   ```
+
+   If both found → set `browse: true`, `browse_method: "playwright_cli"`
 
 2. **GStack browse binary**: Check if the executable exists at either:
    - `~/.claude/skills/gstack/browse/dist/browse`
@@ -143,36 +150,27 @@ capabilities:
 
    If found → set `browse: true`, `browse_method: "gstack_browse"`
 
-3. **Other MCP browse tools**: Check for `mcp__browser__*`, `mcp__browse__*`, or `mcp__Claude_in_Chrome__*` tool prefixes.
+3. **Shopify CLI**: Run `which shopify` or `shopify version` in bash
 
-   If found → set `browse: true`, `browse_method: "mcp_chrome"`
-
-4. **Computer use**: Check if `mcp__computer-use__*` tools are available
-5. **Shopify CLI**: Run `which shopify` or `shopify version` in bash
-
-**If no browse tools are detected**, prompt the user to install one:
+**If no browse tools are detected**, prompt the user to install Playwright CLI:
 
 > Visual comparison is the core of theme-forge. Without a browser tool, pull-section
 > falls back to code-only analysis (no screenshots, no computed style diffs). This
 > works but misses visual issues that only show up in the rendered page.
 >
-> To enable visual comparison, install one of these:
+> To enable visual comparison, install Playwright CLI:
 >
-> 1. **Playwright MCP** (recommended, works everywhere):
->    ```
->    claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors
->    ```
->    Then restart Claude Code and re-run `/theme-forge onboard`
+> ```
+> npm install -g @playwright/cli@latest
+> ```
 >
-> 2. **GStack browse tool** (if you have gstack installed):
->    - The browse binary is included with gstack
->    - theme-forge will detect it automatically at `~/.claude/skills/gstack/browse/dist/browse`
+> Then re-run `/theme-forge onboard`
 >
 > Do you want to:
-> A) Install Playwright MCP now (I'll run the command for you)
+> A) Install Playwright CLI now (I'll run the command for you)
 > B) Continue without visual comparison (code-only analysis)
 
-If the user chooses A, run `claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors` and tell them to restart Claude Code and re-run onboard. If they choose B, set `browse: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing a browse tool and re-running onboard.
+If the user chooses A, run `npm install -g @playwright/cli@latest` and re-run the detection step. If they choose B, set `browse: false` and continue. Note in the summary output that visual comparison is disabled and can be enabled later by installing Playwright CLI and re-running onboard.
 
 ### Step 3.5: Detect Store Themes (if Shopify CLI available)
 
@@ -237,8 +235,7 @@ Create `.theme-forge/config.json` in the target theme root:
   "live_theme_id": 131911450755,
   "capabilities": {
     "browse": true,
-    "browse_method": "gstack_browse",
-    "computer_use": true,
+    "browse_method": "playwright_cli",
     "shopify_cli": true
   },
   "auto_upgrade": false,
@@ -304,6 +301,7 @@ Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (s
    .theme-forge/debug/
    .theme-forge/tmp/
    .theme-forge/references/
+   .playwright-cli/
    .playwright-mcp/
    .gstack/
    /*.png
@@ -315,7 +313,8 @@ Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (s
    - `debug/` — transcripts and screenshots from debug runs
    - `tmp/` — temporary capture output
    - `references/` — live site reference screenshots (large, session-specific)
-   - `.playwright-mcp/` — Playwright MCP session/page YAML files (auto-generated)
+   - `.playwright-cli/` — Playwright CLI snapshots and console logs (auto-generated)
+   - `.playwright-mcp/` — Playwright MCP session files (legacy, if still present)
    - `.gstack/` — gstack working files
    - `*.png` — screenshot artifacts from capture/comparison. All screenshots should go in `.theme-forge/` subdirectories, but the agent sometimes saves them to the repo root. This catch-all prevents accidental commits.
 5. Print a summary of the configuration

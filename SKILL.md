@@ -334,6 +334,7 @@ All project state lives in `.theme-forge/` in the target theme's root. Most file
 .theme-forge/debug/
 .theme-forge/tmp/
 .theme-forge/references/
+.playwright-cli/
 .playwright-mcp/
 .gstack/
 /*.png
@@ -495,7 +496,7 @@ When no browse tool is available, visual comparison falls back to code-only anal
 ### Architecture Principles
 
 1. **Theme-agnostic**: Works for any base→target Shopify theme migration, not just legacy→Horizon. Extension layer prefix is configurable.
-2. **Visual-first, code-capable**: Browse tools (gstack browse, Playwright MCP) enable pixel-level comparison; without them, falls back to schema/CSS/settings analysis.
+2. **Visual-first, code-capable**: Playwright CLI (`scripts/screenshot.sh`) enables pixel-level comparison at 2560px desktop resolution; without it, falls back to schema/CSS/settings analysis.
 3. **Non-destructive**: `map-*` and `scan` never modify files. `pull-*` modifies only the target theme, never the base theme.
 4. **Git-native coordination**: The repo is the single source of truth. Committed reports = done. Committed mappings = scanned. No locks, no state machine. Parallel sessions coordinate through git commits.
 5. **Zero-ceremony sessions**: A new session reads config.json, pulls fresh base data (~5 sec), and starts working. No setup commands, no prerequisites beyond onboard.

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.13.0 — 2026-04-13
+
+**Migrate from Playwright MCP to Playwright CLI for deterministic screenshots.**
+
+### New: `scripts/screenshot.sh`
+
+Deterministic screenshot capture script — one command, all three breakpoints, no agent discretion.
+
+```bash
+eval "$(scripts/screenshot.sh capture --url <url> --selector '#section-id' --out .theme-forge/tmp/capture)"
+```
+
+What the script handles:
+- **Hardcoded viewports**: Desktop 2560x1440 (2x previous resolution), Tablet 768x1024, Mobile 375x812. Agents cannot override.
+- **Section targeting**: CSS selectors or numeric indices. Scrolls into view automatically.
+- **Popup dismissal**: Attentive, Klaviyo, Privy popups removed on live sites (not dev URLs).
+- **Validation**: Screenshots must be >10KB. Auto-retries once on blank/broken captures.
+- **Machine-parseable output**: `CAPTURE_STATUS=ok`, `CAPTURE_DESKTOP=path`, etc.
+- **JS eval at breakpoints**: `screenshot.sh eval --url <url> --js <expr> --breakpoint tablet` for find-variances extraction.
+
+### Why: Playwright CLI over MCP
+
+- **4x fewer tokens**: CLI writes snapshots to disk; MCP streams them into context (~114k vs ~27k tokens/task).
+- **Deterministic**: Shell commands, not MCP tool calls. Same philosophy as `dev-server.sh`.
+- **Higher resolution**: Desktop screenshots at 2560px wide (was 1280px). 4x more pixel data for variance detection.
+- **No MCP dependency**: One fewer daemon to manage.
+
+### Updated skills
+
+- `capture/SKILL.md` — fully rewritten to use `screenshot.sh`. All MCP/gstack paths removed.
+- `find-variances/SKILL.md` — extraction via `screenshot.sh eval` instead of `mcp__playwright__browser_evaluate`.
+- `refine-section/SKILL.md` — updated prerequisites.
+- `pull-section/SKILL.md` — updated file path references.
+- `onboard/SKILL.md` — detects Playwright CLI instead of MCP. Updated gitignore entries.
+- `SKILL.md` (orchestrator) — updated architecture description and gitignore.
+
 ## 0.12.1 — 2026-04-13
 
 **Fix: dev-server.sh path resolution + script discovery pattern across all skills.**

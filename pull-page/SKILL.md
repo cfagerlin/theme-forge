@@ -116,7 +116,7 @@ B=$HOME/.claude/skills/gstack/browse/dist/browse && [ -x "$B" ] && echo "BROWSE 
 ```
 
 - **`BROWSE READY`**: The browse binary path is printed. Use this path (prefixed with `B=<path> &&`) in every Bash command that needs the browse tool — shell variables do not persist between Bash calls.
-- **`NOT FOUND`**: Check alternate location: `B="$(git rev-parse --show-toplevel)/.claude/skills/gstack/browse/dist/browse" && [ -x "$B" ] && echo "BROWSE READY: $B"`. If still not found, check for Playwright MCP tools (`mcp__playwright__*`). If nothing is available, proceed in code-only mode for all sections.
+- **`NOT FOUND`**: Check alternate location: `B="$(git rev-parse --show-toplevel)/.claude/skills/gstack/browse/dist/browse" && [ -x "$B" ] && echo "BROWSE READY: $B"`. If still not found, check for Playwright CLI (`npx @playwright/cli --version`). If nothing is available, proceed in code-only mode for all sections.
 
 **Do NOT decide browse availability by inspecting your tool list.** The browse binary is a CLI, not a named tool. Always run the Bash check.
 

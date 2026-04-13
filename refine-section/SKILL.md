@@ -32,7 +32,7 @@ one atomic change per iteration, verified before the next, with git as state mac
 
 - The section has been pulled (a report exists at `.theme-forge/reports/sections/{section-key}.json`)
 - Dev server is running (hot-reload is required for the verify step)
-- Browse tool or Playwright MCP is available (extraction requires browser access)
+- Playwright CLI is available (extraction requires browser access via `scripts/screenshot.sh`)
 - `.theme-forge/config.json` exists with `live_url` and `dev_url`
 
 ## Hard Rules

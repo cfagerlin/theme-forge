@@ -8,23 +8,17 @@ description: >
 
 # capture — Section Screenshot Capture
 
-Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile). This skill is deterministic — follow the exact commands below. No alternatives, no fallbacks to full-page screenshots.
+Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile) using the deterministic `screenshot.sh` script. One command, all three breakpoints, no agent discretion.
 
 > **Computed style extraction has moved to `find-variances`.** capture is screenshots only.
 > Use `/theme-forge find-variances` for extraction + comparison.
 
 ## Hard Rules
 
-1. **NEVER take a full-page screenshot.** Every screenshot targets a single section. If the section can't be found, FAIL. Do not fall back to full-page.
-2. **ALWAYS capture all three breakpoints.** Desktop (1280), tablet (768), mobile (375). No "desktop only" option.
-3. **Prefer Playwright MCP over gstack browse.** Playwright MCP has stable browser sessions, no daemon timeout issues, and inline screenshot results. Use gstack browse only as a fallback.
-4. **ALWAYS verify the desktop screenshot** by reading it with the Read tool after capture. If it's blank or broken, retry once. If still broken, FAIL.
-5. **Follow the exact commands below.** Do not improvise browse tool usage. Do not add extra steps. Do not skip steps.
-
-### gstack browse-specific rules (only when using gstack browse fallback)
-
-- **Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout (~2-3 seconds) and shuts down during shell sleeps. Use JS-based waits instead: `$B js "new Promise(function(r){setTimeout(function(){r('waited')},3000)})"`.
-- **Do not use `wait --networkidle` on live Shopify sites.** Third-party scripts (Klaviyo, Attentive, Gorgias) make continuous network requests that prevent networkidle from completing. `--networkidle` is fine for dev server URLs only.
+1. **ALWAYS use `scripts/screenshot.sh`.** Never call `playwright-cli` directly. Never use `mcp__playwright__*` tools. The script handles viewport sizing, popup dismissal, section scrolling, and validation.
+2. **NEVER take a full-page screenshot.** Every capture targets a single section via `--selector`.
+3. **If the script fails (`CAPTURE_STATUS=error`): STOP.** Do not continue the workflow without screenshots.
+4. **ALWAYS verify the desktop screenshot** by reading it with the Read tool after capture. If it's blank or shows the wrong section, re-run the script once. If still wrong, FAIL.
 
 ## Arguments
 
@@ -34,277 +28,79 @@ Take section-scoped screenshots at three breakpoints (desktop, tablet, mobile). 
 
 - `<url>` — Full page URL (live site or dev server)
 - `--section <selector>` — **Required.** One of:
-  - CSS selector: `#shopify-section-hero`, `section-hero`, `.shopify-section:nth-child(3)`
+  - CSS selector: `#shopify-section-hero`, `.shopify-section:nth-child(3)`
   - Numeric index: `0`, `1`, `2` (0-indexed position among `.shopify-section` elements)
-- `--output <dir>` — Output directory (default: `.theme-forge/tmp/capture/`). **Always use `.theme-forge/tmp/` instead of `/tmp/`** — workspace sandboxing may block writes outside the project directory.
-- `--reference <name>` — Store results in `.theme-forge/references/<name>/` (committed to git)
+- `--output <dir>` — Output directory (default: `.theme-forge/tmp/capture/`)
+- `--reference <name>` — Also store results in `.theme-forge/references/<name>/` (committed to git)
 
 ## Output
 
 ```
 <output>/
-├── desktop.png          # 1280px viewport
+├── desktop.png          # 2560px viewport (high resolution)
 ├── tablet.png           # 768px viewport
 ├── mobile.png           # 375px viewport
 └── meta.json            # (if --reference) capture metadata
 ```
 
+## Viewport Sizes (hardcoded in script)
+
+| Breakpoint | Width | Height | Notes |
+|---|---|---|---|
+| Desktop | 2560 | 1440 | High-res for variance detection |
+| Tablet | 768 | 1024 | Standard tablet |
+| Mobile | 375 | 812 | Standard mobile |
+
+These are not configurable by the agent. The script enforces them.
+
 ## Prerequisites
 
 - `.theme-forge/config.json` must exist (run `onboard` first)
-- A browser tool must be available (Playwright MCP or gstack browse)
+- `@playwright/cli` must be available (`npx @playwright/cli` or global install)
 
 ## Workflow
 
-### Step 1: Discover Browser Tool
+### Step 1: Find the Script
 
-Check for available browser tools in priority order:
-
-**1a. Check for Playwright MCP** — look for `mcp__playwright__browser_navigate` in your available tools.
-
-If available, set `BROWSER_TOOL=playwright` and skip to **Step 2A (Playwright MCP)**.
-
-**1b. Check for gstack browse:**
 ```bash
-B=$HOME/.claude/skills/gstack/browse/dist/browse
-[ -x "$B" ] && echo "BROWSE: $B" || { B="$(git rev-parse --show-toplevel 2>/dev/null)/.claude/skills/gstack/browse/dist/browse"; [ -x "$B" ] && echo "BROWSE: $B" || echo "BROWSE: NOT FOUND"; }
+# Find the script (project-local or global install)
+DS="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/screenshot.sh"
+[ -x "$DS" ] || DS="$HOME/.claude/skills/theme-forge/scripts/screenshot.sh"
 ```
 
-If found, set `BROWSER_TOOL=gstack` and skip to **Step 2B (gstack browse)**.
+### Step 2: Run Capture
 
-**1c. Neither tool available — STOP.** Tell the user:
-
-> **No browser tool available.** Install Playwright MCP for the best screenshot experience:
->
-> ```bash
-> claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors
-> ```
->
-> Then restart the conversation. Playwright MCP gives stable browser sessions with no daemon timeout issues.
-
-Create the output directory:
 ```bash
-mkdir -p <output>
+eval "$("$DS" capture --url "<url>" --selector "<selector>" --out "<output_dir>")"
 ```
 
----
+**If `CAPTURE_STATUS=error`: STOP.** Read the stderr output for the error message. Do not continue without screenshots.
 
-## Path A: Playwright MCP (preferred)
-
-Use this path when `mcp__playwright__browser_navigate` is available.
-
-### Step 2A: Navigate
-
-```
-mcp__playwright__browser_navigate url="<url>"
+For reference captures (stored in git for sharing across sessions):
+```bash
+eval "$("$DS" capture --url "<url>" --selector "<selector>" --out "<output_dir>" --reference "<name>")"
 ```
 
-### Step 3A: Scroll to Section + Dismiss Popups
+### Step 3: Verify
 
-**Scroll to the section:**
-
-Use `mcp__playwright__browser_evaluate` to scroll:
-
-If `--section` is a CSS selector:
-```
-mcp__playwright__browser_evaluate function="() => { document.querySelector('<selector>').scrollIntoView({block:'start'}); return 'scrolled'; }"
-```
-
-If `--section` is a numeric index:
-```
-mcp__playwright__browser_evaluate function="() => { document.querySelectorAll('.shopify-section')[<N>].scrollIntoView({block:'start'}); return 'scrolled'; }"
-```
-
-**Wait for lazy images + popup injection** (live site URLs only):
-```
-mcp__playwright__browser_evaluate function="() => new Promise(r => setTimeout(() => r('waited'), 3000))"
-```
-
-**Dismiss popups** (live site URLs only — skip for `127.0.0.1` or `localhost`):
-```
-mcp__playwright__browser_evaluate function="() => { let c = 0; document.querySelectorAll('iframe[src*=\"attn.tv\"],iframe[src*=\"attentive\"],iframe[src*=\"klaviyo\"]').forEach(el => { const p = el.parentElement; if (p && p.tagName !== 'BODY' && p.tagName !== 'HTML') { p.remove(); } else { el.remove(); } c++; }); document.querySelectorAll('.klaviyo-form,.klaviyo-close-form,.privy-popup,[data-testid*=popup]').forEach(el => { el.remove(); c++; }); document.querySelectorAll('script[src*=attentive],script[src*=klaviyo],script[src*=privy]').forEach(el => { el.remove(); c++; }); document.body.style.overflow = 'auto'; return 'dismissed ' + c + ' elements'; }"
-```
-
-**IMPORTANT: Do NOT use `[class*=overlay]` in the dismiss selector.** This is too aggressive and matches legitimate page elements (footer backgrounds, image overlays, header transparency). Only target specific popup providers by name/src.
-
-### Step 4A: Capture All Three Breakpoints
-
-#### Desktop (1280px):
-
-Playwright MCP defaults to 1280x720 viewport. Take screenshot to file:
-```
-mcp__playwright__browser_take_screenshot type="png" filename="<output>/desktop.png"
-```
-
-**Verify immediately:** Read `<output>/desktop.png` with the Read tool. Check:
-- Image is visible and shows the section content
+Read `$CAPTURE_DESKTOP` with the Read tool. Check:
+- Image shows the target section content
 - Not blank/white/grey
-- If blank or broken, retry navigate + scroll + screenshot once
-- If still blank: **FAIL**
+- Correct responsive layout for the section
 
-#### Tablet (768px):
+If the screenshot is wrong, re-run Step 2 once. If still wrong: **FAIL**.
 
-Resize viewport, navigate, scroll, dismiss, and capture:
-```
-mcp__playwright__browser_evaluate function="() => 'ready for tablet'"
-```
-```
-mcp__playwright__browser_resize width=768 height=1024
-```
-Then re-navigate to the URL (viewport resize may require a fresh load):
-```
-mcp__playwright__browser_navigate url="<url>"
-```
-Repeat scroll + wait + dismiss from Step 3A, then:
-```
-mcp__playwright__browser_take_screenshot type="png" filename="<output>/tablet.png"
-```
+### Step 4: Use Results
 
-#### Mobile (375px):
-
-```
-mcp__playwright__browser_resize width=375 height=812
-```
-```
-mcp__playwright__browser_navigate url="<url>"
-```
-Repeat scroll + wait + dismiss from Step 3A, then:
-```
-mcp__playwright__browser_take_screenshot type="png" filename="<output>/mobile.png"
-```
-
-After mobile capture, restore desktop viewport:
-```
-mcp__playwright__browser_resize width=1280 height=720
-```
-
----
-
-## Path B: gstack browse (fallback)
-
-Use this path only when Playwright MCP is not available.
-
-### Step 2B: Navigate + Wait for Load
-
-**CRITICAL: Never use shell `sleep` between browse commands.** The browse daemon has a short idle timeout and will shut down during shell sleeps. Use JS `Promise` with `setTimeout` for all waits:
-
-**For all URLs:**
-
-```bash
-B=<path> && $B goto "<url>" && \
-$B js "new Promise(function(r){setTimeout(function(){r('page loaded')},3000)})"
-```
-
-**For dev site URLs** (`127.0.0.1` or `localhost`), you can optionally use `$B wait --networkidle` after the initial wait.
-
-### Step 3B: Scroll to Section + Dismiss Popups
-
-**Scroll first, THEN dismiss.** Many popups (especially Attentive/`attn.tv`) are scroll-triggered — they don't exist in the DOM until you scroll. Dismissing before scroll misses them.
-
-**Popup dismissal JS** (assign to a shell variable for reuse):
-```bash
-DISMISS='var c=0;document.querySelectorAll("iframe[src*=\"attn.tv\"],iframe[src*=attentive],iframe[src*=klaviyo]").forEach(function(el){var p=el.parentElement;if(p&&p.tagName!=="BODY"&&p.tagName!=="HTML"){p.remove()}else{el.remove()}c++});document.querySelectorAll(".klaviyo-form,.klaviyo-close-form,.privy-popup,[data-testid*=popup]").forEach(function(el){el.remove();c++});document.querySelectorAll("script[src*=attentive],script[src*=klaviyo],script[src*=privy]").forEach(function(el){el.remove();c++});document.body.style.overflow="auto";"dismissed "+c'
-```
-
-**IMPORTANT: Do NOT use `[class*=overlay]` in the dismiss selector.** This is too aggressive and matches legitimate page elements (footer backgrounds, image overlays, header transparency). Only target specific popup providers by name/src.
-
-**If `--section` is a CSS selector:**
-```bash
-$B js "document.querySelector('<selector>').scrollIntoView({block:'start'})" && \
-$B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + popups')},2000)})" && \
-$B js "$DISMISS"
-```
-
-**If `--section` is a numeric index:**
-```bash
-$B js "document.querySelectorAll('.shopify-section')[<N>].scrollIntoView({block:'start'})" && \
-$B js "new Promise(function(r){setTimeout(function(){r('waited for lazy load + popups')},2000)})" && \
-$B js "$DISMISS"
-```
-
-**Only dismiss on live site URLs** (skip the `$B js "$DISMISS"` line if URL contains `127.0.0.1` or `localhost`).
-
-### Step 4B: Capture All Three Breakpoints
-
-**IMPORTANT:** Steps 2B-4B must run in a SINGLE Bash tool call. The browse tool loses page state between separate Bash invocations. Chain all commands with `&&`.
-
-#### Desktop (1280px):
-```bash
-B=<path> && \
-DISMISS='<dismiss JS from Step 3B>' && \
-$B goto "<url>" && \
-$B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
-$B js "<scroll_command>" && \
-$B js "new Promise(function(r){setTimeout(function(){r('waited')},2000)})" && \
-$B js "$DISMISS" && \
-$B screenshot "<selector_or_--viewport>" <output>/desktop.png
-```
-
-**Verify immediately:** Read `<output>/desktop.png` with the Read tool. Check:
-- Image is visible and shows the section content
-- Not blank/white/grey
-- File size is reasonable (>10KB for a real screenshot)
-
-If blank or broken, retry the entire command once. If still blank: **FAIL** with "Screenshot blank — section `<selector>` not found or page didn't fully load at `<url>`."
-
-#### Tablet (768px):
-```bash
-B=<path> && \
-DISMISS='<dismiss JS from Step 3B>' && \
-$B goto "<url>?viewport=768" && \
-$B js "Object.defineProperty(window,'innerWidth',{value:768,writable:true});Object.defineProperty(window,'innerHeight',{value:1024,writable:true});window.dispatchEvent(new Event('resize'))" && \
-$B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
-$B js "<scroll_command>" && \
-$B js "new Promise(function(r){setTimeout(function(){r('waited')},2000)})" && \
-$B js "$DISMISS" && \
-$B screenshot "<selector_or_--viewport>" <output>/tablet.png
-```
-
-#### Mobile (375px):
-```bash
-B=<path> && \
-DISMISS='<dismiss JS from Step 3B>' && \
-$B goto "<url>?viewport=375" && \
-$B js "Object.defineProperty(window,'innerWidth',{value:375,writable:true});Object.defineProperty(window,'innerHeight',{value:812,writable:true});window.dispatchEvent(new Event('resize'))" && \
-$B js "new Promise(function(r){setTimeout(function(){r('loaded')},3000)})" && \
-$B js "<scroll_command>" && \
-$B js "new Promise(function(r){setTimeout(function(){r('waited')},2000)})" && \
-$B js "$DISMISS" && \
-$B screenshot "<selector_or_--viewport>" <output>/mobile.png
-```
-
-**Screenshot targeting per selector type:**
-- If `--section` is a CSS selector: `$B screenshot "<selector>" <output>/<breakpoint>.png`
-- If `--section` is a numeric index: after scrolling to section, use `$B screenshot --viewport <output>/<breakpoint>.png`
-
----
-
-## Step 6: Store Reference (if `--reference`)
-
-This step is the same for both paths.
-
-```bash
-mkdir -p .theme-forge/references/<name>/
-cp <output>/desktop.png .theme-forge/references/<name>/
-cp <output>/tablet.png .theme-forge/references/<name>/
-cp <output>/mobile.png .theme-forge/references/<name>/
-```
-
-Write `meta.json`:
-```json
-{
-  "captured_at": "<current ISO timestamp>",
-  "url": "<url>",
-  "selector": "<selector>",
-  "browser_tool": "<playwright|gstack>"
-}
-```
-
-References are committed to git. Parallel sessions share them.
+After `eval`, these variables are available:
+- `$CAPTURE_STATUS` — `ok` or `error`
+- `$CAPTURE_DESKTOP` — path to desktop screenshot
+- `$CAPTURE_TABLET` — path to tablet screenshot
+- `$CAPTURE_MOBILE` — path to mobile screenshot
 
 ## How pull-section Invokes This Skill
 
-pull-section does NOT call `/theme-forge capture` as a command. Instead, it reads this SKILL.md and follows the workflow above inline, the same way pull-page invokes pull-section.
+pull-section reads this SKILL.md and follows the workflow above inline.
 
 **Step 4 of pull-section (capture live + dev):**
 
@@ -312,10 +108,10 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 4.1 Live reference:
   Check .theme-forge/references/{section}-{page}/meta.json
   IF exists → use stored reference screenshots (all three breakpoints)
-  IF not exists → run capture workflow with --reference
+  IF not exists → run capture with --reference
 
 4.2 Dev site:
-  Run capture workflow on dev URL
+  Run capture on dev URL
   Output to .theme-forge/tmp/capture-dev/
 
 4.3 Extraction:
@@ -326,7 +122,7 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 **Step 8 of pull-section (verify fix):**
 
 ```
-8.1 Run capture workflow on dev URL (all three breakpoints)
+8.1 Run capture on dev URL (all three breakpoints)
 8.2 Compare each breakpoint against stored live reference
     (Live reference is NOT re-captured)
 8.3 Run find-variances for full re-extraction + comparison
@@ -334,20 +130,38 @@ pull-section does NOT call `/theme-forge capture` as a command. Instead, it read
 
 ## Recapturing References
 
-If the live site changes, the user recaptures manually:
-
-```
-/theme-forge capture https://example.com --section "#shopify-section-hero" --reference hero-index
-```
-
-This overwrites the stored reference. No automatic staleness detection.
-
-## Fallback: No Browse Tool
-
-If no browser tool is available, capture cannot run. pull-section falls back to code-only analysis with `status: "completed_code_only"` in the report. This is explicitly a degraded mode — the user should install Playwright MCP:
+If the live site changes:
 
 ```bash
-claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors
+eval "$("$DS" capture --url "https://example.com" --selector "#shopify-section-hero" --out .theme-forge/tmp/capture --reference hero-index)"
 ```
 
-Then restart the conversation.
+This overwrites the stored reference.
+
+## Using the Browser for JS Evaluation (find-variances)
+
+The script also supports running JS at specific breakpoints, used by find-variances:
+
+```bash
+RESULT=$("$DS" eval --url "<url>" --js "<expression>" --breakpoint desktop)
+```
+
+Valid breakpoints: `desktop`, `tablet`, `mobile`. The viewport is set automatically.
+
+## Closing the Browser
+
+When done with all captures (e.g., at section approval or cleanup):
+
+```bash
+"$DS" close
+```
+
+## Fallback: No Playwright CLI
+
+If `@playwright/cli` is not available, the script will fail. Install it:
+
+```bash
+npm install -g @playwright/cli@latest
+```
+
+Or use npx (auto-installed on first run).
