@@ -335,11 +335,19 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     local branch_name
     branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
     local tf_name="[TF] ${branch_name}"
+    # Try --name flag first (newer CLI), fall back to piping via stdin (older CLI)
     local push_output
-    push_output=$(shopify theme push --unpublished --name "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
-      warn "Theme push output: $push_output"
-      die "Failed to create unpublished theme. See output above."
-    }
+    if shopify theme push --help 2>&1 | grep -q -- '--name'; then
+      push_output=$(shopify theme push --unpublished --name "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
+        warn "Theme push output: $push_output"
+        die "Failed to create unpublished theme. See output above."
+      }
+    else
+      push_output=$(echo "$tf_name" | shopify theme push --unpublished --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
+        warn "Theme push output: $push_output"
+        die "Failed to create unpublished theme. See output above."
+      }
+    fi
 
     dev_theme_id=$(echo "$push_output" | jq -r '.theme.id // empty' 2>/dev/null || echo "")
     if [[ -z "$dev_theme_id" ]]; then
