@@ -344,13 +344,8 @@ Dev server would sync local files to the LIVE production theme. Aborting."
 
     dev_theme_id=$(echo "$push_output" | jq -r '.theme.id // empty' 2>/dev/null || echo "")
     if [[ -z "$dev_theme_id" ]]; then
-      # Try alternate JSON path
-      dev_theme_id=$(echo "$push_output" | grep -oE '"id":\s*[0-9]+' | head -1 | grep -oE '[0-9]+' || echo "")
-    fi
-
-    if [[ -z "$dev_theme_id" ]]; then
       warn "Push output: $push_output"
-      die "Could not parse theme ID from push output."
+      die "Could not parse theme ID from push output. Check Shopify CLI version and auth."
     fi
 
     # Verify the new theme is safe
