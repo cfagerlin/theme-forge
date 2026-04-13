@@ -62,6 +62,12 @@ These override everything else in this document.
 ### No positional selectors
 - **Never use `:first-child`, `:nth-child(N)` for variant options.** Use option-name-based selectors or data attributes. Positional selectors break across products with different variant counts.
 
+### Never use overflow:hidden to constrain height
+- **Do NOT add `overflow: hidden` to constrain a section's height.** It clips positioned content (text overlays, buttons) that extends beyond the boundary. Use `aspect-ratio`, `max-height` (without overflow:hidden), or fix the source of the height mismatch. If you need overflow control, use `overflow: clip` with explicit `clip-path` only after verifying no content is clipped.
+
+### Match the responsive mechanism, not just the pixel value
+- **Read `height_mechanism` before fixing height variances.** A live site using `padding-top: 38%` (width-relative) must NOT be mapped to `section_height_custom` (which produces `svh` units). Match the authored CSS unit type. See the mapping table in Step 2.1.
+
 ## Step 1: Load Variance Queue from Section Report
 
 Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
@@ -74,27 +80,44 @@ Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
 ```
 Then re-read the report.
 
-1. Display the queue (from the variance array):
+1. **Sort the queue by priority (responsive-first ordering).** This ordering is critical. Fix the
+   responsive skeleton before tuning CSS details. find-variances already assigns these types:
+
+   ```
+   PRIORITY ORDER:
+   1. visibility  — hard gate, text invisible on dev
+   2. structural  — element missing or wrong position
+   3. layout      — height, width, responsive behavior (fix these BEFORE typography)
+   4. setting     — JSON setting change
+   5. css         — CSS override (typography, colors, spacing)
+   6. content     — text/image differences (flag only)
+   ```
+
+2. Display the queue (from the variance array, sorted by priority):
 
 ```
 VARIANCE QUEUE: {section-key}
 ════════════════════════════════════════════════════════════
-#  Element              Property         Live           Dev            Type     Test
-1  h1                   fontWeight       200            700            setting  --heading-font-weight
-2  .price-money         fontWeight       300            500            css      shadow:product-info
-3  .add-to-cart         fontSize         13px           16px           css      direct selector
-4  .add-to-cart         textTransform    uppercase      none           css      direct selector
-5  .variant-label       letterSpacing    0.1em          normal         css      direct selector
+#  Element              Property         Live           Dev            Type        Test
+1  section              height           547px          603px          layout      probe:width-relative
+2  h1                   visibility       visible        clipped        visibility  js-assertion
+3  h1                   fontWeight       200            700            setting     --heading-font-weight
+4  .price-money         fontWeight       300            500            css         shadow:product-info
+5  .add-to-cart         fontSize         13px           16px           css         direct selector
 ════════════════════════════════════════════════════════════
 METRIC: 5 open → target: 0
 ```
+
+   **Why layout first:** If the section height is wrong, text positioning is wrong, and overflow
+   clips content. Fixing font-weight on an invisible element is wasted work. Lock in the
+   responsive skeleton, then tune the details.
 
 The "Test" column shows the verification method from each variance's test condition:
 - `--custom-prop-name` — CSS custom property override (through Shadow DOM)
 - `shadow:host-tag` — element inside Shadow DOM, needs special selector
 - `direct selector` — standard CSS selector works
 
-2. Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learning says "Horizon price component uses `--price-font-weight` custom property," apply that knowledge in Step 2.1.
+3. Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learning says "Horizon price component uses `--price-font-weight` custom property," apply that knowledge in Step 2.1.
 
 ## Step 2: The Experiment Loop
 
@@ -117,6 +140,20 @@ For each variance in the queue:
 
    Start with #1. Only escalate to #2 if #1 doesn't apply (no setting exists for this property). Only escalate to #3 if #2 doesn't apply (no custom property exposed). And so on.
 
+   **Height/sizing variances — check `height_mechanism` first:**
+   If the variance has a `height_mechanism` field (set by find-variances), read the `responsive_type`
+   before choosing an approach. Do NOT guess a value for `section_height_custom` based on pixel values.
+
+   | `responsive_type` | Correct approach | WRONG approach |
+   |-------------------|-----------------|----------------|
+   | `width-relative` | CSS override: `aspect-ratio` or `padding-top: X%` matching authored rule | `section_height_custom` (produces svh units) |
+   | `viewport-width` | CSS override: `height: Xvw` or `max-height: Xvw` | `section_height_custom` (produces svh units) |
+   | `viewport-height` | JSON setting: `section_height_custom: N` | CSS override with fixed px |
+   | `aspect-ratio` | CSS override: `aspect-ratio: W/H` | Any fixed-unit approach |
+   | `fixed` | CSS override: `max-height: Xpx` | `section_height_custom` (unless value maps to svh) |
+
+   **The rule:** match the responsive behavior, not just the pixel value at one viewport size.
+
 3. **Record the hypothesis** before applying:
    ```
    EXPERIMENT #{N}: {property}
@@ -124,6 +161,64 @@ For each variance in the queue:
    Selector/setting: {what you'll modify}
    Expected: {FAIL value} → {target value}
    ```
+
+### 2.1.5 CASCADE CHECK
+
+Before applying the change, scan the existing CSS override file for conflicting rules.
+**Skip this step if** the override file does not exist yet (first section being pulled).
+
+1. **Read the CSS override file** (e.g., `assets/gldn-global-overrides.css`).
+
+2. **Find all rules that match the target element or its ancestors/descendants:**
+   - Search for selectors containing the same component class (`.hero`, `.hero__container`, `.hero-wrapper`)
+   - Search for selectors containing the section ID (`[id*="hero_about"]`)
+   - Search for global rules that match the same element (`.hero-wrapper .text-block p`)
+
+3. **Check for conflicts with the proposed change:**
+
+   | Conflict type | Example | Resolution |
+   |--------------|---------|------------|
+   | `min > max` | Global `min-height: 67vh` on child, you're adding `max-height: 38vw` on parent | Override the `min-height` too, or adjust approach |
+   | `!important` clash | Global `letter-spacing: 0.01em !important`, you're adding `letter-spacing: 0.1em` (no !important) | Add `!important` or use more specific selector |
+   | Same property on same element | Global `.hero p { font-weight: 400 }`, you're adding `[id*="section"] .hero p { font-weight: 300 }` | Verify specificity wins, or use `!important` |
+   | `overflow: hidden` on ancestor | You're adding `overflow: hidden` to constrain height, but text content extends beyond | Do NOT use `overflow: hidden`. Use `aspect-ratio` or `max-height` with visible overflow instead. |
+
+4. **If a conflict is found:**
+   - Log the conflict in the experiment record
+   - Adjust the hypothesis to resolve the conflict (e.g., override both properties, use a different approach)
+   - If the conflict requires editing the global rule, record it as a second step (do NOT edit two rules in one iteration)
+
+5. **If no conflicts found:** proceed to 2.2 APPLY.
+
+```
+CASCADE CHECK: {property}
+Searching override file for rules matching: .hero, .hero__container, [id*="hero_about"]
+Found: .hero-wrapper .hero__container { min-height: 67vh } (line 362)
+CONFLICT: proposed max-height: 38vw on .hero would be overridden by child's min-height: 67vh
+→ Adjusting hypothesis: override min-height on .hero__container first
+```
+
+#### Worked Example: Hero Banner Height Conflict
+
+refine-section wants to constrain the hero section height to ~547px. It hypothesizes:
+`[id*="hero_about"] .hero { max-height: 38vw; overflow: hidden; }`
+
+**CASCADE CHECK finds:**
+1. Line 362: `.hero-wrapper .hero__container { min-height: 67vh; }` — a GLOBAL rule
+   setting min-height on the container INSIDE `.hero`
+2. At 1440x900: `67vh = 603px`, `38vw = 547px`. The child's min-height (603px) exceeds
+   the parent's max-height (547px). CSS resolves this by ignoring the max-height.
+3. To make max-height work, `overflow: hidden` was added. But this clips text content
+   that extends beyond the 547px boundary.
+
+**Resolution:** The cascade check flags both issues:
+- CONFLICT: `min-height: 67vh` on child > `max-height: 38vw` on parent
+- RISK: `overflow: hidden` will clip positioned content (text overlay)
+
+The algorithm adjusts: instead of `max-height + overflow:hidden`, use the height mechanism
+data (`responsive_type: "width-relative"`, `padding-top: 38%`) and apply
+`[id*="hero_about"] .hero__container { min-height: unset; aspect-ratio: 100/38; }`.
+This overrides the conflicting global min-height AND sets the correct responsive behavior.
 
 ### 2.2 APPLY ONE CHANGE
 
@@ -171,6 +266,63 @@ For each variance in the queue:
    RESULT: FAIL ~  (font-weight: 400, closer but not 300)
    — or —
    RESULT: REGRESSION ✗  (font-weight fixed but title font-size changed)
+   ```
+
+4. **VISIBILITY GATE (after property PASS only):** If the property test passes, run the
+   visibility check on ALL text elements in the section to confirm nothing was made invisible
+   by the change. This catches `overflow: hidden` clipping, z-index regressions, and
+   elements pushed offscreen.
+
+   ```javascript
+   // Run on the dev site after each PASS
+   (() => {
+     const section = document.querySelector('SECTION_SELECTOR');
+     if (!section) return 'section-not-found';
+     const texts = section.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button');
+     const invisible = [];
+     for (const el of texts) {
+       if (!el.textContent?.trim()) continue;
+       const r = el.getBoundingClientRect();
+       const cs = getComputedStyle(el);
+       if (r.width === 0 || r.height === 0 || cs.opacity === '0' ||
+           cs.visibility === 'hidden' || cs.display === 'none') {
+         invisible.push(el.tagName + ': ' + el.textContent.trim().substring(0, 30));
+         continue;
+       }
+       // Check overflow clipping by ancestors (including Shadow DOM)
+       let a = el.parentElement;
+       while (a) {
+         const acs = getComputedStyle(a);
+         if (acs.overflow === 'hidden' || acs.overflow === 'clip') {
+           const ar = a.getBoundingClientRect();
+           if (r.top >= ar.bottom || r.bottom <= ar.top ||
+               r.left >= ar.right || r.right <= ar.left) {
+             invisible.push(el.tagName + ': ' + el.textContent.trim().substring(0, 30) + ' [clipped]');
+             break;
+           }
+         }
+         if (!a.parentElement) {
+           const root = a.getRootNode();
+           if (root instanceof ShadowRoot) { a = root.host; continue; }
+         }
+         a = a.parentElement;
+       }
+     }
+     return JSON.stringify({ invisible, total: texts.length });
+   })()
+   ```
+
+   **If `invisible` is non-empty:** The change caused a visibility regression.
+   - Mark as `REGRESSION ✗` (text element invisible)
+   - Revert the change (`git checkout -- <file>`)
+   - Log: which element became invisible, and why (clipped, hidden, zero-size)
+   - Do NOT mark the property variance as PASS. A "correct" font-weight on an invisible
+     element is not a fix.
+
+   ```
+   RESULT: PASS ✓  (font-weight: 500 → 300, matches live)
+   VISIBILITY GATE: FAIL ✗  (h1 "About GLDN Jewelry" clipped by .hero overflow:hidden)
+   → Treating as REGRESSION. Reverting.
    ```
 
 ### 2.4 ACCEPT or REVERT
@@ -265,9 +417,46 @@ After the queue is empty (or all remaining items are escalated):
    /theme-forge find-variances <section-key> --page <page>
    ```
    find-variances re-extracts dev styles, compares against cached live values, and updates the variance array with merge-not-replace semantics (preserving attempts and approvals).
-2. If new `open` variances appeared in the report: add them to the queue and go back to Step 2.
+   find-variances also runs the **Visual Visibility Check** (new in v0.14.0), which will catch
+   any text elements that became invisible during the refine session.
+2. If new `open` variances appeared in the report (including visibility variances): add them to the queue and go back to Step 2.
 3. Take a final verification screenshot at all 3 breakpoints (desktop, tablet, mobile) using the capture skill.
 4. Compare against the live reference screenshots in `.theme-forge/references/{section}-{page}/`.
+
+### Screenshot Diff Gate (Final)
+
+After all property variances are closed and screenshots are captured, perform a **structural
+screenshot comparison** as the last gate before marking the section complete.
+
+This catches the class of bugs where every individual property test passes but the overall
+visual result is wrong (e.g., text exists with correct styles but is invisible due to clipping).
+
+1. **For each breakpoint** (desktop, tablet, mobile), compare the dev screenshot against the live reference:
+
+   - **Text presence check:** If the live screenshot shows visible text (heading, eyebrow, body)
+     overlaid on an image or background, verify that the same text is visible in the dev screenshot.
+     Use the extraction data to confirm: the text element exists, has non-zero bounding box dimensions,
+     and passes the visibility check.
+
+   - **Layout sanity check:** If the live section has a text overlay centered on an image, the dev
+     section should have the same general layout. A dev screenshot showing only an image with no
+     visible text is a FAIL regardless of what computed styles say.
+
+2. **If the screenshot diff reveals a structural mismatch:**
+   - Do NOT mark the section as complete
+   - Create a new variance with `source: "visual"` and `type: "layout"`
+   - Add it to the queue and go back to Step 2
+
+3. **If the screenshots match structurally:** proceed to Step 4.
+
+```
+SCREENSHOT DIFF GATE:
+  Desktop: ✓ Text overlay visible, layout matches
+  Tablet:  ✓ Text overlay visible, stacking matches
+  Mobile:  ✗ Text not visible — heading clipped by section overflow
+  → Adding variance: h1:visibility:mobile — visible vs clipped
+  → Returning to Step 2 for mobile-specific fix
+```
 
 ## Step 4: Report
 

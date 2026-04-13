@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.14.0 — 2026-04-13
+
+**Three fixes to refine-section and find-variances to prevent CSS mapping failures.**
+
+Root cause: the hero banner about page migration produced invisible text because (1) height
+was mapped using wrong CSS units, (2) conflicting global CSS rules weren't detected, and
+(3) the verification system trusted computed styles without checking visual visibility.
+
+### New: Height Mechanism Extraction (find-variances)
+
+When a layout variance involves height, find-variances now inspects `document.styleSheets` on
+the live site to discover the **authored CSS rule** (e.g., `padding-top: 38%` vs `height: 60vh`).
+The mechanism is stored in a new `height_mechanism` field on the variance entry with a
+`responsive_type` classification: `width-relative`, `viewport-width`, `viewport-height`,
+`aspect-ratio`, `font-relative`, or `fixed`.
+
+refine-section reads `responsive_type` to choose the correct fix approach. A `width-relative`
+height (like `padding-top: 38%`) maps to `aspect-ratio` or `padding-top %`, never to
+`section_height_custom` (which produces `svh` units).
+
+### New: Cascade Pre-flight Check (refine-section Step 2.1.5)
+
+Before applying a CSS change, refine-section now scans the existing override file for
+conflicting rules on the same element or its ancestors/descendants. Detects min/max conflicts,
+`!important` clashes, and `overflow: hidden` risks. If a conflict is found, the hypothesis is
+adjusted before the edit, not after a failed verification.
+
+### New: Visual Visibility Gate (refine-section Step 2.3 + find-variances)
+
+After each property test passes, refine-section now runs a visibility check on all text elements
+in the section. If any text element is invisible (clipped by `overflow: hidden`, zero-size,
+`opacity: 0`, `display: none`), the change is treated as a REGRESSION and reverted.
+
+find-variances also runs the visibility check during extraction and creates variance entries for
+text that's visible on the live site but invisible on dev. These visibility variances are a
+**hard gate** — they block the section from being marked complete.
+
+Step 3 (Final Verification) adds a Screenshot Diff Gate that catches structural visual mismatches
+(e.g., text overlay visible on live but missing on dev) even when all individual property tests pass.
+
+### New: Multi-Resolution Probe (find-variances Step 4.5)
+
+When layout variances exist, find-variances now extracts bounding boxes at 3 viewport widths
+(1024px, 1440px, 1920px) to empirically classify responsive behavior. If height/width ratio is
+constant across sizes, it's width-relative. If height is constant, it's fixed. This corroborates
+the source CSS inspection and serves as fallback when `document.styleSheets` is inaccessible
+(cross-origin). Probe data stored on the variance entry alongside `height_mechanism`.
+
+### Changed: Responsive-First Queue Ordering
+
+Variance queue priority reordered: visibility > structural > layout > setting > css > content.
+Layout variances (height, responsive behavior) are now fixed BEFORE typography details. This
+establishes the responsive skeleton first so subsequent fixes aren't invalidated by height or
+overflow changes.
+
+### Rendered Output Validation additions
+
+- Check 19: Text visibility (hard gate)
+- Check 20: Height mechanism extraction
+
 ## 0.13.0 — 2026-04-13
 
 **Migrate from Playwright MCP to Playwright CLI for deterministic screenshots.**

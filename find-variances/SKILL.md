@@ -74,7 +74,8 @@ Each entry in the `variances` array:
   "attempts": [],
   "user_approved": false,
   "source": "extraction",
-  "stale": false
+  "stale": false,
+  "height_mechanism": null
 }
 ```
 
@@ -85,12 +86,13 @@ Field reference:
 - `breakpoints` — which breakpoints this variance appears at
 - `live_value` — computed value on the live site
 - `dev_value` — computed value on the dev site
-- `type` — `structural` (element missing/wrong position), `setting` (JSON setting controls it), `css` (needs CSS override), `content` (text/image difference), `layout` (bounding box / sizing)
+- `type` — `visibility` (text visible on live, invisible on dev — hard gate), `structural` (element missing/wrong position), `setting` (JSON setting controls it), `css` (needs CSS override), `content` (text/image difference), `layout` (bounding box / sizing)
 - `status` — `open` (needs fix), `fixed` (verified PASS), `escalated` (3 failed attempts), `accepted` (user approved)
 - `test` — structured test condition (see Test Conditions below)
 - `attempts` — array of attempt records from refine-section
 - `user_approved` — only `true` if user explicitly approved via AskUserQuestion
 - `source` — `extraction` (auto-discovered), `user` (manually added), `visual` (from screenshot comparison)
+- `height_mechanism` — (layout variances only) how the live site achieves its height. See Height Mechanism Extraction below. `null` for non-layout variances.
 - `stale` — `true` if this entry was not seen in the latest re-extraction
 
 ### Test Conditions
@@ -268,6 +270,7 @@ For each breakpoint (desktop, tablet, mobile), compare every extracted property 
 1. **Match elements** by tag + role (heading, body, button, image, container, etc.)
 2. **Compare each property** — if values differ, create a variance entry
 3. **Classify type:**
+   - `visibility` — text element visible on live but invisible on dev (clipped, hidden, zero-size). Hard gate.
    - `structural` — element exists on live but not dev, or vice versa
    - `setting` — check if the property is controlled by a JSON setting (read section schema)
    - `css` — needs CSS override
@@ -286,12 +289,90 @@ For each breakpoint (desktop, tablet, mobile), compare every extracted property 
 
 **Consolidate across breakpoints:** If the same element:property fails at all 3 breakpoints, create ONE entry with `breakpoints: ["desktop", "tablet", "mobile"]` rather than 3 separate entries. If values differ per breakpoint, create separate entries.
 
-**Prioritize the queue:**
-1. `structural` — must fix first (element missing or wrong position)
-2. `setting` — simplest fix (JSON setting change)
-3. `css` — most common (needs selector + override)
-4. `layout` — bounding box adjustments
-5. `content` — flag only
+**Prioritize the queue (responsive-first ordering):**
+1. `visibility` — text visible on live but invisible on dev. **Hard gate.** Nothing else matters if the user can't see it.
+2. `structural` — element missing or wrong position
+3. `layout` — height, width, bounding box differences. Fix responsive behavior BEFORE typography details. These establish the structural foundation that all other fixes depend on.
+4. `setting` — JSON setting change (simplest CSS fix)
+5. `css` — CSS override (most common detail fix)
+6. `content` — text or image src differences (flag only, do not auto-fix)
+
+**Why responsive-first:** If the section height is wrong, text overlay positioning is wrong,
+and overflow behavior is wrong, then fixing font-weight or letter-spacing is wasted effort.
+Lock in the responsive skeleton first, then tune the details.
+
+## Step 4.5: Multi-Resolution Probe (Layout Variances Only)
+
+**Skip this step if** no layout variances were found in Step 4.
+
+When layout variances exist (height, width, or bounding box differences), run a **multi-resolution
+probe** on the live site to empirically determine how sizing properties respond to viewport changes.
+This corroborates the Height Mechanism Extraction (source CSS inspection) and catches cases where
+`document.styleSheets` is inaccessible (cross-origin stylesheets).
+
+**Probe viewports (desktop breakpoint only):**
+- 1440px wide (standard)
+- 1024px wide (narrower)
+- 1920px wide (wider)
+
+For each layout variance element, extract the bounding box at all three widths:
+
+```javascript
+((selector, viewportWidth) => {
+  const el = document.querySelector(selector);
+  if (!el) return JSON.stringify({ error: 'not found' });
+  const rect = el.getBoundingClientRect();
+  return JSON.stringify({
+    selector: selector,
+    viewport_width: viewportWidth,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  });
+})('ELEMENT_SELECTOR', VIEWPORT_WIDTH)
+```
+
+**Analyze the probe results** to classify responsive behavior:
+
+```
+MULTI-RESOLUTION PROBE: section.hero
+  1024px → height: 389px (ratio: 0.380)
+  1440px → height: 547px (ratio: 0.380)
+  1920px → height: 730px (ratio: 0.380)
+  → Constant ratio: 0.380 — CONFIRMED width-relative
+```
+
+| Pattern | Classification | Confidence boost |
+|---------|---------------|-----------------|
+| height/width ratio is constant (±2%) across all 3 sizes | `width-relative` | Source CSS says `%` or `vw` → high. Source CSS unavailable → medium. |
+| Height is constant (±5px) across all 3 sizes | `fixed` | high |
+| Height changes proportionally with viewport height (test by varying height too) | `viewport-height` | medium |
+| Height changes but not proportionally to width or viewport | `content-driven` | low (needs manual inspection) |
+
+**Store the probe data** on the variance entry:
+
+```json
+{
+  "height_mechanism": {
+    "responsive_type": "width-relative",
+    "authored_rules": { "padding-top": { "value": "38%", "source": ".hero-banner" } },
+    "computed_height_px": 547,
+    "probe": {
+      "1024": { "width": 1024, "height": 389 },
+      "1440": { "width": 1440, "height": 547 },
+      "1920": { "width": 1920, "height": 730 },
+      "ratio_variance": 0.001,
+      "classification": "width-relative",
+      "confidence": "high"
+    }
+  }
+}
+```
+
+**Cross-check with source CSS inspection:** If the probe says `width-relative` but source CSS says
+`viewport-height`, flag the disagreement. The probe is empirical evidence and wins in ambiguous cases.
+
+**If the probe is the only data** (source CSS inspection failed due to cross-origin sheets), the
+probe classification becomes the primary `responsive_type` with `confidence: "medium"`.
 
 ## Step 5: Write Results
 
@@ -626,6 +707,296 @@ Replace `HOST_TAG` with the actual host element tag name.
 - Property was confirmed by a test correction learning: `high`
 - Property was verified by a successful refine-section fix: `high` (update after fix)
 
+## Height Mechanism Extraction
+
+When a layout variance involves height (section height, container height, image container height),
+`getComputedStyle()` only returns resolved pixel values. You cannot tell `padding-top: 38%` from
+`padding-top: 547px` by reading computed styles alone. The **mechanism** matters because it determines
+how the height responds to different viewport sizes.
+
+**Run this script on the live site** after the main extraction, for each element with a height-related
+layout variance. It inspects `document.styleSheets` and inline styles to find the authored CSS rule
+controlling the height.
+
+```javascript
+((selector) => {
+  const el = document.querySelector(selector);
+  if (!el) return JSON.stringify({ error: 'Element not found: ' + selector });
+
+  // Properties that control height
+  const HEIGHT_PROPS = [
+    'height', 'min-height', 'max-height',
+    'padding-top', 'padding-bottom',
+    'aspect-ratio'
+  ];
+
+  // 1. Check inline styles first (highest specificity)
+  const inline = {};
+  for (const prop of HEIGHT_PROPS) {
+    const val = el.style.getPropertyValue(prop);
+    if (val) inline[prop] = val;
+  }
+
+  // 2. Walk matched CSS rules from document.styleSheets
+  const matched = [];
+  for (const sheet of document.styleSheets) {
+    try {
+      for (const rule of sheet.cssRules) {
+        if (!(rule instanceof CSSStyleRule)) continue;
+        try {
+          if (!el.matches(rule.selectorText)) continue;
+        } catch (e) { continue; }
+        for (const prop of HEIGHT_PROPS) {
+          const val = rule.style.getPropertyValue(prop);
+          if (val) {
+            matched.push({
+              property: prop,
+              value: val,
+              selector: rule.selectorText,
+              specificity: rule.selectorText.split(',')[0].trim()
+            });
+          }
+        }
+      }
+    } catch (e) { /* cross-origin sheet, skip */ }
+  }
+
+  // 3. Determine the winning mechanism
+  // Priority: inline > last matched rule (CSS cascade)
+  const mechanism = {};
+  for (const prop of HEIGHT_PROPS) {
+    if (inline[prop]) {
+      mechanism[prop] = { value: inline[prop], source: 'inline' };
+    } else {
+      // Last matching rule wins (simplified cascade, ignoring !important)
+      const rules = matched.filter(m => m.property === prop);
+      if (rules.length > 0) {
+        const winner = rules[rules.length - 1];
+        mechanism[prop] = { value: winner.value, source: winner.selector };
+      }
+    }
+  }
+
+  // 4. Classify the responsive behavior
+  const computed = getComputedStyle(el);
+  const computedHeight = parseFloat(computed.height);
+  let responsive_type = 'fixed'; // default
+
+  for (const [prop, info] of Object.entries(mechanism)) {
+    const val = info.value;
+    if (val.includes('%')) responsive_type = 'width-relative';
+    else if (val.includes('vw')) responsive_type = 'viewport-width';
+    else if (val.includes('vh') || val.includes('svh') || val.includes('dvh')) responsive_type = 'viewport-height';
+    else if (val.includes('em') || val.includes('rem')) responsive_type = 'font-relative';
+    else if (prop === 'aspect-ratio' && val !== 'auto') responsive_type = 'aspect-ratio';
+  }
+
+  return JSON.stringify({
+    element: selector,
+    computed_height: computedHeight,
+    mechanism: mechanism,
+    responsive_type: responsive_type,
+    all_matched_rules: matched
+  });
+})('ELEMENT_SELECTOR')
+```
+
+Replace `ELEMENT_SELECTOR` with the actual element selector.
+
+**Store the result** in the variance entry's `height_mechanism` field:
+
+```json
+{
+  "height_mechanism": {
+    "responsive_type": "width-relative",
+    "authored_rules": {
+      "padding-top": { "value": "38%", "source": ".hero-banner" }
+    },
+    "computed_height_px": 547
+  }
+}
+```
+
+**Responsive type classification:**
+
+| `responsive_type` | Meaning | Authored value examples | Correct dev approach |
+|-------------------|---------|------------------------|---------------------|
+| `width-relative` | Height scales with container width | `padding-top: 38%`, `width: 50%` | Use `aspect-ratio` or `padding-top %` CSS override. Do NOT use `section_height_custom` (svh). |
+| `viewport-width` | Height scales with viewport width | `height: 38vw`, `max-height: 50vw` | Use `vw`-based CSS override |
+| `viewport-height` | Height scales with viewport height | `height: 60vh`, `min-height: 80svh` | Use `section_height_custom` or `vh`-based override |
+| `aspect-ratio` | Height derived from intrinsic ratio | `aspect-ratio: 16/9` | Use `aspect-ratio` CSS override |
+| `font-relative` | Height scales with font size | `height: 3em`, `padding: 2rem` | Use `em`/`rem` CSS override |
+| `fixed` | Height is a fixed pixel value | `height: 500px` | Use `max-height` CSS override |
+
+**refine-section uses this data** to choose the correct approach in Step 2.1. Instead of guessing
+a number for `section_height_custom` (which produces `svh` units), it maps the mechanism directly.
+
+### Worked Example: Hero Banner Height Bug
+
+The live site uses `padding-top: 38%` on the hero banner container. This makes the banner height
+38% of the container width, so at 1440px wide the banner is ~547px tall.
+
+**Without height mechanism extraction** (the bug):
+1. find-variances extracts `height: 547px` (computed value only)
+2. refine-section sees "547px" and sets `section_height_custom: 38` (guessing from the number)
+3. But `section_height_custom: 38` produces `--hero-min-height: 38svh` (38% of viewport HEIGHT)
+4. At 1440x900: 38svh = 342px, not 547px. Wrong.
+5. A `max-height: 38vw` band-aid is added, which conflicts with a global `min-height: 67vh` rule
+6. `overflow: hidden` clips the text overlay. Text disappears.
+
+**With height mechanism extraction** (the fix):
+1. find-variances extracts `height: 547px` AND `height_mechanism: { responsive_type: "width-relative", authored_rules: { "padding-top": { "value": "38%", "source": ".hero-banner" } } }`
+2. refine-section reads `responsive_type: "width-relative"` and knows NOT to use `section_height_custom`
+3. Instead, it applies `aspect-ratio: 100/38` or `padding-top: 38%` as a CSS override
+4. The height scales correctly with browser width at all viewport sizes
+
+## Visual Visibility Check
+
+After extracting computed styles, verify that text and interactive elements are actually **visible
+to the user**, not just present in the DOM. An element can have correct computed styles while being
+invisible due to overflow clipping, z-index occlusion, zero dimensions, or transparency.
+
+**Run this script** on the dev site after each extraction. It checks every text element (headings,
+paragraphs, buttons) found in the section:
+
+```javascript
+((sectionSelector) => {
+  const section = document.querySelector(sectionSelector);
+  if (!section) return JSON.stringify({ error: 'Section not found' });
+
+  function isVisuallyVisible(el) {
+    const rect = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+
+    // 1. Element has dimensions
+    if (rect.width === 0 || rect.height === 0) return { visible: false, reason: 'zero-size' };
+
+    // 2. Element is not fully transparent
+    if (cs.opacity === '0') return { visible: false, reason: 'opacity-zero' };
+    if (cs.visibility === 'hidden') return { visible: false, reason: 'visibility-hidden' };
+    if (cs.display === 'none') return { visible: false, reason: 'display-none' };
+
+    // 3. Element is not clipped by ancestor overflow
+    // Traverse up the DOM, crossing Shadow DOM boundaries
+    let ancestor = el.parentElement;
+    while (ancestor) {
+      const acs = getComputedStyle(ancestor);
+      if (acs.overflow === 'hidden' || acs.overflow === 'clip' ||
+          acs.overflowX === 'hidden' || acs.overflowY === 'hidden') {
+        const aRect = ancestor.getBoundingClientRect();
+        if (rect.top >= aRect.bottom || rect.bottom <= aRect.top ||
+            rect.left >= aRect.right || rect.right <= aRect.left) {
+          return {
+            visible: false,
+            reason: 'clipped-by-overflow',
+            clipping_ancestor: ancestor.tagName.toLowerCase() + '.' +
+              (ancestor.className?.toString?.().split(' ')[0] || ''),
+            ancestor_rect: { top: aRect.top, bottom: aRect.bottom, height: aRect.height },
+            element_rect: { top: rect.top, bottom: rect.bottom, height: rect.height }
+          };
+        }
+      }
+      // Cross Shadow DOM boundary if needed
+      if (!ancestor.parentElement) {
+        const root = ancestor.getRootNode();
+        if (root instanceof ShadowRoot) {
+          ancestor = root.host;
+          continue;
+        }
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    // 4. Element has non-transparent color (text is readable)
+    const color = cs.color;
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (match && match[4] !== undefined && parseFloat(match[4]) === 0) {
+      return { visible: false, reason: 'transparent-color' };
+    }
+
+    return { visible: true, reason: null };
+  }
+
+  // Check all text elements in the section
+  const textSelectors = 'h1,h2,h3,h4,h5,h6,p,a,button,span,[class*="text"]';
+  const elements = section.querySelectorAll(textSelectors);
+  const results = [];
+
+  for (const el of elements) {
+    // Skip empty elements
+    if (!el.textContent?.trim()) continue;
+
+    const vis = isVisuallyVisible(el);
+    if (!vis.visible) {
+      results.push({
+        tag: el.tagName.toLowerCase(),
+        text: el.textContent.trim().substring(0, 40),
+        classes: el.className?.toString?.().substring(0, 60) || '',
+        ...vis
+      });
+    }
+  }
+
+  return JSON.stringify({
+    section: sectionSelector,
+    invisible_elements: results,
+    total_text_elements: elements.length,
+    total_invisible: results.length
+  });
+})('SECTION_SELECTOR')
+```
+
+Replace `SECTION_SELECTOR` with the actual section selector.
+
+**If any text elements are invisible**, create a variance entry with:
+- `type: "visibility"`
+- `property: "visibility"`
+- `status: "open"`
+- `source: "extraction"`
+- The `test` field uses a custom JS assertion:
+
+```json
+{
+  "id": "h1:visibility:desktop",
+  "element": "h1 (About GLDN Jewelry)",
+  "property": "visibility",
+  "type": "visibility",
+  "status": "open",
+  "live_value": "visible",
+  "dev_value": "clipped-by-overflow (.hero, overflow:hidden)",
+  "test": {
+    "js": "(() => { const el = document.querySelector('SECTION h1'); if (!el) return 'missing'; const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); if (r.width === 0 || r.height === 0) return 'zero-size'; if (cs.opacity === '0' || cs.visibility === 'hidden') return 'hidden'; let a = el.parentElement; while (a) { const acs = getComputedStyle(a); if (acs.overflow === 'hidden') { const ar = a.getBoundingClientRect(); if (r.top >= ar.bottom || r.bottom <= ar.top) return 'clipped'; } a = a.parentElement; } return 'visible'; })()",
+    "expected_js": "visible",
+    "confidence": "high"
+  }
+}
+```
+
+**This is a hard gate.** If the live site shows visible text but the dev site shows the same text
+as invisible (clipped, zero-size, hidden), this variance takes priority over all CSS property
+variances. There is no point fixing font-weight if the user can't see the text at all.
+
+### Worked Example: Hero Banner Text Clipped by Overflow
+
+The live site shows "About GLDN Jewelry" overlaid on the hero image. After refine-section
+added `overflow: hidden` to constrain the hero height, the text overlay was clipped because
+the text content extended below the overflow boundary.
+
+**Without visibility check** (the bug):
+1. find-variances extracts `h1 { fontSize: 56px, fontWeight: 200, color: rgb(242,242,242) }` — all correct
+2. refine-section confirms PASS for font-size, font-weight, color
+3. The delta table shows all green. "0 variances remaining."
+4. But the h1 is completely invisible because its bounding box is below the `.hero` element's
+   `overflow: hidden` clip boundary
+5. The user sees a broken page. The algorithm thinks it's perfect.
+
+**With visibility check** (the fix):
+1. find-variances extracts computed styles AND runs the visibility check
+2. Visibility check finds: `h1 "About GLDN Jewelry" — clipped-by-overflow (.hero, overflow:hidden)`
+3. A variance is created: `h1:visibility:desktop — visible vs clipped-by-overflow`
+4. This variance blocks the section from being marked complete
+5. refine-section must fix the overflow issue before any property variances can PASS
+
 ## Rendered Output Validation
 
 In addition to computed style comparison, check for structural issues:
@@ -650,5 +1021,7 @@ In addition to computed style comparison, check for structural issues:
 | 16 | Element bounding boxes | layout | x, width, or height differs by >2px |
 | 17 | Image container size | layout | Container width or height differs by >2px |
 | 18 | Image sizing properties | layout | Different object-fit, object-position, or aspect-ratio |
+| 19 | Text visibility | visibility | Text element visible on live but invisible on dev (clipped, hidden, zero-size). **Hard gate** — blocks section completion. |
+| 20 | Height mechanism | layout | Section/container height differs AND uses responsive units (%, vw, vh). Extract authored CSS mechanism. |
 
-Each failing check creates a variance entry in the array. Structural checks (12-14) get `type: "structural"` and a test condition with a custom JS assertion.
+Each failing check creates a variance entry in the array. Structural checks (12-14) get `type: "structural"` and a test condition with a custom JS assertion. Visibility check (19) gets `type: "visibility"` and takes priority over all other variance types (hard gate). Height mechanism check (20) stores the `height_mechanism` field on the variance entry.
