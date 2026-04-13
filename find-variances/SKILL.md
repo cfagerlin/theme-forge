@@ -374,7 +374,7 @@ When invoked with `--add "description"`:
 
 ## Extraction Script
 
-The extraction script runs in the browser via Playwright MCP or gstack browse. It extracts computed styles for all significant elements in a section.
+The extraction script runs in the browser via `screenshot.sh eval`. It extracts computed styles for all significant elements in a section.
 
 **Use the screenshot.sh eval command** to run JS in the browser at each breakpoint:
 

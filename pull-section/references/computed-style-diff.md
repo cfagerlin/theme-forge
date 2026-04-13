@@ -8,7 +8,7 @@ Run this at **Step 4 (Render & Inspect)** of pull-section, AFTER taking screensh
 
 ## The Extraction Script
 
-Run this JavaScript on both the live and dev sites using your browse tool. For gstack_browse: `B=$HOME/.claude/skills/gstack/browse/dist/browse && $B js "..."`. For Playwright MCP: `mcp__playwright__browser_evaluate`. Replace the selector with the section's container.
+Run this JavaScript on both the live and dev sites using `scripts/screenshot.sh eval --url <url> --js "<script>" --breakpoint <breakpoint>`. Replace the selector with the section's container.
 
 **Shadow DOM themes (e.g., Horizon):** If `document.querySelector(SECTION_SELECTOR)` returns null but the page renders visually, the section is inside a shadow root. Use the `deepQuery` function from the Shadow DOM Handling section in pull-section/SKILL.md to find the element, then pass it to the extraction script below.
 
