@@ -310,43 +310,87 @@ probe** on the live site to empirically determine how sizing properties respond 
 This corroborates the Height Mechanism Extraction (source CSS inspection) and catches cases where
 `document.styleSheets` is inaccessible (cross-origin stylesheets).
 
-**Probe viewports (desktop breakpoint only):**
-- 1440px wide (standard)
-- 1024px wide (narrower)
-- 1920px wide (wider)
+**Two-axis probe: width sweep + height sweep.** A single-axis probe that only varies width
+cannot distinguish `fixed` from `viewport-height`. An element using `60vh` shows the same height
+at 1024w, 1440w, and 1920w if the viewport height never changes. You need both axes.
 
-For each layout variance element, extract the bounding box at all three widths:
+**Width sweep (same height, vary width):**
+- 1024 × 900
+- 1440 × 900
+- 1920 × 900
+
+**Height sweep (same width, vary height):**
+- 1440 × 600
+- 1440 × 900
+- 1440 × 1200
+
+For each layout variance element, extract the bounding box at all six viewports:
 
 ```javascript
-((selector, viewportWidth) => {
+((selector, viewportWidth, viewportHeight) => {
   const el = document.querySelector(selector);
   if (!el) return JSON.stringify({ error: 'not found' });
   const rect = el.getBoundingClientRect();
   return JSON.stringify({
     selector: selector,
     viewport_width: viewportWidth,
+    viewport_height: viewportHeight,
     width: Math.round(rect.width),
     height: Math.round(rect.height)
   });
-})('ELEMENT_SELECTOR', VIEWPORT_WIDTH)
+})('ELEMENT_SELECTOR', VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
 ```
 
-**Analyze the probe results** to classify responsive behavior:
+**Analyze probe results using both sweeps** to classify responsive behavior:
 
 ```
 MULTI-RESOLUTION PROBE: section.hero
-  1024px → height: 389px (ratio: 0.380)
-  1440px → height: 547px (ratio: 0.380)
-  1920px → height: 730px (ratio: 0.380)
-  → Constant ratio: 0.380 — CONFIRMED width-relative
+
+Width sweep (height locked at 900):
+  1024×900 → height: 389px (w-ratio: 0.380)
+  1440×900 → height: 547px (w-ratio: 0.380)
+  1920×900 → height: 730px (w-ratio: 0.380)
+  → Constant w-ratio: 0.380 — height tracks viewport width
+
+Height sweep (width locked at 1440):
+  1440×600 → height: 547px
+  1440×900 → height: 547px
+  1440×1200 → height: 547px
+  → Constant height across viewport heights — NOT vh-based
+
+→ CONFIRMED: width-relative (scales with width, ignores height)
 ```
 
-| Pattern | Classification | Confidence boost |
-|---------|---------------|-----------------|
-| height/width ratio is constant (±2%) across all 3 sizes | `width-relative` | Source CSS says `%` or `vw` → high. Source CSS unavailable → medium. |
-| Height is constant (±5px) across all 3 sizes | `fixed` | high |
-| Height changes proportionally with viewport height (test by varying height too) | `viewport-height` | medium |
-| Height changes but not proportionally to width or viewport | `content-driven` | low (needs manual inspection) |
+Example of a `viewport-height` element:
+
+```
+Width sweep (height locked at 900):
+  1024×900 → height: 540px
+  1440×900 → height: 540px
+  1920×900 → height: 540px
+  → Constant across widths — NOT width-relative
+
+Height sweep (width locked at 1440):
+  1440×600 → height: 360px (h-ratio: 0.600)
+  1440×900 → height: 540px (h-ratio: 0.600)
+  1440×1200 → height: 720px (h-ratio: 0.600)
+  → Constant h-ratio: 0.600 — height tracks viewport height
+
+→ CONFIRMED: viewport-height (60vh)
+```
+
+**Classification matrix (use both sweeps together):**
+
+| Width sweep | Height sweep | Classification | Confidence |
+|-------------|-------------|---------------|------------|
+| w-ratio constant (±2%) | Height constant (±5px) | `width-relative` | high |
+| Height constant (±5px) | h-ratio constant (±2%) | `viewport-height` | high |
+| w-ratio constant (±2%) | h-ratio constant (±2%) | `mixed` (both axes) | medium, flag for manual review |
+| Height constant (±5px) | Height constant (±5px) | `fixed` | high |
+| Height varies, no pattern | Height varies, no pattern | `content-driven` | low (needs manual inspection) |
+
+The old single-axis probe could not distinguish row 2 (`viewport-height`) from row 4 (`fixed`)
+because both show constant height when only width varies. The height sweep resolves this.
 
 **Store the probe data** on the variance entry:
 
@@ -357,10 +401,18 @@ MULTI-RESOLUTION PROBE: section.hero
     "authored_rules": { "padding-top": { "value": "38%", "source": ".hero-banner" } },
     "computed_height_px": 547,
     "probe": {
-      "1024": { "width": 1024, "height": 389 },
-      "1440": { "width": 1440, "height": 547 },
-      "1920": { "width": 1920, "height": 730 },
-      "ratio_variance": 0.001,
+      "width_sweep": {
+        "1024x900": { "width": 1024, "height": 389 },
+        "1440x900": { "width": 1440, "height": 547 },
+        "1920x900": { "width": 1920, "height": 730 }
+      },
+      "height_sweep": {
+        "1440x600": { "width": 1440, "height": 547 },
+        "1440x900": { "width": 1440, "height": 547 },
+        "1440x1200": { "width": 1440, "height": 547 }
+      },
+      "width_ratio_variance": 0.001,
+      "height_ratio_variance": 0.0,
       "classification": "width-relative",
       "confidence": "high"
     }
@@ -372,7 +424,8 @@ MULTI-RESOLUTION PROBE: section.hero
 `viewport-height`, flag the disagreement. The probe is empirical evidence and wins in ambiguous cases.
 
 **If the probe is the only data** (source CSS inspection failed due to cross-origin sheets), the
-probe classification becomes the primary `responsive_type` with `confidence: "medium"`.
+probe classification becomes the primary `responsive_type` with `confidence: "medium"` for
+single-axis matches, `confidence: "high"` when both sweeps agree.
 
 ## Step 5: Write Results
 
