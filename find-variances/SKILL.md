@@ -32,7 +32,7 @@ report. Each variance includes a test condition that refine-section can execute 
 ## Prerequisites
 
 - `.theme-forge/config.json` exists with `live_url` and `dev_url`
-- A browser tool is available (Playwright MCP or gstack browse)
+- Playwright CLI is available (via `scripts/screenshot.sh eval`)
 - Dev server is running (for dev extraction)
 
 ## Hard Rules
@@ -376,7 +376,20 @@ When invoked with `--add "description"`:
 
 The extraction script runs in the browser via Playwright MCP or gstack browse. It extracts computed styles for all significant elements in a section.
 
-**Use Playwright MCP** (`mcp__playwright__browser_evaluate`). If unavailable, fall back to gstack browse (`$B js`).
+**Use the screenshot.sh eval command** to run JS in the browser at each breakpoint:
+
+```bash
+# Find the script
+SS="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/screenshot.sh"
+[ -x "$SS" ] || SS="$HOME/.claude/skills/theme-forge/scripts/screenshot.sh"
+
+# Run extraction at each breakpoint (script handles viewport sizing)
+RESULT=$("$SS" eval --url "<url>" --js "<extraction_script>" --breakpoint desktop)
+RESULT_TABLET=$("$SS" eval --url "<url>" --js "<extraction_script>" --breakpoint tablet)
+RESULT_MOBILE=$("$SS" eval --url "<url>" --js "<extraction_script>" --breakpoint mobile)
+```
+
+If the screenshot.sh script is unavailable, fall back to `playwright-cli eval` or gstack browse (`$B js`).
 
 ```javascript
 (() => {

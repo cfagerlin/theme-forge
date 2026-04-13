@@ -97,7 +97,7 @@ These rules are non-negotiable. They override everything else in this document. 
 
 ### Never save files to the repo root
 - **All screenshots go in `.theme-forge/` subdirectories.** Debug screenshots go in `.theme-forge/debug/{session}/`. Reference screenshots go in `.theme-forge/references/{section}/`. Temporary captures go in `.theme-forge/tmp/capture/`. NEVER save `.png` files, `.yml` files, or any working artifacts to the repo root directory. The repo root is for theme files only (sections/, assets/, config/, templates/, snippets/, layout/).
-- **All Playwright MCP files stay in `.playwright-mcp/`.** Do not move or copy them elsewhere. This directory is gitignored.
+- **All Playwright CLI files stay in `.playwright-cli/`.** Do not move or copy them elsewhere. This directory is gitignored.
 
 ### Learnings are mandatory
 - **After completing any section, write learnings to `.theme-forge/learnings/{section-key}.json`.** Each section gets its own file (e.g., `learnings/hero-1_index.json`, `learnings/header.json`). This prevents merge conflicts when parallel sessions write learnings simultaneously. The file contains an array of learning objects for that section.
