@@ -156,94 +156,28 @@ When `--full` is passed, run the **complete migration pipeline from zero to fini
 
 #### Phase 3: Dev Server
 
-5. **Start or reconnect to this session's dev server.** Follow the Dev Server Protocol below.
-
----
-
-### Dev Server Protocol
-
-Every session owns exactly one dev server, identified by its **port + theme ID** pair. Multiple agents can run in parallel without conflicts because each discovers its own open port and binds to its own theme.
-
-#### Starting the dev server
-
-1. **Check config** for an existing `dev_port`. If set, verify the process is still running:
+5. **Start the dev server** using the deterministic script:
    ```bash
-   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <target_theme_id>" | grep -v grep
+   eval "$(scripts/dev-server.sh start)"
    ```
-   - **If a matching process exists**: The server is already running. Reconnect by setting `dev_url` to `http://127.0.0.1:<dev_port>`. Skip to "Present session URLs."
-   - **If no matching process**: The server was stopped (by the user or a crash). Clear `dev_port` from config and continue to step 2.
+   This outputs `DEV_PORT`, `DEV_THEME_ID`, `DEV_URL`, `DEV_PREVIEW_URL`, `DEV_EDITOR_URL`, `DEV_MODE`, and `DEV_STATUS` as environment variables. The script handles everything:
+   - Pre-flight safety check (blocks live themes)
+   - Reconnects to existing session if still running
+   - Detects parallel sessions and auto-creates unpublished theme
+   - Finds open port, starts server, captures URLs
+   - Writes all `dev_*` fields to config
 
-2. **Find an open port.** Scan 9292-9299 for the first port with no listener:
+   **Present the preview and editor URLs to the user** after the script runs. The user needs these to interact with the dev theme.
+
+   Other script commands:
    ```bash
-   for port in 9292 9293 9294 9295 9296 9297 9298 9299; do
-     if ! lsof -i :$port -sTCP:LISTEN 2>/dev/null | grep -q .; then
-       echo "AVAILABLE: $port"; break
-     fi
-   done
+   scripts/dev-server.sh status    # Check if running
+   scripts/dev-server.sh restart   # Cache invalidation (same port + theme)
+   scripts/dev-server.sh stop      # Stop server, clear config
+   scripts/dev-server.sh cleanup   # Stop + delete unpublished theme + orphan scan
    ```
 
-3. **Start the server** with both `--theme` and `--port` explicitly set:
-   ```bash
-   shopify theme dev --store <dev_store> --theme <target_theme_id> --port $DEV_PORT --path . &
-   ```
-   Wait for the Shopify CLI to print its output (preview URL, editor URL). This takes 5-15 seconds.
-
-4. **Capture the session URLs** from the CLI output. Shopify CLI prints:
-   ```
-   ┃  Preview your theme
-   ┃  http://127.0.0.1:9293
-   ┃
-   ┃  Customize your theme in the Theme Editor
-   ┃  https://store.myshopify.com/admin/themes/157960011907/editor
-   ```
-   Parse both URLs from the output.
-
-5. **Save to config** (`.theme-forge/config.json`):
-   ```json
-   {
-     "dev_port": 9293,
-     "dev_url": "http://127.0.0.1:9293",
-     "dev_preview_url": "http://127.0.0.1:9293",
-     "dev_editor_url": "https://store.myshopify.com/admin/themes/157960011907/editor"
-   }
-   ```
-
-6. **Present session URLs** to the user:
-   ```
-   DEV SERVER
-   ══════════════════════════════════════════════════
-   Port:     9293
-   Theme:    157960011907
-   Preview:  http://127.0.0.1:9293
-   Editor:   https://store.myshopify.com/admin/themes/157960011907/editor
-   ══════════════════════════════════════════════════
-   ```
-
-#### Restarting the dev server (cache invalidation)
-
-When you need to restart the dev server (e.g., to clear Shopify's asset cache):
-
-1. **Read `dev_port` and `target_theme_id` from config.**
-2. **Find the process by port + theme ID** (not by a stored PID, the user may have restarted it):
-   ```bash
-   ps aux | grep "shopify theme dev" | grep -- "--port <dev_port>" | grep -- "--theme <target_theme_id>" | grep -v grep | awk '{print $2}'
-   ```
-3. **If found**: `kill <pid>`, wait 2 seconds, then restart with the same port + theme ID.
-4. **If not found** (user killed it, or it crashed): Just start fresh on the same port.
-5. **If something unexpected is on your port** (different theme ID): Do NOT kill it. Escalate to the user:
-   ```
-   ⚠ Port <dev_port> is running theme <other_id>, not <target_theme_id>.
-   Another session may have taken this port. Options:
-   A) Kill it and reclaim the port
-   B) Find a new open port
-   ```
-
-#### Hard rules
-
-- **Always start with `--theme <target_theme_id>` and `--port <dev_port>`.** Never start without both flags. Omitting `--theme` serves the live/published theme, which is wrong. Omitting `--port` risks colliding with another session.
-- **Never kill a process unless it matches BOTH your port AND your theme ID.** If only one matches, escalate.
-- **The config is the source of truth for this session's port.** Other sessions have their own configs in their own worktrees.
-- **Present the preview and editor URLs after every start/restart.** The user needs these to interact with the dev theme.
+   **On section/page approval (Step 12):** Run `scripts/dev-server.sh cleanup` to delete the unpublished theme if this session created one. Shopify has a 99-theme limit.
 
 ---
 
@@ -572,6 +506,7 @@ NEVER modify the target theme's core files. This preserves upstream upgradabilit
 
 ### Safety Rules
 
+- **NEVER run `shopify theme dev` directly.** Always use `scripts/dev-server.sh start`. The script enforces safety checks (blocks live themes), handles parallel session isolation (unpublished themes for concurrent agents), discovers open ports, and captures session URLs. Running `shopify theme dev` manually bypasses all of these safeguards and risks syncing to the wrong theme or colliding with another session.
 - **NEVER run `shopify theme push` or `shopify theme publish` without explicit user approval.** All theme work happens locally. The `shopify theme dev` server hot-reloads local files, so pushing is unnecessary during development. When the user is ready to push, they will tell you. This is a bright red line — no exceptions, no "just pushing config", no "only pushing one file".
 - **NEVER access the production store's Shopify admin.** The live site is read-only (public storefront only).
 - **NEVER modify the base theme files.** The base theme export is a read-only reference.

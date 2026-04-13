@@ -12,7 +12,11 @@ Convenience command that runs `pull-section` on the site footer. The footer is a
 ## Workflow
 
 1. Read `.theme-forge/config.json`
-2. **Start Dev Server** — follow the **Dev Server Protocol** in the orchestrator `SKILL.md`. This finds an open port, starts with `--theme` + `--port`, saves `dev_port`/`dev_url`/`dev_preview_url`/`dev_editor_url` to config, and presents the session URLs to the user. If the server is already running (config has `dev_port` and the process matches), reconnect to it.
+2. **Start Dev Server:**
+   ```bash
+   eval "$(scripts/dev-server.sh start)"
+   ```
+   Present the `DEV_PREVIEW_URL` and `DEV_EDITOR_URL` to the user. The script handles port discovery, parallel session isolation, and safety checks.
    - **Without a dev server, pull-section falls back to code-only mode (no visual verification).** This defeats the purpose of theme-forge. Do NOT proceed without a running dev server unless the user explicitly chooses code-only mode.
 3. Identify the footer section:
    - Check `.theme-forge/base-cache/sections/footer-group.json` (or `{base_theme}/sections/footer-group.json`) for the footer section reference
