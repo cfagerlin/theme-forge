@@ -41,9 +41,9 @@ These rules are non-negotiable. They override everything else in this document. 
 - **The `variances` array in the section report is the ONLY valid work queue.** If you reach Step 5 and the section report does not contain a `variances` array, STOP. Go back and run find-variances. Old-style `variances_found`/`variances_fixed`/`variances_remaining` counter fields are NOT a substitute.
 - **If you find yourself writing JS to extract `getComputedStyle()` inline, STOP.** That is find-variances' job. The only exception is ad-hoc element inspection during fix work (Step 5.5 selector discovery).
 
-### refine-section is MANDATORY for remaining variances
-- **If Step 8 leaves `open` variances, you MUST hand off to `refine-section` at Step 9.** Do NOT continue the old Step 5→8 loop manually. refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally.
-- **If you find yourself applying CSS fixes without running refine-section's test conditions, STOP.** Each variance has a structured test condition that refine-section executes. Improvised visual checks are not a substitute.
+### refine-section is recommended for remaining variances
+- **If Step 8 leaves `open` variances, report them and recommend `refine-section`.** Do NOT continue the old Step 5→8 loop manually. If the user wants to close remaining variances, they invoke refine-section separately.
+- **pull-section's job is the first pass.** Get as close as possible with settings, CSS overrides, and structural changes. Remaining variances are reported with status `needs_refinement` so the user can decide whether to refine.
 
 ### Extraction FAIL = must fix (no rationalizing)
 - **If the computed style extraction marks a row as FAIL, you MUST fix it or escalate.** You may not reclassify a FAIL as "measurement artifact," "visually equivalent," or "not a real difference." The extraction compares exact computed values from the browser. If live says `text-align: center` and dev says `text-align: left`, that is a real difference — fix it. Do not argue that "the container is narrow so they look the same."
@@ -1047,7 +1047,7 @@ If the variance requires HTML/Liquid changes:
 
    Read the updated variance table from the section report. Any `open` entries are FAILs that must be fixed.
 
-5. If any `open` variances remain, go to Step 9 (hand off to refine-section).
+5. If any `open` variances remain, proceed to Step 9 (Report & Recommend).
 
    > **HARD RULE: If a variance shows the SAME dev value as before your fix, your selector
    > is wrong.** The variance's test condition includes the selector used. If the test condition
@@ -1103,27 +1103,31 @@ After completing the FIRST section (usually header), identify values that are th
 - Section-specific font sizes (hero h1 is larger than footer h2)
 - Layout dimensions (grid columns, flex ratios, container max-widths)
 
-### Step 9: Hand Off to refine-section (MANDATORY)
-
-> **HARD GATE: If `open` variances remain, you MUST invoke refine-section.**
-> Do NOT continue applying CSS fixes manually. Do NOT loop back to Step 5-8.
-> refine-section exists specifically to close remaining variances with a disciplined
-> one-change-at-a-time experiment loop. Bypassing it produces the same thrashing
-> pattern that the old workflow suffered from.
+### Step 9: Report & Recommend
 
 After Step 8, check the variance array in the section report for `open` entries.
 
-**If ALL variances are `fixed` or `accepted`:** Proceed to Step 10 (Final Validation Gate).
+**If ALL variances are `fixed` or `accepted`:** Set status to `completed`. Proceed to Step 10 (Final Validation Gate).
 
-**If `open` variances remain:** Invoke `refine-section`:
+**If `open` variances remain:** Set status to `needs_refinement`. Present the remaining variances and recommend refine-section:
 
 ```
-/theme-forge refine-section <section-key> --page <page>
+PULL COMPLETE: {section-key} — {fixed_count}/{total_count} variances fixed
+════════════════════════════════════════════════════════════
+Status: needs_refinement ({open_count} open variances remain)
+
+REMAINING VARIANCES:
+#  Element              Property         Live           Dev            Type
+1  h1                   fontWeight       200            700            setting
+2  .price-money         fontWeight       300            500            css
+════════════════════════════════════════════════════════════
+To close remaining variances, run:
+  /theme-forge refine-section {section-key} --page {page}
 ```
 
-refine-section reads the variance array from the section report as its work queue. Each variance entry has a structured test condition that refine-section executes directly (no improvised JS). refine-section commits each verified fix individually and updates the variance entry status. When it finishes (0 open variances or all remaining escalated), return here and proceed to Step 10.
+refine-section uses a disciplined one-change-at-a-time experiment loop with per-element DOM inspection and per-fix learnings. It reads the variance array from the section report as its work queue.
 
-**How to tell if you're bypassing this gate:** If you are writing CSS fixes after Step 8 without having invoked `/theme-forge refine-section`, you are doing it wrong. STOP. The experiment loop in refine-section enforces one-change-at-a-time, per-element DOM inspection, and per-fix learnings structurally — not as guidelines you can choose to follow.
+Proceed to Step 10 regardless of whether variances remain.
 
 ### Step 10: Final Validation Gate
 
@@ -1134,9 +1138,7 @@ refine-section reads the variance array from the section report as its work queu
 > Go back to Step 4.3 and run find-variances before declaring anything "done."
 > A report with only `variances_found`/`variances_fixed` counters (no array) is INVALID.
 
-1. **Read the variance array from the section report.** Every entry must have `status: "fixed"` or `status: "accepted"`. No `open` or `escalated` entries allowed.
-
-2. **Display the final variance table** from the report:
+1. **Read the variance array from the section report.** Display the final variance table:
 
 ```
 Breakpoint | Element              | Property         | Live         | Dev          | Status
@@ -1146,15 +1148,18 @@ desktop    | .price-money         | fontWeight       | 300          | 300       
 desktop    | .add-to-cart         | fontSize         | 13px         | 13px         | fixed
 tablet     | h1                   | fontWeight       | 200          | 200          | fixed
 mobile     | section              | paddingTop       | 80px         | 80px         | fixed
+desktop    | h1                   | letterSpacing    | 0.1em        | 0.05em       | open
 ```
 
-3. **If ANY entry has `status: "open"`: FAIL.** Go back to refine-section. Do not proceed.
+2. **If ALL entries are `fixed` or `accepted`:** Set report status to `completed`.
+
+3. **If ANY entry has `status: "open"`:** Set report status to `needs_refinement`. This is the expected outcome when pull-section gets close but doesn't fully match. The user runs `refine-section` separately to close remaining gaps.
 
 4. **Read the final screenshots** (desktop, tablet, mobile) from the last Step 8 capture. Visually confirm they match the live references at each breakpoint. If you see ANY visual difference not captured in the variance array, add it with `/theme-forge find-variances <section> --add "description"` and fix it.
 
 5. No separate responsive pass is needed. All three breakpoints have been compared throughout the entire fix loop (Steps 4-8-10).
 
-**You MUST show the final variance table in your output.** The user needs to see the evidence that every variance is fixed or accepted. A section reported as "complete" without a passing variance table is a bug in your process.
+**You MUST show the final variance table in your output.** The user needs to see the evidence of what was fixed and what remains. A section reported as "completed" or "needs_refinement" without a variance table is a bug in your process.
 
 ### Step 10.5: Present Final Screenshots to User
 
@@ -1174,11 +1179,11 @@ Desktop (1280px): [Read desktop.png]
 Tablet (768px):   [Read tablet.png]
 Mobile (375px):   [Read mobile.png]
 
-Delta table: all properties PASS at all breakpoints.
+Delta table: {fixed_count}/{total_count} variances fixed, {open_count} remaining
 Files modified: {list}
-Variances fixed: {count}
+Status: {completed | needs_refinement}
 
-A) Looks good — mark as completed
+A) Looks good — finalize with current status
 B) I see an issue — go back to fix (describe what's wrong)
 C) Acceptable — mark as completed with notes
 ```
@@ -1195,7 +1200,7 @@ Save to `.theme-forge/reports/sections/{section-key}.json` (e.g., `featured-coll
   "section": "slideshow",
   "base_section": "sections/slideshow.liquid",
   "target_section": "sections/custom-hero-slideshow.liquid",
-  "status": "complete",
+  "status": "completed",  // or "needs_refinement" if open variances remain
   "changes": [
     {
       "type": "json_setting",
