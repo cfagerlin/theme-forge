@@ -330,28 +330,67 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     dev_theme_id="$target_theme_id"
   else
     info "Parallel session detected (existing PIDs: $(echo "$other_pids" | tr '\n' ' '))"
-    info "Creating unpublished theme for isolation..."
 
-    local branch_name
+    # Build the theme name for this branch
+    local branch_name repo_name
     branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
-    local tf_name="[TF] ${branch_name}"
-    # --theme accepts a name string (not just ID) when combined with --unpublished
-    local push_output
-    push_output=$(shopify theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
-      warn "Theme push output: $push_output"
-      die "Failed to create unpublished theme. See output above."
-    }
+    repo_name=$(git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null \
+      | sed 's|.*[:/]\([^/]*/[^/]*\)\.git$|\1|;s|.*[:/]\([^/]*/[^/]*\)$|\1|' \
+      | sed 's|.*/||' || echo "unknown")
+    local tf_name="[TF] ${repo_name} / ${branch_name}"
 
-    dev_theme_id=$(echo "$push_output" | jq -r '.theme.id // empty' 2>/dev/null || echo "")
-    if [[ -z "$dev_theme_id" ]]; then
-      warn "Push output: $push_output"
-      die "Could not parse theme ID from push output. Check Shopify CLI version and auth."
+    # Look up existing [TF] theme for this branch via shopify theme list
+    info "Checking for existing theme: $tf_name"
+    local theme_list_output
+    theme_list_output=$(shopify theme list --store "$dev_store" --json 2>/dev/null || echo "[]")
+    local existing_tf_id
+    existing_tf_id=$(echo "$theme_list_output" \
+      | jq -r --arg name "$tf_name" '.[] | select(.name == $name) | .id' 2>/dev/null \
+      | head -1 || echo "")
+
+    if [[ -n "$existing_tf_id" ]]; then
+      info "Found existing theme '$tf_name' (ID: $existing_tf_id). Reusing it."
+      dev_theme_id="$existing_tf_id"
+
+      # Push current files to the existing theme so it's up to date
+      info "Syncing files to existing theme..."
+      local sync_stderr_file
+      sync_stderr_file=$(mktemp /tmp/tf-sync-XXXXXX)
+      shopify theme push --theme "$dev_theme_id" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$sync_stderr_file" >/dev/null || {
+        warn "Theme sync stderr: $(cat "$sync_stderr_file")"
+        rm -f "$sync_stderr_file"
+        warn "Could not sync files to existing theme. Continuing with stale files."
+      }
+      rm -f "$sync_stderr_file"
+    else
+      info "No existing theme found. Creating unpublished theme: $tf_name"
+
+      # --theme accepts a name string (not just ID) when combined with --unpublished
+      # Capture stderr separately so progress bars don't corrupt JSON on stdout
+      local push_stderr_file
+      push_stderr_file=$(mktemp /tmp/tf-push-XXXXXX)
+      local push_output
+      push_output=$(shopify theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$push_stderr_file") || {
+        warn "Theme push stderr: $(cat "$push_stderr_file")"
+        warn "Theme push stdout: $push_output"
+        rm -f "$push_stderr_file"
+        die "Failed to create unpublished theme. See output above."
+      }
+      rm -f "$push_stderr_file"
+
+      dev_theme_id=$(echo "$push_output" | jq -r '.theme.id // empty' 2>/dev/null || echo "")
+      if [[ -z "$dev_theme_id" ]]; then
+        warn "Push output: $push_output"
+        die "Could not parse theme ID from push output. Check Shopify CLI version and auth."
+      fi
+
+      info "Created unpublished theme: $dev_theme_id"
     fi
 
-    # Verify the new theme is safe
+    # Verify the theme is safe
     local new_role
     new_role=$(verify_theme_safe "$dev_theme_id" "$dev_store")
-    info "New unpublished theme: $dev_theme_id (role: $new_role)"
+    info "Theme $dev_theme_id role: $new_role"
 
     dev_theme_created="true"
     mode="parallel"
