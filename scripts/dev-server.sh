@@ -96,7 +96,7 @@ write_config() {
 
 clear_dev_fields() {
   local tmp="${CONFIG_FILE}.tmp"
-  jq 'del(.dev_port, .dev_theme_id, .dev_theme_created, .dev_url, .dev_preview_url, .dev_editor_url)' \
+  jq 'del(.dev_port, .dev_pid, .dev_theme_id, .dev_theme_created, .dev_url, .dev_preview_url, .dev_editor_url)' \
     "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
 }
 
@@ -244,6 +244,7 @@ start_server() {
   # Return values via globals (subshell-safe)
   _PREVIEW_URL="$preview_url"
   _EDITOR_URL="$editor_url"
+  _SERVER_PID="$server_pid"
 }
 
 # ── Subcommands ──────────────────────────────────────────────────────────────
@@ -266,10 +267,24 @@ cmd_start() {
   existing_theme_id=$(read_config "dev_theme_id")
 
   if [[ -n "$existing_port" && -n "$existing_theme_id" ]]; then
-    local pid
-    pid=$(find_dev_process "$existing_port" "$existing_theme_id")
+    local stored_pid
+    stored_pid=$(read_config "dev_pid")
+
+    # Check if the stored PID is still alive AND is a shopify process, fall back to ps-grep
+    local pid=""
+    if [[ -n "$stored_pid" ]] && kill -0 "$stored_pid" 2>/dev/null \
+       && ps -p "$stored_pid" -o args= 2>/dev/null | grep -q "shopify theme dev"; then
+      pid="$stored_pid"
+    else
+      # PID gone or not stored — try ps-grep as fallback
+      pid=$(find_dev_process "$existing_port" "$existing_theme_id")
+    fi
+
     if [[ -n "$pid" ]]; then
       info "Dev server already running (PID $pid)"
+      # Update stored PID if it changed (found via ps-grep)
+      [[ "$pid" != "$stored_pid" ]] && write_config dev_pid "$pid"
+
       local preview_url editor_url dev_created
       preview_url=$(read_config "dev_preview_url")
       editor_url=$(read_config "dev_editor_url")
@@ -285,10 +300,11 @@ cmd_start() {
       echo "DEV_PREVIEW_URL=${preview_url:-http://127.0.0.1:$existing_port}"
       echo "DEV_EDITOR_URL=${editor_url}"
       echo "DEV_MODE=$mode"
+      echo "DEV_PID=$pid"
       echo "DEV_STATUS=reconnected"
       return 0
     else
-      info "Stale session config (server no longer running). Starting fresh."
+      info "Stale session config (PID ${stored_pid:-unknown} no longer running). Starting fresh."
       clear_dev_fields
     fi
   fi
@@ -316,8 +332,11 @@ Dev server would sync local files to the LIVE production theme. Aborting."
     info "Parallel session detected (existing PIDs: $(echo "$other_pids" | tr '\n' ' '))"
     info "Creating unpublished theme for isolation..."
 
+    local branch_name
+    branch_name=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo "unknown")
+    local tf_name="[TF] ${branch_name}"
     local push_output
-    push_output=$(shopify theme push --unpublished --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
+    push_output=$(shopify theme push --unpublished --name "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>&1) || {
       warn "Theme push output: $push_output"
       die "Failed to create unpublished theme. See output above."
     }
@@ -332,12 +351,6 @@ Dev server would sync local files to the LIVE production theme. Aborting."
       warn "Push output: $push_output"
       die "Could not parse theme ID from push output."
     fi
-
-    # Rename for identification
-    local tf_name="[TF] $(basename "$PROJECT_ROOT")"
-    shopify theme rename --theme "$dev_theme_id" --name "$tf_name" --store "$dev_store" 2>/dev/null || {
-      warn "Could not rename theme $dev_theme_id to '$tf_name' (non-fatal)"
-    }
 
     # Verify the new theme is safe
     local new_role
@@ -357,11 +370,13 @@ Dev server would sync local files to the LIVE production theme. Aborting."
   # Start the server
   _PREVIEW_URL=""
   _EDITOR_URL=""
+  _SERVER_PID=""
   start_server "$dev_store" "$dev_theme_id" "$dev_port"
 
-  # Write to config
+  # Write to config (including PID for lifecycle tracking)
   write_config \
     dev_port "$dev_port" \
+    dev_pid "$_SERVER_PID" \
     dev_theme_id "$dev_theme_id" \
     dev_theme_created "$dev_theme_created" \
     dev_url "http://127.0.0.1:$dev_port" \
@@ -384,6 +399,7 @@ Dev server would sync local files to the LIVE production theme. Aborting."
 
   # Output machine-parseable values
   echo "DEV_PORT=$dev_port"
+  echo "DEV_PID=$_SERVER_PID"
   echo "DEV_THEME_ID=$dev_theme_id"
   echo "DEV_THEME_CREATED=$dev_theme_created"
   echo "DEV_URL=http://127.0.0.1:$dev_port"
@@ -396,9 +412,10 @@ Dev server would sync local files to the LIVE production theme. Aborting."
 cmd_stop() {
   info "=== theme-forge dev server: stop ==="
 
-  local dev_port dev_theme_id
+  local dev_port dev_theme_id stored_pid
   dev_port=$(read_config "dev_port")
   dev_theme_id=$(read_config "dev_theme_id")
+  stored_pid=$(read_config "dev_pid")
 
   if [[ -z "$dev_port" || -z "$dev_theme_id" ]]; then
     info "No dev server configured for this session."
@@ -406,7 +423,23 @@ cmd_stop() {
     return 0
   fi
 
-  if kill_dev_process "$dev_port" "$dev_theme_id"; then
+  # Try stored PID first, then fall back to ps-grep
+  local stopped="false"
+  if [[ -n "$stored_pid" ]] && kill -0 "$stored_pid" 2>/dev/null; then
+    info "Stopping dev server (PID $stored_pid) on port $dev_port..."
+    kill "$stored_pid" 2>/dev/null || true
+    sleep 2
+    kill -0 "$stored_pid" 2>/dev/null && kill -9 "$stored_pid" 2>/dev/null || true
+    stopped="true"
+  fi
+
+  if [[ "$stopped" == "false" ]]; then
+    if kill_dev_process "$dev_port" "$dev_theme_id"; then
+      stopped="true"
+    fi
+  fi
+
+  if [[ "$stopped" == "true" ]]; then
     info "Dev server stopped."
   else
     info "No matching process found (may have already stopped)."
@@ -449,13 +482,15 @@ Another session took it. Run 'dev-server.sh start' to find a new port."
   # Restart with same port + theme
   _PREVIEW_URL=""
   _EDITOR_URL=""
+  _SERVER_PID=""
   start_server "$dev_store" "$dev_theme_id" "$dev_port"
 
   local mode="primary"
   [[ "$dev_theme_created" == "true" ]] && mode="parallel"
 
-  # Update URLs in config
+  # Update URLs + PID in config
   write_config \
+    dev_pid "$_SERVER_PID" \
     dev_preview_url "$_PREVIEW_URL" \
     dev_editor_url "$_EDITOR_URL"
 
@@ -466,6 +501,7 @@ Another session took it. Run 'dev-server.sh start' to find a new port."
   info ""
 
   echo "DEV_PORT=$dev_port"
+  echo "DEV_PID=$_SERVER_PID"
   echo "DEV_THEME_ID=$dev_theme_id"
   echo "DEV_THEME_CREATED=${dev_theme_created:-false}"
   echo "DEV_URL=http://127.0.0.1:$dev_port"
@@ -552,10 +588,25 @@ cmd_status() {
     return 0
   fi
 
+  local stored_pid
+  stored_pid=$(read_config "dev_pid")
+
   local running="false"
-  local pid
-  pid=$(find_dev_process "$dev_port" "$dev_theme_id")
-  [[ -n "$pid" ]] && running="true"
+  local pid=""
+
+  # Check stored PID first (verify it's actually shopify), then fall back to ps-grep
+  if [[ -n "$stored_pid" ]] && kill -0 "$stored_pid" 2>/dev/null \
+     && ps -p "$stored_pid" -o args= 2>/dev/null | grep -q "shopify theme dev"; then
+    pid="$stored_pid"
+    running="true"
+  else
+    pid=$(find_dev_process "$dev_port" "$dev_theme_id")
+    if [[ -n "$pid" ]]; then
+      running="true"
+      # Update stored PID
+      write_config dev_pid "$pid"
+    fi
+  fi
 
   local mode="primary"
   [[ "$dev_theme_created" == "true" ]] && mode="parallel"
@@ -568,7 +619,7 @@ cmd_status() {
   echo "DEV_PREVIEW_URL=${dev_preview_url:-http://127.0.0.1:$dev_port}"
   echo "DEV_EDITOR_URL=${dev_editor_url}"
   echo "DEV_MODE=$mode"
-  [[ -n "$pid" ]] && echo "DEV_PID=$pid"
+  echo "DEV_PID=${pid:-}"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
