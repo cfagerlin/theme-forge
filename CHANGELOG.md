@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.2 — 2026-04-14
+
+**Hard gate: no ad-hoc fixes after pull completion.**
+
+Observed in perth workspace: agent completed pull-section correctly, then made a follow-up `fix:` commit tweaking CSS and settings without running refine-section. No variance reports, no experiment loop, no verification. The "recommend refine-section" rule was too soft.
+
+- **Hardened pull-section hard rule**: "No ad-hoc fixes after pull completion — use refine-section." After pull-section commits, the agent is DONE. Visual issues are variances for refine-section, not ad-hoc fix commits.
+- **Step 9 explicit stop**: added "Do NOT attempt to fix remaining variances yourself" with explanation of why ad-hoc fixes break the audit trail.
+
 ## 0.16.1 — 2026-04-13
 
 **Eng review fixes for settings/app variance detection (PR #71 follow-up).**
