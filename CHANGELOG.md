@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.16.4 — 2026-04-14
+
+**`/theme-forge dev-server` sub-command — deterministic dev server management.**
+
+Observed in semarang workspace: user asked agent to restart dev server, agent ran `shopify theme dev --port 9294` directly instead of using `scripts/dev-server.sh`. The "NEVER run shopify theme dev directly" rule existed but was ignored because there was no `/theme-forge dev-server` command to route to.
+
+- **New sub-command**: `/theme-forge dev-server start|restart|stop|status|cleanup` routes to `scripts/dev-server.sh`.
+- **Command routing**: added dispatch rule #6 (dev-server → shell script) and #7 (natural language "restart server" → dev-server restart).
+- **CLAUDE.md routing**: "restart dev server, server down, server clobbered" → `theme-forge dev-server`.
+- **Strengthened safety rule**: now explicitly mentions `/theme-forge dev-server start` as the command to use and adds "If you find yourself typing `shopify theme dev`, STOP."
+
 ## 0.16.3 — 2026-04-14
 
 **Hard gate: no ad-hoc fixes after pull completion.**

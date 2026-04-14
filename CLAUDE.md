@@ -20,3 +20,4 @@ Key routing rules:
 - Refine section, fix variances, close FAILs → invoke theme-forge refine-section
 - Refine page, refine all sections → invoke theme-forge refine-page
 - Find variances, extract styles, compare styles → invoke theme-forge find-variances
+- Restart dev server, server down, server clobbered, start server → invoke theme-forge dev-server restart (or start/stop/status)
