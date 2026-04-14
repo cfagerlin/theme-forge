@@ -75,8 +75,21 @@ These rules are non-negotiable. They override everything else in this document. 
 
 ### "Requires custom section" means build it, not skip it
 - **If a section needs a custom section, build the custom section.** The mapping classification `requires_customization` or `incompatible` describes the approach, not a reason to defer. You have the tools: create a `.liquid` file in `sections/`, build the schema, write the CSS, register it in the template JSON. The spec sheet (Step 2.75) tells you exactly what to build.
-- **"Requires custom section" is NEVER a valid skip reason.** If you write `status: "skipped"` with reason "requires custom section," that is a bug. The only valid skip reasons are: (1) it's an app embed/widget that loads at runtime, or (2) the user explicitly approved the skip via `AskUserQuestion`.
+- **"Requires custom section" is NEVER a valid skip reason.** If you write `status: "skipped"` with reason "requires custom section," that is a bug. The only valid reason to skip a section is if the user explicitly approved the skip via `AskUserQuestion`.
 - **Below-fold content is NOT optional.** Collapsible product details, FAQ accordions, trust badges, recommendation carousels — if it's visible on the live page, it must be replicated. "Below the fold" does not mean "low priority."
+
+### App integrations must be migrated, not parked
+- **If an app is running on the live store, it must be brought to the dev theme.** Apps visible on the live site (star ratings, loyalty points, payment installments, wishlists, personalization builders) are part of the live experience. They are not optional. They are not "cutover items" to deal with later.
+- **"App embed that loads at runtime" is NOT a valid skip reason.** If the live store has Okendo rendering star ratings, the dev theme must also render star ratings. If the live store shows Shop Pay installments, the dev theme must show them too. The migration is not complete until the dev theme is functionally equivalent to the live site.
+- **Three-step process for every live app integration:**
+  1. **Scaffold the HTML/CSS position.** Add the `custom-liquid` block (or native block) in the correct template position with the correct rendering snippet. Even if the app isn't installed on the dev store yet, the block should be in place so it renders immediately once enabled.
+  2. **Enable the app embed on the dev theme.** Check `settings_data.json` on the live theme (in `.theme-forge/base-cache/config/settings_data.json`) for app embed blocks under `current.blocks`. Copy any app embed blocks that power visible features to the target theme's `settings_data.json`. This enables the app on the dev theme — it does NOT require reinstalling the app.
+  3. **Verify rendering on the dev site.** If the app is installed on the store (most are — the store is the same), the embed should render. If it doesn't render, note the specific issue (app not installed on dev store, embed requires activation, etc.) as a **variance with status `open`** — NOT a cutover item. The variance tracks what's missing; cutover items are for things that literally cannot be done until go-live day (DNS changes, theme publishing).
+- **The only valid cutover items for apps are:**
+  1. Apps that require a paid plan upgrade to run on multiple themes simultaneously
+  2. Apps that are store-level settings requiring merchant authorization (e.g., Shopify Payments configuration)
+  3. DNS/domain changes that only apply at go-live
+- **"The app isn't installed on the dev store" is almost always wrong.** Theme-forge uses dev themes on the SAME store as the live theme. If the app is installed on the store, it works on all themes on that store — including unpublished dev themes. The app embed just needs to be enabled in the theme's `settings_data.json`.
 
 ### No positional CSS selectors for variant options
 - **NEVER use `:first-child`, `:nth-child(2)`, `:nth-child(3)` to target variant option types (Material, Size, Color, etc.).** These break when a product has a different number of variant options. A selector targeting `:nth-child(3)` for Size will match Finish on a 3-option product and nothing on a 2-option product.
@@ -934,6 +947,8 @@ A "global theme setting" or "theme default" is NOT a platform limitation. If the
 - **Setting variance**: A target setting exists but has the wrong value → Fix in JSON (Step 3)
 - **CSS variance (overridable)**: Renders differently but fixable with CSS → Apply CSS override (Step 6)
 - **Missing feature**: Live section has functionality the target lacks entirely → May need custom section or JS
+- **App integration variance**: Live section renders an app-powered feature (star ratings, payment installments, loyalty points, wishlist icons, personalization builders) that is missing or non-functional on the dev site. → Follow the three-step app migration process (scaffold position, enable embed, verify). This is NOT a cutover item — it is an open variance that must be fixed or escalated.
+- **Settings variance (layout/presentation)**: Template JSON settings produce a different layout than the live site (e.g., image gallery in grid vs slideshow, wrong column count, different media presentation). → Fix in template JSON (Step 3). These are often invisible to CSS-level comparison because they affect DOM structure, not computed styles.
 - **Accepted variance**: Matches a variance in `learnings.json` with `accepted: true` that was explicitly approved by the user during a prior session. **You (the agent) may NEVER create a new accepted variance on your own.** Only the user can accept a variance, and only by explicitly saying so. "Global theme setting" or "theme default" is not an acceptable reason to skip a fix — override it with CSS.
 
 **Check learnings before planning fixes.** For each CSS variance, check if a learning applies:
@@ -1439,7 +1454,7 @@ When the base theme has separate sections for different footer areas (e.g., `foo
 - The **app embed** (e.g., `klaviyo-onsite-embed` in `settings_data.json` global blocks) loads the third-party's tracking JS, popups, and onsite features. It does NOT render the footer form.
 - The **footer form** is custom HTML in a `custom-liquid` block. It renders and submits independently of the app embed.
 - Preserve BOTH: the app embed in `settings_data.json` (for popups/tracking) AND the form HTML in the section (for the actual signup).
-- The app embed only works if the app is **installed on the dev store**. Adding the JSON block reference without the app installed does nothing. Note this in the report as a manual verification step for the merchant.
+- Theme-forge uses dev themes on the **same store** as the live theme. If the app is installed on the store (it is — the live site uses it), the embed works on all themes including unpublished dev themes. Copy the app embed block from the live theme's `settings_data.json` to the target theme's `settings_data.json` to enable it. If the embed doesn't render after copying, create a variance with `status: "open"` — do NOT park it as a cutover item.
 
 ### Block Schema Settings Are Conditional (`visible_if`)
 **Many block settings are silently ignored if their `visible_if` condition isn't met.** This is the most common cause of "I set the setting but nothing changed." Shopify doesn't error — it just ignores the value.

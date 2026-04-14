@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.16.0 — 2026-04-13
+
+**App integrations must be migrated, not parked. Settings-level variance detection.**
+
+Two changes that close the gap where pull-section/find-variances missed structural and functional differences on product pages (and other pages with app integrations).
+
+### pull-section: App integration migration rules
+- **App integrations are no longer valid skip/cutover reasons.** If an app is running on the live store, it must be brought to the dev theme. Star ratings, payment installments, loyalty points, wishlists — these are open variances, not cutover items.
+- **Three-step process**: scaffold HTML position → enable app embed in `settings_data.json` → verify on dev. Theme-forge uses dev themes on the same store, so installed apps work on all themes.
+- **Only valid cutover items**: apps requiring paid plan upgrades for multi-theme, store-level merchant authorization, or DNS/domain changes at go-live.
+- New variance types: `app_integration` (structural) and `settings` (layout/presentation).
+
+### find-variances: Settings-level comparison (Step 4.3)
+- **New step** compares template JSON settings against live site observed behavior. Catches layout mismatches CSS extraction misses: image gallery mode (grid vs slideshow), column counts, media presentation, product grid density, feature toggles.
+- **App integration detection** scans live site for app-rendered elements (star ratings, payment terms, wishlists, loyalty widgets, size guides) and creates structural variances when they're missing on dev.
+- New variance fields: `fix_hint` (which JSON settings to change), `source: "settings_comparison"` and `source: "app_detection"`.
+
 ## 0.15.5 — 2026-04-13
 
 **Fix dev-server.sh: look up existing themes by name to prevent session clobbering.**

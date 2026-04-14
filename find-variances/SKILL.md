@@ -91,7 +91,8 @@ Field reference:
 - `test` — structured test condition (see Test Conditions below)
 - `attempts` — array of attempt records from refine-section
 - `user_approved` — only `true` if user explicitly approved via AskUserQuestion
-- `source` — `extraction` (auto-discovered), `user` (manually added), `visual` (from screenshot comparison)
+- `source` — `extraction` (auto-discovered), `user` (manually added), `visual` (from screenshot comparison), `settings_comparison` (template JSON settings mismatch), `app_detection` (app integration present on live but missing on dev)
+- `fix_hint` — (settings/app variances only) human-readable hint about which JSON settings or app embeds to change. `null` for CSS variances.
 - `height_mechanism` — (layout variances only) how the live site achieves its height. See Height Mechanism Extraction below. `null` for non-layout variances.
 - `stale` — `true` if this entry was not seen in the latest re-extraction
 
@@ -300,6 +301,182 @@ For each breakpoint (desktop, tablet, mobile), compare every extracted property 
 **Why responsive-first:** If the section height is wrong, text overlay positioning is wrong,
 and overflow behavior is wrong, then fixing font-weight or letter-spacing is wasted effort.
 Lock in the responsive skeleton first, then tune the details.
+
+## Step 4.3: Settings-Level Comparison (Template JSON)
+
+CSS extraction catches style differences but misses **structural/layout differences caused by
+template JSON settings**. A section can have pixel-perfect typography but completely wrong layout
+because `media_presentation: "grid"` when the live site uses a slideshow, or `columns: 2` when
+the live site shows 4.
+
+This step compares the target theme's template settings against the live site's observed behavior
+to catch settings-level mismatches that CSS extraction cannot detect.
+
+### What to compare
+
+Read the target section's template JSON settings from `templates/{page}.json`. For each setting
+that controls layout or presentation (not content or typography), compare the configured value
+against what the live site actually renders.
+
+**Layout/presentation settings to check:**
+
+| Setting pattern | What it controls | How to verify against live |
+|----------------|-----------------|--------------------------|
+| `media_presentation` | Image gallery layout (grid, slideshow, thumbnails) | Count visible images and arrangement on live |
+| `media_columns` / `columns` | Number of columns | Count columns in the rendered grid on live |
+| `layout_type` | Grid vs list vs carousel | Observe scroll/pagination behavior on live |
+| `content_direction` / `flex_direction` | Row vs column stacking | Check element flow direction on live |
+| `desktop_media_position` | Media left/right of details | Check visual position on live |
+| `large_first_image` | Hero image sizing | Check if first image is larger on live |
+| `equal_columns` | Even vs weighted column split | Measure column widths on live |
+| `stacking` / `vertical_on_mobile` | Mobile layout behavior | Check mobile breakpoint layout on live |
+| `slideshow_*` / `carousel_*` | Navigation controls, autoplay | Check for dots/arrows/autoplay on live |
+| `max_products` / `products_per_row` | Product grid density | Count products per row on live |
+| `show_*` / `hide_*` / `enable_*` | Feature toggles | Check if feature is visible on live |
+| `section_width` | Page-width vs full-width | Measure section width relative to viewport |
+| `gap` / `columns_gap` / `rows_gap` | Spacing between items | Measure spacing on live |
+| `aspect_ratio` / `image_ratio` | Image proportions | Compare image aspect ratios on live |
+| `media_fit` | contain vs cover | Check if images are cropped or letterboxed |
+
+### How to verify
+
+For each layout setting, run a quick JS check on the live site to determine the actual behavior:
+
+```javascript
+((sectionSelector) => {
+  const section = document.querySelector(sectionSelector);
+  if (!section) return JSON.stringify({ error: 'Section not found' });
+
+  // Image gallery analysis
+  const images = section.querySelectorAll('img');
+  const imageContainers = section.querySelectorAll('[class*="media"], [class*="gallery"], [class*="slider"]');
+  const visibleImages = [...images].filter(img => {
+    const r = img.getBoundingClientRect();
+    const sr = section.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.top < sr.bottom && r.bottom > sr.top;
+  });
+
+  // Grid/column analysis
+  const firstRowY = visibleImages[0]?.getBoundingClientRect()?.top;
+  const firstRowImages = visibleImages.filter(img =>
+    Math.abs(img.getBoundingClientRect().top - firstRowY) < 10
+  );
+
+  // Slideshow detection
+  const hasSlider = !!section.querySelector('[class*="slider"], [class*="swiper"], [class*="carousel"], [class*="flickity"]');
+  const hasDots = !!section.querySelector('[class*="dot"], [class*="pagination"], [class*="indicator"]');
+  const hasArrows = !!section.querySelector('[class*="arrow"], [class*="prev"], [class*="next"]');
+
+  // Product grid analysis (for collection sections)
+  const productCards = section.querySelectorAll('[class*="product-card"], [class*="product-item"], .card');
+  const firstProductRow = productCards.length > 0 ? [...productCards].filter(card =>
+    Math.abs(card.getBoundingClientRect().top - productCards[0].getBoundingClientRect().top) < 10
+  ).length : 0;
+
+  return JSON.stringify({
+    total_images: images.length,
+    visible_images: visibleImages.length,
+    images_in_first_row: firstRowImages.length,
+    has_slider: hasSlider,
+    has_dots: hasDots,
+    has_arrows: hasArrows,
+    product_cards: productCards.length,
+    products_per_row: firstProductRow,
+    section_width: Math.round(section.getBoundingClientRect().width)
+  });
+})('SECTION_SELECTOR')
+```
+
+### Create variances for settings mismatches
+
+Compare the JS probe results against the template JSON settings. Create a variance for each mismatch:
+
+```json
+{
+  "id": "media_presentation:setting:desktop",
+  "element": "product-media-gallery",
+  "property": "media_presentation",
+  "breakpoints": ["desktop"],
+  "live_value": "slideshow (1 visible, has dots/arrows)",
+  "dev_value": "grid (4 visible in 2x2)",
+  "type": "setting",
+  "status": "open",
+  "test": {
+    "selector": null,
+    "property": null,
+    "expected": null,
+    "js": "(() => { const s = document.querySelector('SECTION_SELECTOR'); const imgs = [...s.querySelectorAll('img')].filter(i => { const r = i.getBoundingClientRect(); const sr = s.getBoundingClientRect(); return r.width > 50 && r.height > 50 && r.top < sr.bottom && r.bottom > sr.top; }); return imgs.length; })()",
+    "expected_js": "1",
+    "confidence": "high"
+  },
+  "fix_hint": "Change media_presentation in templates/product.json. Check media_columns, thumbnail_position, slideshow_controls_style.",
+  "source": "settings_comparison"
+}
+```
+
+The `fix_hint` field tells pull-section/refine-section which JSON settings to change. This is unique
+to settings variances — CSS variances don't need hints because the fix is always a CSS override.
+
+### App integration detection
+
+While inspecting the live site, also check for app-rendered elements that should exist on dev:
+
+```javascript
+((sectionSelector) => {
+  const section = document.querySelector(sectionSelector);
+  if (!section) return JSON.stringify({ error: 'Section not found' });
+
+  const apps = [];
+
+  // Star ratings (Okendo, Yotpo, Judge.me, Stamped, Loox)
+  const ratings = section.querySelector('[class*="okendo"], [class*="yotpo"], [class*="jdgm"], [class*="stamped"], [class*="loox"], [data-oke-widget], [data-yotpo]');
+  if (ratings) apps.push({ app: 'reviews', element: ratings.className?.toString()?.substring(0, 60), visible: ratings.getBoundingClientRect().height > 0 });
+
+  // Payment installments (Shop Pay, Afterpay, Klarna, Affirm)
+  const installments = section.querySelector('[class*="afterpay"], [class*="klarna"], [class*="affirm"], shopify-payment-terms, [class*="payment-terms"]');
+  if (installments) apps.push({ app: 'payment_terms', element: installments.tagName, visible: installments.getBoundingClientRect().height > 0 });
+
+  // Wishlist (Wishlist Plus, Wishlist King, etc.)
+  const wishlist = section.querySelector('[class*="wishlist"], [class*="wish-"], [data-wk-button], .swym-button');
+  if (wishlist) apps.push({ app: 'wishlist', element: wishlist.className?.toString()?.substring(0, 60), visible: wishlist.getBoundingClientRect().height > 0 });
+
+  // Loyalty / Rewards (Smile.io, LoyaltyLion, Yotpo Loyalty)
+  const loyalty = section.querySelector('[class*="smile-"], [class*="loyaltylion"], [class*="swell-"], [id*="oke-widget"]');
+  if (loyalty) apps.push({ app: 'loyalty', element: loyalty.className?.toString()?.substring(0, 60) || loyalty.id, visible: loyalty.getBoundingClientRect().height > 0 });
+
+  // Size guides / fit finders
+  const sizeGuide = section.querySelector('[class*="size-guide"], [class*="fit-finder"], [data-kiwi]');
+  if (sizeGuide) apps.push({ app: 'size_guide', element: sizeGuide.className?.toString()?.substring(0, 60), visible: sizeGuide.getBoundingClientRect().height > 0 });
+
+  return JSON.stringify({ section: sectionSelector, app_integrations: apps, count: apps.length });
+})('SECTION_SELECTOR')
+```
+
+**For each app detected on live but missing on dev**, create a variance:
+
+```json
+{
+  "id": "app:reviews:desktop",
+  "element": "okendo-reviews-widget",
+  "property": "app_integration",
+  "breakpoints": ["desktop", "tablet", "mobile"],
+  "live_value": "visible (Okendo star rating)",
+  "dev_value": "missing",
+  "type": "structural",
+  "status": "open",
+  "test": {
+    "js": "(() => { const s = document.querySelector('SECTION_SELECTOR'); return s.querySelector('[data-oke-widget], [class*=\"okendo\"]') ? 'present' : 'missing'; })()",
+    "expected_js": "present",
+    "confidence": "high"
+  },
+  "fix_hint": "Copy app embed block from live theme settings_data.json to target. Add custom-liquid block in template JSON at correct position. See pull-section hard rule: App integrations must be migrated, not parked.",
+  "source": "app_detection"
+}
+```
+
+**These are `structural` variances, not cutover items.** They block section completion just like
+a missing heading or broken layout. The three-step migration process (scaffold, enable embed, verify)
+is defined in pull-section's hard rules.
 
 ## Step 4.5: Multi-Resolution Probe (Layout Variances Only)
 
