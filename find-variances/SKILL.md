@@ -91,7 +91,8 @@ Field reference:
 - `test` — structured test condition (see Test Conditions below)
 - `attempts` — array of attempt records from refine-section
 - `user_approved` — only `true` if user explicitly approved via AskUserQuestion
-- `source` — `extraction` (auto-discovered), `user` (manually added), `visual` (from screenshot comparison)
+- `source` — `extraction` (auto-discovered), `user` (manually added), `visual` (from screenshot comparison), `settings_comparison` (template JSON settings mismatch), `app_detection` (app integration present on live but missing on dev)
+- `fix_hint` — (settings/app variances only) human-readable hint about which JSON settings or app embeds to change. `null` for CSS variances.
 - `height_mechanism` — (layout variances only) how the live site achieves its height. See Height Mechanism Extraction below. `null` for non-layout variances.
 - `stale` — `true` if this entry was not seen in the latest re-extraction
 
@@ -300,6 +301,309 @@ For each breakpoint (desktop, tablet, mobile), compare every extracted property 
 **Why responsive-first:** If the section height is wrong, text overlay positioning is wrong,
 and overflow behavior is wrong, then fixing font-weight or letter-spacing is wasted effort.
 Lock in the responsive skeleton first, then tune the details.
+
+## Step 4.3: Settings and App Integration Comparison (Behavior-First)
+
+CSS extraction catches style differences but misses **structural/layout differences caused by
+template JSON settings** and **app integrations present on live but missing on dev**. A section
+can have pixel-perfect typography but completely wrong layout because the image gallery is a grid
+instead of a slideshow, or missing star ratings because the app embed isn't enabled.
+
+This step uses **behavior-first comparison**: run the same probe on both live and dev sites,
+compare the results directly. This is theme-agnostic. It does not matter what the settings are
+called in each theme's schema. What matters is what actually renders.
+
+### Prerequisites
+
+**Dev server must be running.** This step probes both live and dev sites. If the dev server is
+not running or the dev URL is unreachable, **stop and report an error**. Do NOT silently skip
+this step. A comparison with only one side produces false results (zero variances when there
+should be many).
+
+Before running the probe, verify both sites respond:
+1. Navigate to the live URL and confirm the section loads
+2. Navigate to the dev URL and confirm the section loads
+3. If either fails, report which site is unreachable and stop Step 4.3
+
+### App detection: site-inventory.json cross-reference
+
+Before running the browser probe, check for known apps on the store:
+
+1. **Primary source**: Read `.theme-forge/site-inventory.json` (created during onboard). Look for
+   the `apps` or `app_embeds` array. This tells you exactly which apps are installed on the store
+   and what selectors/elements they inject.
+2. **Fallback**: If `site-inventory.json` does not exist or has no app data, fall back to the
+   hardcoded selector list in the probe below. The hardcoded list covers common apps but will
+   miss less common ones.
+
+When site-inventory.json is available, add its app selectors to the probe dynamically. This
+catches apps that the hardcoded list doesn't know about.
+
+### The combined probe
+
+Run this **single** `browser.evaluate()` call on both the live site AND the dev site. One
+round-trip per site, returning settings behavior + app integrations in one response.
+
+```javascript
+((sectionSelector, knownApps) => {
+  const section = document.querySelector(sectionSelector);
+  if (!section) return JSON.stringify({ error: 'Section not found', selector: sectionSelector });
+  const sr = section.getBoundingClientRect();
+
+  // --- SETTINGS BEHAVIOR ---
+
+  // Image gallery analysis
+  const images = section.querySelectorAll('img');
+  const visibleImages = [...images].filter(img => {
+    const r = img.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.top < sr.bottom && r.bottom > sr.top;
+  });
+  const firstRowY = visibleImages[0]?.getBoundingClientRect()?.top;
+  const firstRowImages = visibleImages.filter(img =>
+    Math.abs(img.getBoundingClientRect().top - firstRowY) < 10
+  );
+
+  // Slideshow detection
+  const hasSlider = !!section.querySelector('[class*="slider"], [class*="swiper"], [class*="carousel"], [class*="flickity"]');
+  const hasDots = !!section.querySelector('[class*="dot"], [class*="pagination"], [class*="indicator"]');
+  const hasArrows = !!section.querySelector('[class*="arrow"], [class*="prev"], [class*="next"]');
+
+  // Product grid analysis
+  const productCards = section.querySelectorAll('[class*="product-card"], [class*="product-item"], .card');
+  const firstProductRow = productCards.length > 0 ? [...productCards].filter(card =>
+    Math.abs(card.getBoundingClientRect().top - productCards[0].getBoundingClientRect().top) < 10
+  ).length : 0;
+
+  // Media position (left/right of details)
+  const mediaEl = section.querySelector('[class*="media"], [class*="gallery"], [class*="product__media"]');
+  const detailsEl = section.querySelector('[class*="product__info"], [class*="product-info"], [class*="details"]');
+  let mediaPosition = 'unknown';
+  if (mediaEl && detailsEl) {
+    const mr = mediaEl.getBoundingClientRect();
+    const dr = detailsEl.getBoundingClientRect();
+    mediaPosition = mr.left < dr.left ? 'left' : mr.left > dr.left ? 'right' : 'stacked';
+  }
+
+  const settings = {
+    visible_images: visibleImages.length,
+    images_in_first_row: firstRowImages.length,
+    has_slider: hasSlider,
+    has_dots: hasDots,
+    has_arrows: hasArrows,
+    product_cards: productCards.length,
+    products_per_row: firstProductRow,
+    section_width: Math.round(sr.width),
+    media_position: mediaPosition,
+    section_height: Math.round(sr.height)
+  };
+
+  // --- APP INTEGRATION DETECTION (two-pass) ---
+
+  const matchedElements = new Set();
+
+  function captureElement(el) {
+    return {
+      tagName: el.tagName?.toLowerCase(),
+      className: el.className?.toString()?.substring(0, 80) || null,
+      id: el.id || null,
+      dataAttrs: [...el.attributes].filter(a => a.name.startsWith('data-')).map(a => a.name).slice(0, 5)
+    };
+  }
+
+  function detectApps(root, scope) {
+    const apps = [];
+
+    // Order matters for deduplication. Each detector excludes already-matched elements.
+
+    // Star ratings (Okendo, Yotpo, Judge.me, Stamped, Loox)
+    const ratingSelectors = '[class*="okendo"], [class*="yotpo"], [class*="jdgm"], [class*="stamped"], [class*="loox"], [data-oke-widget], [data-yotpo]';
+    const rating = root.querySelector(ratingSelectors);
+    if (rating && !matchedElements.has(rating)) {
+      matchedElements.add(rating);
+      apps.push({ app: 'reviews', element: captureElement(rating), visible: rating.getBoundingClientRect().height > 0, scope });
+    }
+
+    // Payment installments (Shop Pay, Afterpay, Klarna, Affirm)
+    const installment = root.querySelector('[class*="afterpay"], [class*="klarna"], [class*="affirm"], shopify-payment-terms, [class*="payment-terms"]');
+    if (installment && !matchedElements.has(installment)) {
+      matchedElements.add(installment);
+      apps.push({ app: 'payment_terms', element: captureElement(installment), visible: installment.getBoundingClientRect().height > 0, scope });
+    }
+
+    // Wishlist (Wishlist Plus, Wishlist King, etc.)
+    const wish = root.querySelector('[class*="wishlist"], [class*="wish-"], [data-wk-button], .swym-button');
+    if (wish && !matchedElements.has(wish)) {
+      matchedElements.add(wish);
+      apps.push({ app: 'wishlist', element: captureElement(wish), visible: wish.getBoundingClientRect().height > 0, scope });
+    }
+
+    // Loyalty / Rewards (Smile.io, LoyaltyLion, Yotpo Loyalty — excluding Okendo selectors to prevent overlap)
+    const loyalty = root.querySelector('[class*="smile-"], [class*="loyaltylion"], [class*="swell-"]');
+    if (loyalty && !matchedElements.has(loyalty)) {
+      matchedElements.add(loyalty);
+      apps.push({ app: 'loyalty', element: captureElement(loyalty), visible: loyalty.getBoundingClientRect().height > 0, scope });
+    }
+
+    // Size guides / fit finders
+    const sizeGuide = root.querySelector('[class*="size-guide"], [class*="fit-finder"], [data-kiwi]');
+    if (sizeGuide && !matchedElements.has(sizeGuide)) {
+      matchedElements.add(sizeGuide);
+      apps.push({ app: 'size_guide', element: captureElement(sizeGuide), visible: sizeGuide.getBoundingClientRect().height > 0, scope });
+    }
+
+    // Dynamic apps from site-inventory.json (if provided)
+    if (knownApps && Array.isArray(knownApps)) {
+      for (const ka of knownApps) {
+        if (!ka.selector) continue;
+        const el = root.querySelector(ka.selector);
+        if (el && !matchedElements.has(el)) {
+          matchedElements.add(el);
+          apps.push({ app: ka.name || 'unknown_app', element: captureElement(el), visible: el.getBoundingClientRect().height > 0, scope });
+        }
+      }
+    }
+
+    return apps;
+  }
+
+  // Pass 1: inside section container
+  const sectionApps = detectApps(section, 'section');
+
+  // Pass 2: page-level elements near the section's bounding box
+  // Some apps inject widgets as siblings after the section element, not inside it.
+  const pageApps = [];
+  const allAppSelectors = '[class*="okendo"], [class*="yotpo"], [class*="jdgm"], [class*="stamped"], [class*="loox"], [data-oke-widget], [data-yotpo], [class*="afterpay"], [class*="klarna"], [class*="affirm"], shopify-payment-terms, [class*="payment-terms"], [class*="wishlist"], [class*="wish-"], [data-wk-button], .swym-button, [class*="smile-"], [class*="loyaltylion"], [class*="swell-"], [class*="size-guide"], [class*="fit-finder"], [data-kiwi]';
+  document.querySelectorAll(allAppSelectors).forEach(el => {
+    if (matchedElements.has(el)) return; // already found in section
+    if (section.contains(el)) return; // inside section, already checked
+    const er = el.getBoundingClientRect();
+    // "Near" = within 200px vertically of the section
+    if (Math.abs(er.top - sr.bottom) < 200 || Math.abs(er.bottom - sr.top) < 200 ||
+        (er.top >= sr.top && er.bottom <= sr.bottom)) {
+      matchedElements.add(el);
+      const appType = el.matches('[class*="okendo"], [class*="yotpo"], [class*="jdgm"], [data-oke-widget], [data-yotpo]') ? 'reviews' :
+                      el.matches('[class*="afterpay"], [class*="klarna"], shopify-payment-terms, [class*="payment-terms"]') ? 'payment_terms' :
+                      el.matches('[class*="wishlist"], [class*="wish-"], .swym-button') ? 'wishlist' :
+                      el.matches('[class*="smile-"], [class*="loyaltylion"]') ? 'loyalty' :
+                      'unknown_app';
+      pageApps.push({ app: appType, element: captureElement(el), visible: er.height > 0, scope: 'page_level' });
+    }
+  });
+
+  return JSON.stringify({ settings, apps: [...sectionApps, ...pageApps] });
+})('SECTION_SELECTOR', KNOWN_APPS_ARRAY_OR_NULL)
+```
+
+Replace `SECTION_SELECTOR` with the section's verified CSS selector. Replace
+`KNOWN_APPS_ARRAY_OR_NULL` with the array from `site-inventory.json` (or `null` if unavailable).
+
+### Compare probe results
+
+Run the probe on **both sites**. Compare the results field by field.
+
+**Settings comparison**: For each key in the `settings` object, compare `live.settings[key]` vs
+`dev.settings[key]`. Create a variance for any mismatch. The probe results are the detector.
+Template JSON (`templates/{page}.json`) and `settings_data.json` inform the `fix_hint` only.
+
+| Probe field | What it reveals | Example mismatch |
+|-------------|----------------|-----------------|
+| `visible_images` | Image gallery layout | live: 1 (slideshow), dev: 4 (grid) |
+| `images_in_first_row` | Column count | live: 1, dev: 2 |
+| `has_slider` + `has_dots` + `has_arrows` | Navigation controls | live: slider with dots, dev: static grid |
+| `products_per_row` | Product grid density | live: 4, dev: 3 |
+| `media_position` | Media left/right/stacked | live: left, dev: right |
+| `section_width` | Full-width vs contained | live: 1440, dev: 1200 |
+
+**App comparison**: For each app in `live.apps`, check if the same `app` type exists in
+`dev.apps` with `visible: true`. If an app is on live but missing or invisible on dev, create
+a variance.
+
+### Create variances for mismatches
+
+**Settings variance example** (note: ID follows the standard `{element}:{property}:{breakpoint}` format):
+
+```json
+{
+  "id": "product-media-gallery:media_presentation:desktop",
+  "element": "product-media-gallery",
+  "property": "media_presentation",
+  "breakpoints": ["desktop"],
+  "live_value": "slideshow (1 visible, has dots/arrows)",
+  "dev_value": "grid (4 visible in 2x2)",
+  "type": "setting",
+  "status": "open",
+  "test": {
+    "selector": null,
+    "property": null,
+    "expected": null,
+    "js": "(() => { const s = document.querySelector('SECTION_SELECTOR'); const r = JSON.parse(/* run combined probe */); return JSON.stringify({ visible_images: r.settings.visible_images, has_slider: r.settings.has_slider, has_dots: r.settings.has_dots, has_arrows: r.settings.has_arrows }); })()",
+    "expected_js": "{\"visible_images\":1,\"has_slider\":true,\"has_dots\":true,\"has_arrows\":true}",
+    "confidence": "high"
+  },
+  "fix_hint": "Check media_presentation, media_columns, thumbnail_position in templates/{page}.json and config/settings_data.json. The probe on both sites shows the behavioral difference. settings_data.json overrides template defaults.",
+  "source": "settings_comparison"
+}
+```
+
+**Key points about settings variances:**
+- The `test` condition verifies **multiple behavioral signals**, not just one scalar. A settings
+  variance is PASS only when all relevant probe fields match.
+- The `fix_hint` references `templates/{page}.json` (substitute the actual page) AND
+  `config/settings_data.json`. settings_data.json overrides template defaults and is the
+  source of truth for what's actually rendering. The probe detected the mismatch; the JSON
+  files tell you which settings to change.
+- CSS variances don't need `fix_hint` because the fix is always a CSS override.
+
+**App variance example** (note: check per-breakpoint visibility, only include breakpoints where
+the app is actually visible on live):
+
+```json
+{
+  "id": "okendo-reviews-widget:app_integration:desktop",
+  "element": {
+    "tagName": "div",
+    "className": "okendo-reviews-widget",
+    "id": null,
+    "dataAttrs": ["data-oke-widget"]
+  },
+  "property": "app_integration",
+  "breakpoints": ["desktop", "tablet"],
+  "live_value": "visible (Okendo star rating)",
+  "dev_value": "missing",
+  "type": "structural",
+  "status": "open",
+  "test": {
+    "js": "(() => { const s = document.querySelector('SECTION_SELECTOR'); const el = s?.querySelector('[data-oke-widget], [class*=\"okendo\"]') || document.querySelector('[data-oke-widget], [class*=\"okendo\"]'); return el && el.getBoundingClientRect().height > 0 ? 'visible' : 'missing'; })()",
+    "expected_js": "visible",
+    "confidence": "high"
+  },
+  "fix_hint": "Enable app embed in target theme. Check .theme-forge/base-cache/config/settings_data.json for Okendo embed block. See pull-section hard rule: App integrations must be migrated, not parked.",
+  "source": "app_detection"
+}
+```
+
+**Key points about app variances:**
+- The `breakpoints` array must only include breakpoints where the app is **actually visible on
+  the live site**. Run the probe at each breakpoint. If a wishlist button is hidden on mobile,
+  don't include "mobile" in breakpoints.
+- The `element` field is a **structured object** (`{ tagName, className, id, dataAttrs }`), not
+  a raw string. This lets downstream skills build selectors from any of these fields.
+- The `test` condition checks both the section and page-level (fallback) to catch apps injected
+  outside the section container.
+- These are **`structural` variances, not cutover items**. They block section completion just like
+  a missing heading or broken layout.
+
+### Merge rules for settings and app variances
+
+Settings and app variances follow the same merge contract as CSS variances (Step 4.2):
+
+- **Match by stable ID** (`{element}:{property}:{breakpoint}`).
+- **Re-extraction**: Re-run the combined probe. If live and dev now match for a setting, set
+  `status: "fixed"`. If an app is now visible on dev, set `status: "fixed"`.
+- **Stale entries**: If a settings/app variance from a prior run is not found in the new probe
+  results (e.g., the app was removed from live), set `stale: true`.
+- `source` is preserved on merge. A variance with `source: "settings_comparison"` stays
+  `settings_comparison` even after re-extraction updates its values.
 
 ## Step 4.5: Multi-Resolution Probe (Layout Variances Only)
 

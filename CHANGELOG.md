@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.16.1 — 2026-04-13
+
+**Eng review fixes for settings/app variance detection (PR #71 follow-up).**
+
+Addresses 15 findings from eng review + Codex outside voice on the 0.16.0 changes.
+
+### find-variances: Step 4.3 rewrite (behavior-first)
+- **Behavior-first comparison**: run the same JS probe on both live and dev sites, compare results directly. Theme-agnostic: doesn't matter what settings are called in each theme's schema.
+- **Combined probe**: single `browser.evaluate()` call returns settings behavior + app integrations. Cuts browser round-trips by 2/3.
+- **Two-pass app detection**: first searches inside section container, then searches page-level for app widgets near the section's bounding box. Catches apps injected as siblings.
+- **site-inventory.json cross-reference**: reads known apps from onboard inventory as primary detection, falls back to hardcoded selector list.
+- **Normalized element capture**: app variances use structured `{ tagName, className, id, dataAttrs }` instead of inconsistent strings.
+- **Deduped selectors**: reviews and loyalty no longer share overlapping Okendo selectors.
+- **Per-breakpoint visibility**: app variances only include breakpoints where the app is actually visible on live.
+- **Stronger test conditions**: settings verification checks multiple behavioral signals (image count + slider + dots + arrows), not just one scalar.
+- **Dev server health check**: probes fail loudly if either site is unreachable, preventing false "zero variances" results.
+- **Merge rules**: settings/app variances follow standard ID format and stale/update contract.
+- **Source of truth clarified**: probes are the detector, `templates/{page}.json` + `settings_data.json` inform fix hints only.
+
+### pull-section: App migration reorder
+- **Preference order**: enable app block in template JSON (simplest) > enable app embed in settings_data.json > scaffold with custom-liquid (last resort).
+- **base-cache fallback**: if `.theme-forge/base-cache/config/settings_data.json` is missing, fetches it from the live theme automatically.
+
+### refine-section: fix_hint wiring
+- **Step 2.1 reads fix_hint**: if a variance has a `fix_hint` field, uses it as starting hypothesis instead of inspecting DOM from scratch.
+
+## 0.16.0 — 2026-04-13
+
+**App integrations must be migrated, not parked. Settings-level variance detection.**
+
+Two changes that close the gap where pull-section/find-variances missed structural and functional differences on product pages (and other pages with app integrations).
+
+### pull-section: App integration migration rules
+- **App integrations are no longer valid skip/cutover reasons.** If an app is running on the live store, it must be brought to the dev theme. Star ratings, payment installments, loyalty points, wishlists — these are open variances, not cutover items.
+- **Three-step process**: enable app block > enable app embed in `settings_data.json` > scaffold with custom-liquid (last resort). Theme-forge uses dev themes on the same store, so installed apps work on all themes.
+- **Only valid cutover items**: apps requiring paid plan upgrades for multi-theme, store-level merchant authorization, or DNS/domain changes at go-live.
+- New variance types: `app_integration` (structural) and `settings` (layout/presentation).
+
+### find-variances: Settings-level comparison (Step 4.3)
+- **New step** compares live vs dev site behavior using JS probes. Catches layout mismatches CSS extraction misses: image gallery mode (grid vs slideshow), column counts, media presentation, product grid density, feature toggles.
+- **App integration detection** scans live site for app-rendered elements (star ratings, payment terms, wishlists, loyalty widgets, size guides) and creates structural variances when they're missing on dev.
+- New variance fields: `fix_hint` (which JSON settings to change), `source: "settings_comparison"` and `source: "app_detection"`.
+
 ## 0.15.5 — 2026-04-13
 
 **Fix dev-server.sh: look up existing themes by name to prevent session clobbering.**
