@@ -41,9 +41,11 @@ These rules are non-negotiable. They override everything else in this document. 
 - **The `variances` array in the section report is the ONLY valid work queue.** If you reach Step 5 and the section report does not contain a `variances` array, STOP. Go back and run find-variances. Old-style `variances_found`/`variances_fixed`/`variances_remaining` counter fields are NOT a substitute.
 - **If you find yourself writing JS to extract `getComputedStyle()` inline, STOP.** That is find-variances' job. The only exception is ad-hoc element inspection during fix work (Step 5.5 selector discovery).
 
-### refine-section is recommended for remaining variances
-- **If Step 8 leaves `open` variances, report them and recommend `refine-section`.** Do NOT continue the old Step 5→8 loop manually. If the user wants to close remaining variances, they invoke refine-section separately.
+### No ad-hoc fixes after pull completion — use refine-section
+- **After pull-section commits, you are DONE.** Do not make follow-up `fix:` commits to tweak CSS, adjust settings, or "clean up" what you just pulled. If the result has visual issues, those are variances for refine-section to handle through its experiment loop — not for you to ad-hoc fix without variance tracking, screenshots, or verification.
+- **If Step 8 leaves `open` variances, report them and hand off to `refine-section`.** Do NOT continue fixing manually. Do NOT make another commit to "fix" what you just shipped. Set status to `needs_refinement` and stop. The user invokes refine-section separately.
 - **pull-section's job is the first pass.** Get as close as possible with settings, CSS overrides, and structural changes. Remaining variances are reported with status `needs_refinement` so the user can decide whether to refine.
+- **Why this is a hard rule:** Ad-hoc fixes skip variance documentation, skip the experiment loop, skip verification screenshots, and skip learnings. They create commits with no audit trail of what was wrong or whether the fix actually worked. Every post-pull fix you make without refine-section is invisible to the migration state and may introduce regressions.
 
 ### Extraction FAIL = must fix (no rationalizing)
 - **If the computed style extraction marks a row as FAIL, you MUST fix it or escalate.** You may not reclassify a FAIL as "measurement artifact," "visually equivalent," or "not a real difference." The extraction compares exact computed values from the browser. If live says `text-align: center` and dev says `text-align: left`, that is a real difference — fix it. Do not argue that "the container is narrow so they look the same."
@@ -1142,6 +1144,8 @@ To close remaining variances, run:
 ```
 
 refine-section uses a disciplined one-change-at-a-time experiment loop with per-element DOM inspection and per-fix learnings. It reads the variance array from the section report as its work queue.
+
+**Do NOT attempt to fix remaining variances yourself.** Do not make a second pass. Do not make a `fix:` commit. Your pull is done. Commit, report, and move on to Step 10. If the user wants to close the remaining variances, they run refine-section.
 
 Proceed to Step 10 regardless of whether variances remain.
 
