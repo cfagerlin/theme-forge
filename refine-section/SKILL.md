@@ -153,9 +153,11 @@ For each variance in the queue:
 
 ### 2.1 HYPOTHESIZE
 
-1. **Inspect the rendered DOM** for the target element. Use JavaScript on the dev site to find the actual element, its tag, classes, parent chain, and whether it's inside a Shadow DOM boundary.
+1. **Check for a `fix_hint`.** If the variance has a `fix_hint` field (set by find-variances for settings and app variances), use it as your starting hypothesis. The hint tells you which JSON settings to change or which app embed to enable. Start there instead of inspecting DOM from scratch. If the hint doesn't resolve the variance, fall back to DOM inspection below.
 
-2. **Choose the simplest approach** that could work:
+2. **Inspect the rendered DOM** for the target element. Use JavaScript on the dev site to find the actual element, its tag, classes, parent chain, and whether it's inside a Shadow DOM boundary.
+
+3. **Choose the simplest approach** that could work:
 
    ```
    PREFERENCE ORDER (try in this order):
@@ -199,7 +201,7 @@ For each variance in the queue:
    **Exception:** If you extract the live site at 1440, 1024, AND 768 and confirm the spacing
    is identical fixed pixels at all three widths, then fixed pixels are correct. This is rare.
 
-3. **Record the hypothesis** before applying:
+4. **Record the hypothesis** before applying:
    ```
    EXPERIMENT #{N}: {property}
    Hypothesis: {approach} — {specific change}
