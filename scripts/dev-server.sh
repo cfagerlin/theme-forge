@@ -103,16 +103,30 @@ clear_dev_fields() {
 # ── Process helpers ──────────────────────────────────────────────────────────
 
 find_dev_process() {
-  # Find a shopify theme dev process matching port + theme ID.
+  # Find a shopify theme dev process matching port + theme ID + project path.
+  # The --path match prevents cross-workspace clobbering: two workspaces
+  # sharing the same dev theme won't claim each other's processes.
   # Returns PID or empty string.
-  local port="$1" theme_id="$2"
-  ps aux \
-    | grep "shopify theme dev" \
-    | grep -- "--port $port" \
-    | grep -- "--theme $theme_id" \
-    | grep -v grep \
-    | awk '{print $2}' \
-    | head -1 || echo ""
+  local port="$1" theme_id="$2" path="${3:-}"
+  if [[ -n "$path" ]]; then
+    ps aux \
+      | grep "shopify theme dev" \
+      | grep -- "--port $port" \
+      | grep -- "--theme $theme_id" \
+      | grep -F -- "--path $path" \
+      | grep -v grep \
+      | awk '{print $2}' \
+      | head -1 || echo ""
+  else
+    # Fallback without path (backward compat for stop/cleanup of stale sessions)
+    ps aux \
+      | grep "shopify theme dev" \
+      | grep -- "--port $port" \
+      | grep -- "--theme $theme_id" \
+      | grep -v grep \
+      | awk '{print $2}' \
+      | head -1 || echo ""
+  fi
 }
 
 find_store_processes() {
@@ -128,6 +142,18 @@ find_store_processes() {
 
 find_port_process() {
   # Find any shopify theme dev process on a specific port.
+  # Returns the --path value or empty.
+  local port="$1"
+  ps aux \
+    | grep "shopify theme dev" \
+    | grep -- "--port $port" \
+    | grep -v grep \
+    | sed -n 's/.*--path \([^ ]*\).*/\1/p' \
+    | head -1 || echo ""
+}
+
+find_port_theme() {
+  # Find any shopify theme dev process on a specific port.
   # Returns the --theme value or empty.
   local port="$1"
   ps aux \
@@ -139,9 +165,9 @@ find_port_process() {
 }
 
 kill_dev_process() {
-  local port="$1" theme_id="$2"
+  local port="$1" theme_id="$2" path="${3:-}"
   local pid
-  pid=$(find_dev_process "$port" "$theme_id")
+  pid=$(find_dev_process "$port" "$theme_id" "$path")
   if [[ -n "$pid" ]]; then
     info "Stopping dev server (PID $pid) on port $port..."
     kill "$pid" 2>/dev/null || true
@@ -276,8 +302,8 @@ cmd_start() {
        && ps -p "$stored_pid" -o args= 2>/dev/null | grep -q "shopify theme dev"; then
       pid="$stored_pid"
     else
-      # PID gone or not stored — try ps-grep as fallback
-      pid=$(find_dev_process "$existing_port" "$existing_theme_id")
+      # PID gone or not stored — try ps-grep with path match
+      pid=$(find_dev_process "$existing_port" "$existing_theme_id" "$PROJECT_ROOT")
     fi
 
     if [[ -n "$pid" ]]; then
@@ -458,7 +484,7 @@ cmd_stop() {
     return 0
   fi
 
-  # Try stored PID first, then fall back to ps-grep
+  # Try stored PID first, then fall back to path-matched ps-grep
   local stopped="false"
   if [[ -n "$stored_pid" ]] && kill -0 "$stored_pid" 2>/dev/null; then
     info "Stopping dev server (PID $stored_pid) on port $dev_port..."
@@ -469,7 +495,7 @@ cmd_stop() {
   fi
 
   if [[ "$stopped" == "false" ]]; then
-    if kill_dev_process "$dev_port" "$dev_theme_id"; then
+    if kill_dev_process "$dev_port" "$dev_theme_id" "$PROJECT_ROOT"; then
       stopped="true"
     fi
   fi
@@ -499,19 +525,41 @@ cmd_restart() {
     return
   fi
 
-  # Kill existing process
-  kill_dev_process "$dev_port" "$dev_theme_id" || true
+  # Safety: only kill a process that belongs to THIS workspace (match --path)
+  local our_pid
+  our_pid=$(find_dev_process "$dev_port" "$dev_theme_id" "$PROJECT_ROOT")
+
+  if [[ -n "$our_pid" ]]; then
+    info "Stopping dev server (PID $our_pid) on port $dev_port..."
+    kill "$our_pid" 2>/dev/null || true
+    sleep 2
+    kill -0 "$our_pid" 2>/dev/null && kill -9 "$our_pid" 2>/dev/null || true
+  else
+    # Check if the port is occupied by a DIFFERENT workspace's server
+    if lsof -i :"$dev_port" -sTCP:LISTEN &>/dev/null; then
+      local occupant_path
+      occupant_path=$(find_port_process "$dev_port")
+      if [[ -n "$occupant_path" && "$occupant_path" != "$PROJECT_ROOT" ]]; then
+        warn "Port $dev_port is in use by another workspace: $occupant_path"
+        warn "Will NOT kill it. Finding a new port instead."
+        clear_dev_fields
+        cmd_start
+        return
+      fi
+    fi
+    info "No matching process found (may have already stopped)."
+  fi
 
   # Check the port is actually free now
   if lsof -i :"$dev_port" -sTCP:LISTEN &>/dev/null; then
-    local occupant
-    occupant=$(find_port_process "$dev_port")
-    if [[ -n "$occupant" && "$occupant" != "$dev_theme_id" ]]; then
-      die "Port $dev_port is now occupied by theme $occupant (not ours: $dev_theme_id).
-Another session took it. Run 'dev-server.sh start' to find a new port."
-    fi
     # Wait a moment for port release
     sleep 2
+    if lsof -i :"$dev_port" -sTCP:LISTEN &>/dev/null; then
+      warn "Port $dev_port still occupied after stop. Finding a new port."
+      clear_dev_fields
+      cmd_start
+      return
+    fi
   fi
 
   # Restart with same port + theme
@@ -555,9 +603,9 @@ cmd_cleanup() {
   dev_store=$(read_config "dev_store")
   dev_theme_created=$(read_config "dev_theme_created")
 
-  # Stop the server
+  # Stop the server (path-matched to avoid killing other workspaces)
   if [[ -n "$dev_port" && -n "$dev_theme_id" ]]; then
-    kill_dev_process "$dev_port" "$dev_theme_id" || true
+    kill_dev_process "$dev_port" "$dev_theme_id" "$PROJECT_ROOT" || true
   fi
 
   # Delete unpublished theme if we created it

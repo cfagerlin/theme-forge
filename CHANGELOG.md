@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.16.2 — 2026-04-14
+
+**Fix dev-server.sh cross-workspace clobbering.**
+
+### Fixed: dev-server restart no longer kills other workspaces' servers
+
+`find_dev_process` now matches on `--path` in addition to `--port` and `--theme`. Previously,
+two workspaces sharing the same development theme could claim each other's processes. A `restart`
+in workspace B would kill workspace A's server.
+
+- `find_dev_process` takes optional `path` arg, greps for `--path $PROJECT_ROOT` in process args
+- `find_port_process` now returns the `--path` value (identifies which workspace owns a port)
+- New `find_port_theme` extracts the `--theme` value (split from old `find_port_process`)
+- `cmd_restart` refuses to kill a process belonging to a different workspace; falls back to
+  `cmd_start` which finds a new port
+- `cmd_stop` and `cmd_cleanup` pass `$PROJECT_ROOT` to path-matched process lookup
+- `clear_dev_fields` now includes `dev_pid`
+- All output paths (start, reconnect, restart) emit `DEV_PID`
+
 ## 0.16.1 — 2026-04-13
 
 **Eng review fixes for settings/app variance detection (PR #71 follow-up).**
