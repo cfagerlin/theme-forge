@@ -2,12 +2,23 @@
 
 ## 0.16.3 — 2026-04-14
 
-**Hard gate: no ad-hoc fixes after pull completion.**
+**Hard gate: no ad-hoc fixes after pull completion. Dev server sub-command.**
 
+Two guardrail fixes observed from live workspace agents.
+
+### pull-section: No ad-hoc fixes after pull completion
 Observed in perth workspace: agent completed pull-section correctly, then made a follow-up `fix:` commit tweaking CSS and settings without running refine-section. No variance reports, no experiment loop, no verification. The "recommend refine-section" rule was too soft.
 
 - **Hardened pull-section hard rule**: "No ad-hoc fixes after pull completion — use refine-section." After pull-section commits, the agent is DONE. Visual issues are variances for refine-section, not ad-hoc fix commits.
 - **Step 9 explicit stop**: added "Do NOT attempt to fix remaining variances yourself" with explanation of why ad-hoc fixes break the audit trail.
+
+### theme-forge: Dev server sub-command
+Observed in semarang workspace: user asked agent to restart dev server, agent ran `shopify theme dev --port 9294` directly instead of using `scripts/dev-server.sh`. The "NEVER run shopify theme dev directly" rule existed but was ignored because there was no `/theme-forge dev-server` command to route to.
+
+- **New sub-command**: `/theme-forge dev-server start|restart|stop|status|cleanup` routes to `scripts/dev-server.sh`.
+- **Command routing**: added dispatch rule #6 (dev-server → shell script) and #7 (natural language "restart server" → dev-server restart).
+- **CLAUDE.md routing**: "restart dev server, server down, server clobbered" → `theme-forge dev-server`.
+- **Strengthened safety rule**: now explicitly mentions `/theme-forge dev-server start` as the command to use and adds "If you find yourself typing `shopify theme dev`, STOP."
 
 ## 0.16.2 — 2026-04-14
 
