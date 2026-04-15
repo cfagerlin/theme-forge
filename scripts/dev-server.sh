@@ -36,6 +36,7 @@ done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
 
 # Resolve project root: --path > cwd > error
+# Always resolve to absolute path so `shopify theme dev --path` shows the full path in `ps`.
 if [[ -z "$PROJECT_ROOT" ]]; then
   if [[ -f "$(pwd)/.theme-forge/config.json" ]]; then
     PROJECT_ROOT="$(pwd)"
@@ -48,6 +49,9 @@ if [[ -z "$PROJECT_ROOT" ]]; then
     exit 1
   fi
 fi
+
+# Canonicalize to absolute path (resolves ".", "..", symlinks)
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd -P)"
 
 CONFIG_FILE="$PROJECT_ROOT/.theme-forge/config.json"
 LOG_DIR="/tmp/theme-forge-dev"
