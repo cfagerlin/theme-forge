@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.6 — 2026-04-15
+
+**dev-server.sh: `--path` always shows full absolute path in `ps` output.**
+
+### Fixed
+- **`PROJECT_ROOT` is now canonicalized to an absolute path** using `pwd -P`. Previously, if the script was invoked from the project directory without `--path`, `ps` output would show `--path .` instead of the full path, making it hard to identify which workspace each dev server belongs to.
+
 ## 0.16.5 — 2026-04-15
 
 **refine-page: Liquid template support + auto-create missing reports.**
