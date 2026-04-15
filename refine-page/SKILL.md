@@ -2,7 +2,8 @@
 name: refine-page
 description: >
   Run refine-section on all sections of a page that have open variances. Reads section reports,
-  identifies sections with status "needs_refinement", and processes them sequentially.
+  identifies sections with status "needs_refinement", and processes them sequentially. Supports
+  both JSON and Liquid page templates. Auto-creates missing reports via find-variances.
   - MANDATORY TRIGGERS: theme-forge refine-page, refine page, refine all sections
 ---
 
@@ -14,8 +15,8 @@ counterpart to `pull-page`, closing the gaps that pull-section left behind.
 ## Prerequisites
 
 - `.theme-forge/config.json` must exist (run `onboard` first)
-- Section reports must exist (run `pull-section` or `pull-page` first)
 - Dev server is running
+- Section reports are optional — if missing, this skill auto-creates them via find-variances
 
 ## Arguments
 
@@ -30,17 +31,56 @@ counterpart to `pull-page`, closing the gaps that pull-section left behind.
 
 ### Step 1: Load Page Template and Section Reports
 
-1. **Read the page template** from `templates/{page-path}.json` to get the list of sections.
+1. **Read the page template.** Check both formats:
+   - **JSON template** (`templates/{page-path}.json`): Parse the `sections` and `order` keys to
+     get the section list. Each key in `sections` maps to a section type and block configuration.
+   - **Liquid template** (`templates/{page-path}.liquid`): Parse `{% section 'name' %}` and
+     `{%- section 'name' -%}` tags to extract section names. Each tag references a section file
+     at `sections/{name}.liquid`.
+   - If both exist, prefer the JSON template (Shopify's default resolution order).
+   - If neither exists, STOP and report: "Template not found for {page-path}."
 
-2. **Read all section reports** for this page from `.theme-forge/reports/sections/`.
+2. **Build the section list.** For each section found in the template:
+   - Derive the **section key** used for report filenames:
+     - JSON templates: `{section-type}_{page-path}` (e.g., `hero-1_index`)
+     - Liquid templates: `{section-name}_{page-path}` (e.g., `gldn-bridal-hero_page.bridal`)
+   - Verify the section file exists at `sections/{section-type}.liquid` or `sections/{section-name}.liquid`
+
+3. **Read all section reports** for this page from `.theme-forge/reports/sections/`.
    Match reports to template sections by section key.
 
-3. **Filter for sections that need refinement:**
+4. **Handle missing reports — auto-create via find-variances:**
+
+   For each section in the template that has **no matching report**:
+
+   ```
+   MISSING REPORT: {section-key} — running find-variances to create variance baseline
+   ```
+
+   Run find-variances on the section:
+   ```
+   /theme-forge find-variances {section-key} --page {page-path}
+   ```
+
+   This creates the section report with a variance array. After find-variances completes:
+   - Read the new report from `.theme-forge/reports/sections/{section-key}.json`
+   - If variances were found, set status to `needs_refinement`
+   - If no variances (live matches dev), set status to `completed`
+   - Commit the new report:
+     ```bash
+     git add .theme-forge/reports/sections/{section-key}.json
+     git commit -m "find-variances: {section-key} on {page-path} — baseline created"
+     ```
+
+   **Do NOT skip sections because they lack reports.** Do NOT make ad-hoc CSS fixes. The
+   variance array is the work queue. No array = run find-variances to create one.
+
+5. **Filter for sections that need refinement:**
    - Status `needs_refinement` — primary target
    - Status `completed` but with `open` entries in the variance array — catches edge cases where status wasn't updated
    - Skip sections with status `completed` (all variances fixed/accepted), `skipped`, or `failed`
 
-4. **If no sections need refinement:**
+6. **If no sections need refinement:**
    ```
    REFINE-PAGE: {page-path} — nothing to refine
    ════════════════════════════════════════════════════════════

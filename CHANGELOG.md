@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.16.5 — 2026-04-15
+
+**refine-page: Liquid template support + auto-create missing reports.**
+
+Observed in lima workspace: agent ran refine-page on `page.bridal` (a Liquid template with custom sections). refine-page only supported JSON templates and required pre-existing section reports. With neither, the agent bypassed the skill entirely and made ad-hoc CSS fixes across 8 section files.
+
+### refine-page: Liquid template parsing
+- **Supports both `.json` and `.liquid` templates.** Liquid templates are parsed by extracting `{% section 'name' %}` tags. JSON templates remain the preferred format.
+- Section key derivation documented for both formats.
+
+### refine-page: Auto-create missing reports via find-variances
+- **When a section has no report, refine-page auto-runs find-variances** to create a variance baseline. No more silent skipping or ad-hoc fixes.
+- Hard rule: "Do NOT skip sections because they lack reports. Do NOT make ad-hoc CSS fixes."
+- Each auto-created report is committed before proceeding to refinement.
+
 ## 0.16.4 — 2026-04-14
 
 **`/theme-forge dev-server` sub-command — deterministic dev server management.**
