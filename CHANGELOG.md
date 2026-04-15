@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.16.7 — 2026-04-15
+
+**Image verification gates for pull-section.**
+
+### pull-section: base-cache hard gate (Step 1)
+- Base-cache with `settings_data.json` must exist before pull-section runs. Without it, the agent
+  has no source of truth for image references. If missing, pull-section runs a targeted base pull
+  automatically or fails with a clear error.
+
+### pull-section: image manifest (Step 2.2)
+- New step after settings migration table. Enumerates every image-type setting (section-level AND
+  block-level) from the base theme and records the `shopify://shop_images/` references. Produces a
+  manifest table in the transcript.
+
+### pull-section: image verification gate (Step 3.5)
+- New blocking gate after JSON settings alignment. Compares each manifest entry against the target
+  theme's actual value, catching both missing AND wrong images (not just empty values).
+- 2-attempt retry cap with user escalation prevents infinite loops on genuinely missing references.
+- Added to debug artifacts table.
+
 ## 0.16.6 — 2026-04-15
 
 **dev-server.sh: `--path` always shows full absolute path in `ps` output.**
