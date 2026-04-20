@@ -42,6 +42,13 @@ decides.
   (non-mutating, no dev server needed)
 - `--rebaseline` — interactive batch update for STALE assertions (prompts per
   stale entry: keep / update selector / delete)
+- `--breakpoint <name>` — restrict the run to a single breakpoint. `<name>` must
+  be one of `desktop`, `tablet`, `mobile`. Filters the assertion array to entries
+  whose `breakpoint` field (after defaults) matches. Only the matching breakpoint's
+  browser session runs — the others are skipped entirely. Use this for
+  mobile-only audits, regression sweeps after a responsive change, etc. Any
+  unknown value (including misspellings like `mobiel`) hard-errors with the
+  allowed list.
 - `--only <assertion-id>` — run a single assertion by id (v1.1 — deferred)
 
 ## Read-only contract (HARD RULE)
@@ -231,11 +238,37 @@ File: .theme-forge/verify/header/assertions.json
 
 Read `assertions.json`, validate (see above). Abort on any error.
 
+### Step 1.5 — Apply `--breakpoint` filter (if set)
+
+If the user passed `--breakpoint <name>`:
+
+1. Validate `<name>` is one of `desktop`, `tablet`, `mobile`. Otherwise hard-error:
+   ```
+   ERROR: --breakpoint <name> must be one of: desktop, tablet, mobile
+   Got: <name>
+   ```
+2. After applying defaults (Step 2), filter the assertion array to entries where
+   `breakpoint === <name>`. Drop the rest from this run — they are NOT executed.
+3. If zero assertions remain after filtering, print the empty-state message and
+   exit 0:
+   ```
+   verify-section <section> --page <template> --breakpoint <name>
+   No assertions for breakpoint "<name>". Exiting.
+     Hint: assertions.json has N entries total, all at other breakpoints.
+   ```
+4. Tag the run log with the filter so future readers know this run was scoped:
+   `{"breakpoint_filter": "<name>"}` at the top of the run-log JSON.
+
+The filter is purely a scope reduction — it never mutates `assertions.json`. Other
+breakpoints' assertions are untouched and re-eligible the next time you run without
+the flag.
+
 ### Step 2 — Apply defaults, group by breakpoint
 
 For each assertion missing optional fields, apply defaults. Group assertions by
 `breakpoint` so the runner makes one browser session per breakpoint (desktop /
-tablet / mobile) instead of one per assertion.
+tablet / mobile) instead of one per assertion. With `--breakpoint` set, only the
+target breakpoint's group is non-empty.
 
 ### Step 3 — Run batched per breakpoint
 
@@ -349,6 +382,29 @@ Next: /theme-forge refine-section header --page index --variances ".cta-button:b
 
 This line uses `refine-section`'s existing `--variances "el:prop, el:prop, ..."` API
 (see `refine-section/SKILL.md`). The user copies one line, refines the whole batch.
+
+### Propagating `--breakpoint` to next: lines
+
+When the run was scoped with `--breakpoint <name>`, every `next:` line MUST include
+the same flag so the followup workflow stays scoped to the same breakpoint:
+
+```
+FAIL  cta:backgroundColor:mobile:default
+  next:     /theme-forge refine-section header --page index --variances ".cta-button:backgroundColor" --breakpoint mobile
+
+STALE nav:color:mobile:default
+  next:     /theme-forge verify-section header --page index --rebaseline --breakpoint mobile
+```
+
+Multi-FAIL consolidated line:
+
+```
+Next: /theme-forge refine-section header --page index --variances ".cta-button:backgroundColor, .hero h1:fontWeight" --breakpoint mobile
+```
+
+Without this propagation a user doing a mobile-only audit would silently get
+desktop variances back the next time they run refine. Forwarding the flag keeps
+the iteration loop tight and predictable.
 
 ### Step 5 — Write run log
 

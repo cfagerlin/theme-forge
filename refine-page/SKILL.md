@@ -21,10 +21,19 @@ counterpart to `pull-page`, closing the gaps that pull-section left behind.
 ## Arguments
 
 ```
-/theme-forge refine-page [page-path] [--variances "<element>:<property>, ..."]
+/theme-forge refine-page [page-path] [--breakpoint <name>] [--variances "<element>:<property>, ..."]
 ```
 
 - `page-path` — defaults to `index` (homepage) if omitted.
+- `--breakpoint <name>` — forwarded to each refine-section run (and to any
+  auto-invoked find-variances run). Restricts every section's experiment loop to
+  variances that include `<name>` (`desktop`, `tablet`, or `mobile`). Sections
+  with zero open variances at the scoped breakpoint are reported as
+  `(no open variances at <name>)` and skipped without entering the experiment
+  loop. Validated once at page entry — any unknown value hard-errors with the
+  allowed list. Promotion (Step 5 of refine-section) emits assertions only at
+  the scoped breakpoint, so a mobile-only refine-page never claims a desktop fix
+  it never verified.
 - `--variances` — optional user-specified priority variances, passed through to each refine-section invocation. These are applied to ALL sections on the page. For section-specific priorities, invoke refine-section directly.
 
 ## Workflow
@@ -114,9 +123,15 @@ For each section in the queue:
 
 2. **Run refine-section:**
    ```
-   /theme-forge refine-section <section-key> --page <page> [--variances "<user-variances>"]
+   /theme-forge refine-section <section-key> --page <page> [--breakpoint <name>] [--variances "<user-variances>"]
    ```
-   Pass through the `--variances` flag if the user provided one.
+   Pass through the `--variances` and `--breakpoint` flags if the user provided
+   them. When `--breakpoint <name>` is set: validate `<name>` once at page entry
+   (`desktop`, `tablet`, or `mobile` — hard-error otherwise), then forward
+   verbatim to every refine-section call. Sections whose variance array has zero
+   open entries at the scoped breakpoint get a single-line
+   `── <section> ── (no open variances at <name>)` and are not executed (no
+   browser session, no commit). Page summary counts only the executed sections.
 
 3. **After each section completes, validate the report:**
    - Read `.theme-forge/reports/sections/{section-key}.json`
