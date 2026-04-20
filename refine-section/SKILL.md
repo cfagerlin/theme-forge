@@ -70,6 +70,12 @@ These override everything else in this document.
 ### Match the responsive mechanism, not just the pixel value
 - **Read `height_mechanism` before fixing height variances.** A live site using `padding-top: 38%` (width-relative) must NOT be mapped to `section_height_custom` (which produces `svh` units). Match the authored CSS unit type. See the mapping table in Step 2.1.
 
+### Never re-upload images on the same Shopify store
+- **When `config.same_shopify_store` is `true` (default), the live site and dev theme share the same Shopify CDN.** Any image visible on the live site is reachable from the dev theme using the exact same URL or `shopify://` reference. Never tell the user to upload an image to Shopify admin, never propose downloading the live image and re-uploading it, never treat an image-typed `content` variance as a file-migration task.
+- For an image-typed `content` variance: if the live and dev URLs are equivalent (same filename after stripping query params, or `shopify://shop_images/X` ≡ a CDN URL ending in `/X`), close the variance immediately as `auto-resolved` with reason `equivalent image URL — different form, same CDN file`. Do not enter the experiment loop.
+- For a real image difference (different filename, or one side empty): copy the live URL or `shopify://` reference verbatim into the target theme's settings/code. The fix is one JSON edit, not a file upload.
+- See `pull-section/SKILL.md` IMAGE SOURCING RULE for the full source fallback chain.
+
 ### No hardcoded pixel values for layout spacing
 - **CSS overrides for `padding`, `margin`, `gap`, `column-gap`, `row-gap`, and `padding-inline`/`padding-block` MUST use responsive units, not fixed pixels.** Values measured at 1440px do not scale. At narrower viewports, fixed spacing consumes a disproportionate share of available width, crushing content columns.
 - Use `clamp(min, preferred, max)` where `preferred` is a `vw` value that reproduces the live measurement at 1440px. Formula: `preferred = (live_px / 1440) * 100`vw. Example: live padding is 96px at 1440px → `clamp(24px, 6.67vw, 96px)`.

@@ -15,5 +15,6 @@
   "auto_upgrade": false,
   "reports_format": "json",
   "default_retry_limit": 3,
-  "computed_style_match_threshold": 85
+  "computed_style_match_threshold": 85,
+  "same_shopify_store": true
 }

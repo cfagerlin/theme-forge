@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.17.2 — 2026-04-20
+
+**Fix: stop treating images as files-to-migrate when dev and live are on the same Shopify store.**
+
+The repeated failure mode: agent sees an image on the live page, treats it as needing re-upload to the dev store, tells the user to upload manually via the theme editor. But in almost every project the dev theme runs on the same Shopify store as the live site, sharing the same CDN — every live image URL is already reachable from the dev theme.
+
+This release surfaces the assumption as an explicit config flag and tightens the rules everywhere image handling happens.
+
+### New config flag: `same_shopify_store`
+
+- Added to `config/defaults.json` with default `true`.
+- Documented in onboard. Existing projects without the flag default to `true` retroactively on next session — no migration needed.
+- Set to `false` only for cross-store migrations (rare).
+
+### pull-section: strengthened IMAGE SOURCING RULE
+
+- Explicit list of valid image sources: `shopify://shop_images/...`, `shopify://shop_files/...`, direct `cdn.shopify.com/s/files/...` URLs, hardcoded paths in base Liquid templates. All resolve against the same CDN bucket on the same store.
+- New 4-step source fallback chain: base `settings_data.json` → base template JSON → base section/snippet Liquid → live page HTML.
+- Hardened "NEVER upload manually" language explicitly conditional on `same_shopify_store: true`.
+
+### find-variances: equivalent image URL filter
+
+- When `same_shopify_store: true`, suppress `content` variances when live and dev URLs reference the same image with different forms (filename match after stripping query/version, or `shopify://` reference matching CDN URL path tail). Prevents false-positive variances for `cdn.shopify.com/.../hero.jpg?v=123` vs `shopify://shop_images/hero.jpg`.
+- When `same_shopify_store: false`, falls back to strict string equality.
+
+### refine-section: never re-upload images
+
+- New hard rule: image-typed `content` variances are never file-migration tasks when `same_shopify_store: true`. Equivalent URLs auto-resolve. Real differences (different filename) are one-line JSON edits using the live URL verbatim.
+
 ## 0.17.1 — 2026-04-20
 
 **Fix: refine-section promotion hook now fans out across all breakpoints.**
