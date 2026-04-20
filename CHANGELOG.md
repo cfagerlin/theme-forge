@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.18.0 — 2026-04-20
+
+**`--breakpoint` flag across verify, refine, and find-variances. Iterate one breakpoint at a time without hand-filtering 40+ variance arrays.**
+
+The pain: a section has 40 open variances spread across desktop, tablet, and mobile. The user wants to do a mobile-only sweep — fix mobile, verify mobile, promote mobile assertions, move on. Today the only path is to hand-filter the variance list every command, every iteration. The agent inevitably re-runs desktop work too.
+
+This release adds `--breakpoint <name>` (`desktop`, `tablet`, or `mobile`) to every flow that touches variances or assertions. Scope sticks across the whole iteration — every `next:` line in every report carries the same `--breakpoint` flag, so a mobile audit stays mobile.
+
+### What's new
+
+- **find-variances `--breakpoint <name>`** — single-resolution extraction. Only that breakpoint's browser session runs. Other breakpoints' cache + variance entries are preserved untouched (not stale, not deleted). Mobile-only re-extraction after a focused fix takes ~1/3 the time.
+- **refine-section `--breakpoint <name>`** — filters the variance queue to entries whose `breakpoints` array contains the scoped bp. Multi-bp variances that include the target stay in scope. Verification re-extracts at the scoped bp only. Promotion (Step 5) emits assertions for the scoped breakpoint only — never claims an unverified fix at an unscoped bp.
+- **refine-page `--breakpoint <name>`** — forwarded to every refine-section call. Sections with zero open variances at the scoped bp are skipped (no browser session, no commit). Page summary counts only executed sections.
+- **verify-section `--breakpoint <name>`** — already shipped in 0.17.x, now part of the consistent surface across all four commands.
+- **verify-page `--breakpoint <name>`** — already shipped, forwarded to every verify-section call.
+
+### Validation + DX
+
+- All five commands hard-error on unknown breakpoint names (including misspellings like `mobiel`) with the allowed list. Validation happens once at command entry, before any browser work.
+- Empty-state messages everywhere: `(no assertions at <name>)`, `(no open variances at <name>)`, `(extracted X properties, all match live)`. Exit 0, no false alarms.
+- All `next:` lines (FAIL, STALE, multi-FAIL consolidated, refine queue) propagate `--breakpoint <name>` when the run was scoped, so the iteration loop stays scoped.
+
+### Why this matters
+
+Responsive bugs cluster. A theme migration that shipped clean at desktop often has 30+ mobile variances waiting. Today that's a 3-hour grind because every command re-checks all breakpoints. With `--breakpoint mobile`, it's 50 minutes — and you don't accidentally re-promote desktop assertions you didn't verify.
+
 ## 0.17.3 — 2026-04-20
 
 **Deterministic guardrail: `scripts/shopify-safe.sh` blocks publishing the dev theme to live.**

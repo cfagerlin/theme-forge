@@ -34,6 +34,12 @@ page-level summary line.
 - `--only <section-key>` — limit to a single section (equivalent to
   `verify-section <section-key> --page <template>`)
 - `--rebaseline` — forwarded to each verify-section run (interactive per STALE)
+- `--breakpoint <name>` — forwarded to each verify-section run. Restricts every
+  section to assertions at that breakpoint only (`desktop`, `tablet`, or `mobile`).
+  Sections with zero assertions at the target breakpoint are reported as
+  `(no assertions at <name>)` and skipped without spinning up a browser. Every
+  per-section `next:` line in the page report carries the same `--breakpoint` flag,
+  so the followup `refine-section` / `verify-section` calls stay scoped.
 - `--format <terminal|markdown>` — output target (default `terminal`)
 
 ## Read-only contract (inherited)
@@ -68,12 +74,22 @@ Exit 0.
 For each section in discovery order:
 
 1. Invoke `verify-section <section-key> --page <template>` (same arguments
-   forwarded: `--rebaseline`, etc.)
+   forwarded: `--rebaseline`, `--breakpoint`, etc.)
 2. Collect the per-section run log from
    `.theme-forge/verify/<section-key>/run-logs/<latest>.json`
 3. Accumulate into a page-level totals object
 
 Do not short-circuit on FAIL or STALE. Run every section, always.
+
+When `--breakpoint <name>` is set: validate `<name>` is `desktop`, `tablet`, or
+`mobile` once at page entry (hard-error otherwise), then forward verbatim to every
+verify-section call. Sections whose assertion file has no entries at the target
+breakpoint get a single-line `── <section> ── (no assertions at <name>)` and are
+not executed. Page summary counts only the executed sections + assertions.
+
+Every `next:` line written to the page report MUST include `--breakpoint <name>`
+when the page run was scoped, so a user iterating mobile-only stays mobile-only
+across the whole loop.
 
 ## Output (terminal, primary)
 

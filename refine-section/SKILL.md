@@ -23,11 +23,20 @@ one atomic change per iteration, verified before the next, with git as state mac
 ## Arguments
 
 ```
-/theme-forge refine-section <section-key> [--page <page>] [--variances "<element>:<property>, ..."]
+/theme-forge refine-section <section-key> [--page <page>] [--breakpoint <name>] [--variances "<element>:<property>, ..."]
 ```
 
 - `section-key` — e.g., `product-information`, `header`, `hero-1`
 - `--page` — the template page (e.g., `product`, `index`). Defaults to the page in the section report.
+- `--breakpoint <name>` — restrict the experiment loop to variances that include
+  this breakpoint. `<name>` must be one of `desktop`, `tablet`, `mobile`. Filters
+  the variance queue to entries whose `breakpoints` array CONTAINS the scoped bp
+  (multi-breakpoint variances that include the target are still in scope). When
+  forwarded to find-variances (auto-invoked or user-invoked), restricts extraction
+  to that breakpoint only. Promotion (Step 5) emits assertions for the scoped
+  breakpoint only — other breakpoints' assertions are untouched. The queue
+  display shows the active filter. Any unknown value (including misspellings like
+  `mobiel`) hard-errors with the allowed list.
 - `--variances` — optional comma-separated list of user-specified priority variances. Format: `"element:property"` pairs (e.g., `"h1:fontWeight, .price:fontSize"`). These become the highest-priority items in the queue. find-variances still runs to discover all variances, but user-provided ones sort to the top.
 
 ## Prerequisites
@@ -93,7 +102,37 @@ Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
 ```
 /theme-forge find-variances <section-key> --page <page>
 ```
-Then re-read the report.
+(Forward `--breakpoint <name>` if set.) Then re-read the report.
+
+### 1.0 Breakpoint scoping (`--breakpoint`)
+
+When `--breakpoint <name>` is provided:
+
+1. **Validate** `<name>` is exactly one of `desktop`, `tablet`, `mobile`. Any other
+   value hard-errors with the allowed list. Validate ONCE at command entry,
+   before any extraction or experiment work.
+2. **Filter the variance queue.** After loading variances and applying user
+   priorities (Step 1.1), keep only entries whose `breakpoints` array CONTAINS
+   the scoped bp. A variance with `breakpoints: ["desktop", "mobile"]` and
+   `--breakpoint mobile` IS in scope. A variance with `breakpoints: ["desktop"]`
+   and `--breakpoint mobile` is NOT in scope.
+3. **All verification runs at the scoped breakpoint only.** Step 2.3 (VERIFY)
+   re-extracts at the scoped breakpoint only — do not re-extract at all three.
+   Test conditions still execute at every breakpoint listed on the variance, but
+   the loop only spins up the scoped browser session.
+4. **Promotion (Step 5) emits assertions for the scoped breakpoint only.**
+   Other breakpoints listed on the variance are NOT promoted in this run. They
+   stay open in the variance array, awaiting a future unscoped or other-bp
+   refine. This is intentional — a mobile-scoped run shouldn't claim a fix for
+   desktop it never verified.
+5. **Empty queue.** If zero open variances match the scoped breakpoint, print:
+   ```
+   refine-section <section-key> --breakpoint <name>
+     No open variances at <name>. Nothing to refine.
+   ```
+   Exit 0.
+6. **Display the filter in the queue.** The queue header (Step 1.3) shows
+   `BREAKPOINT FILTER: <name>` so the user sees the scope at a glance.
 
 ### 1.1 Merge User-Provided Variances
 
@@ -670,6 +709,12 @@ For each variance selected for promotion, fan out one assertion per breakpoint i
 `variance.breakpoints`. A variance that failed at desktop + tablet + mobile produces
 three assertions so `verify-section` catches regressions at every breakpoint, not
 just desktop.
+
+**When `--breakpoint <name>` was set on the refine run**, fan out only the scoped
+breakpoint — even if `variance.breakpoints` lists others. The other breakpoints
+were never verified in this run; promoting them would write an unverified
+assertion. The variance entry stays open at the unscoped breakpoints, awaiting a
+future refine.
 
 ```json
 {

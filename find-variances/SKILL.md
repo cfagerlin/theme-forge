@@ -21,11 +21,19 @@ report. Each variance includes a test condition that refine-section can execute 
 ## Arguments
 
 ```
-/theme-forge find-variances <section-key> [--page <page>] [--force] [--add "description"]
+/theme-forge find-variances <section-key> [--page <page>] [--breakpoint <name>] [--force] [--add "description"]
 ```
 
 - `section-key` — e.g., `product-information`, `header`, `hero-1`
 - `--page` — the template page (e.g., `product`, `index`). Defaults to the page in the section report.
+- `--breakpoint <name>` — restrict extraction and comparison to a single breakpoint.
+  `<name>` must be one of `desktop`, `tablet`, `mobile`. When set, only that
+  resolution's browser session runs (the others are skipped entirely), and only
+  variances tagged with that breakpoint are emitted. Variances at other
+  breakpoints in the existing section report are preserved unchanged (not marked
+  stale, not deleted). Use this for a mobile-only audit after a responsive change,
+  or to re-extract a single breakpoint after a focused fix. Any unknown value
+  (including misspellings like `mobiel`) hard-errors with the allowed list.
 - `--force` — bypass live extraction cache and re-extract from live site
 - `--add "description"` — add a user-defined variance (interactive, prompts for details)
 
@@ -189,6 +197,45 @@ When a test says PASS but the user reports the variance still exists:
    - If it has `live_cache`, check freshness (see Step 2)
 5. Read ALL files in `.theme-forge/learnings/` for test correction learnings that apply.
 
+### Breakpoint scoping (`--breakpoint`)
+
+When `--breakpoint <name>` is provided:
+
+1. **Validate** `<name>` is exactly one of `desktop`, `tablet`, `mobile`. Any other
+   value (case-sensitive, no aliases) hard-errors:
+   ```
+   ERROR: --breakpoint must be one of: desktop, tablet, mobile (got "<name>")
+   ```
+2. **Set scope** to only that breakpoint. Steps 2 and 3 (extraction) iterate only
+   the scoped breakpoint. Step 4 (comparison) only emits variances tagged with that
+   breakpoint.
+3. **Preserve existing variances at other breakpoints.** When merging:
+   - Existing entries whose `breakpoints` array does NOT contain the scoped bp:
+     left untouched (not marked stale, not deleted, `live_value` / `dev_value`
+     unchanged).
+   - Existing entries whose `breakpoints` array contains the scoped bp:
+     re-evaluate using new extraction; update / mark fixed / mark stale per
+     normal rules, but ONLY for the scoped bp. If the variance spans multiple
+     breakpoints (e.g., `["desktop", "mobile"]`) and only the scoped one is now
+     fixed, split the entry: the scoped bp becomes its own entry with
+     `status: "fixed"`, the others retain their original entry.
+4. **Tag the live cache.** Write only the scoped breakpoint's values into
+   `live_cache.<bp>`. Other breakpoints' cache entries are untouched.
+5. **Mark the section report** with the scoped extraction:
+   ```json
+   { "last_extraction": { "breakpoint_filter": "mobile", "timestamp": "..." } }
+   ```
+   so downstream tools (refine-section) know this run was scoped.
+
+If zero variances match the scoped breakpoint AND no existing variances exist at
+that breakpoint, write the section report with the empty extraction record and
+print:
+```
+find-variances <section-key> --breakpoint <name>
+  No variances at <name>. (extracted X properties, all match live)
+```
+Exit 0.
+
 ### `--add` mode
 
 If `--add "description"` was passed, skip extraction and go to Step 6 (Add User Variance).
@@ -208,6 +255,10 @@ If `--add "description"` was passed, skip extraction and go to Step 6 (Add User 
 5. Run the extraction script (see Extraction Script below)
 6. Resize viewport and repeat for next breakpoint
 
+When `--breakpoint <name>` is set, iterate only the scoped breakpoint. Skip the
+others entirely (no navigation, no extraction). The cached values for other
+breakpoints remain valid from prior runs.
+
 **Write cache** to the section report:
 ```json
 {
@@ -225,6 +276,8 @@ If `--add "description"` was passed, skip extraction and go to Step 6 (Add User 
 ## Step 3: Extract Dev Site Styles + Shadow DOM Discovery
 
 Extract from the dev site at each breakpoint, using the same page path as live.
+When `--breakpoint <name>` is set, iterate only the scoped breakpoint (same
+restriction as Step 2).
 
 **At each breakpoint, after the standard extraction, run Shadow DOM discovery:**
 
@@ -266,7 +319,7 @@ const commonPrefixes = ['--heading-', '--body-', '--button-', '--price-', '--col
 
 ## Step 4: Compare and Build Variance List
 
-For each breakpoint (desktop, tablet, mobile), compare every extracted property between live and dev:
+For each breakpoint (desktop, tablet, mobile), compare every extracted property between live and dev. When `--breakpoint <name>` is set, compare only the scoped breakpoint and follow the merge rules in Step 1's "Breakpoint scoping" section (preserve other-breakpoint variances untouched, never mark them stale).
 
 1. **Match elements** by tag + role (heading, body, button, image, container, etc.)
 2. **Compare each property** — if values differ, create a variance entry
