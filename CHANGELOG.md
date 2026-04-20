@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.17.3 — 2026-04-20
+
+**Deterministic guardrail: `scripts/shopify-safe.sh` blocks publishing the dev theme to live.**
+
+Until now, "never publish a dev theme as live" was an LLM-level rule in `SKILL.md` — probabilistic, agent-dependent, easy to skip in a long session. This release adds a shell wrapper that enforces the same rule deterministically, regardless of which agent (Claude Code, Codex, raw terminal) invoked it.
+
+### What it blocks
+
+- `shopify theme publish ...` — refused unconditionally
+- `shopify theme push --live` / `--allow-live` — refused unconditionally
+- `shopify theme push --theme <id>` where `<id>` is currently the live theme — refused
+- `shopify theme delete --theme <id>` where `<id>` is currently the live theme — refused
+
+The live theme id is queried from `shopify theme list --json` at execution time. Never stale — if the user republishes a different theme between sessions, the new live theme gets the protection automatically.
+
+### Wired in
+
+- `scripts/dev-server.sh` push/delete calls (4 sites) now route through `scripts/shopify-safe.sh`. Defense-in-depth on top of the existing static `live_theme_id` check at `dev_server.sh:342`.
+- `SKILL.md` Safety Rules: new line directing all skills to use the wrapper for any push/delete.
+- `onboard/SKILL.md`: documents the wrapper + optional shell alias for raw-terminal coverage.
+
+### Cross-platform
+
+Pure bash, depends only on `shopify` CLI + `jq` (already required by `dev-server.sh`). Works under any agent that can invoke a shell command.
+
 ## 0.17.2 — 2026-04-20
 
 **Fix: stop treating images as files-to-migrate when dev and live are on the same Shopify store.**
