@@ -21,7 +21,7 @@ report. Each variance includes a test condition that refine-section can execute 
 ## Arguments
 
 ```
-/theme-forge find-variances <section-key> [--page <page>] [--breakpoint <name>] [--force] [--add "description"]
+/theme-forge find-variances <section-key> [--page <page>] [--breakpoint <name>] [--cases] [--case <key>] [--live-url <url>] [--dev-url <url>] [--force] [--add "description"]
 ```
 
 - `section-key` — e.g., `product-information`, `header`, `hero-1`
@@ -34,6 +34,25 @@ report. Each variance includes a test condition that refine-section can execute 
   stale, not deleted). Use this for a mobile-only audit after a responsive change,
   or to re-extract a single breakpoint after a focused fix. Any unknown value
   (including misspellings like `mobiel`) hard-errors with the allowed list.
+- `--cases` — iterate every `active` case from `.theme-forge/cases/<page>.json`
+  (or `_shared.json` for shared sections — see the classification rules in
+  `intake-cases/SKILL.md`). Variances from each case merge into the section
+  report, keyed by case. Equivalent to running `--case <key>` once per active
+  case. Requires a cases file to exist; hard-errors with the exact
+  `intake-cases` next-step command if not. Alias: `--archetypes`.
+- `--case <key>` — restrict extraction to a single case. Reads
+  `.theme-forge/cases/<page>.json` to resolve `path`, then runs exactly one
+  case through extraction and comparison. Used by matrix drivers
+  (`refine-page --cases`, `verify-page --cases`) to invoke this primitive per
+  cell. When set, variance IDs are namespaced with `:{case}` and live-cache
+  entries are stored under `live_cache_by_case[<case>]`. Cannot be combined
+  with `--cases`.
+- `--live-url <url>`, `--dev-url <url>` — override the origins read from
+  `.theme-forge/config.json`. Stateless: no file is mutated. Matrix drivers
+  pass these when resolving a case's full URL so parallel sessions on
+  different pages never race on shared config. If either is passed, the other
+  must also be passed (or omitted — no half-override). Config fallback still
+  applies when both are omitted.
 - `--force` — bypass live extraction cache and re-extract from live site
 - `--add "description"` — add a user-defined variance (interactive, prompts for details)
 
@@ -49,13 +68,14 @@ report. Each variance includes a test condition that refine-section can execute 
 - **Variances live in the section report** at `.theme-forge/reports/sections/{section-key}.json` under the `variances` array. There is no separate variance file. The section report is the single source of truth for section status AND variance tracking.
 
 ### Merge, never replace
-- **Re-extraction merges with existing variance entries.** Stable IDs based on `{element}:{property}:{breakpoint}` match old and new entries. Existing `attempts`, `user_approved`, and `source: "user"` entries are preserved. New differences are added. Fixed variances are auto-detected (dev now matches live). Entries not seen in re-extraction are flagged `"stale": true`, not deleted.
+- **Re-extraction merges with existing variance entries.** Stable IDs based on `{element}:{property}:{breakpoint}` (or `{element}:{property}:{breakpoint}:{case}` in case mode) match old and new entries. Existing `attempts`, `user_approved`, and `source: "user"` entries are preserved. New differences are added. Fixed variances are auto-detected (dev now matches live). Entries not seen in re-extraction are flagged `"stale": true`, not deleted.
+- **Case mode only touches entries for the scoped case.** An entry with a different `case` field is left untouched: not re-evaluated, not marked stale, not deleted. This is what makes parallel matrix runs across cases safe on the same section report.
 
 ### Test conditions are structured
 - **Every variance gets a structured test condition.** Format: `{selector, property, expected}`. Optional `js` field for custom assertions. refine-section executes these directly — it does not improvise verification.
 
 ### Live extraction is cached
-- **Live site values are cached** in `.theme-forge/reports/sections/{section-key}.json` under `live_cache`. The cache key includes: URL path, section selector, and extraction timestamp. Cache is valid for the duration of a migration session. `--force` bypasses the cache.
+- **Live site values are cached** in `.theme-forge/reports/sections/{section-key}.json`. Legacy (no-case) runs use a flat `live_cache` object. Case-scoped runs use `live_cache_by_case[<case>]` — a nested map keyed by case. The cache key includes: URL path, section selector, and extraction timestamp. Cache is valid for the duration of a migration session. `--force` bypasses the cache.
 
 ## Variance Schema
 
@@ -67,6 +87,7 @@ Each entry in the `variances` array:
   "element": "h1.product-title",
   "property": "fontWeight",
   "breakpoints": ["desktop", "tablet", "mobile"],
+  "case": null,
   "live_value": "200",
   "dev_value": "700",
   "type": "setting",
@@ -88,7 +109,8 @@ Each entry in the `variances` array:
 ```
 
 Field reference:
-- `id` — stable identifier: `{element_tag}:{property}:{breakpoint}` (or `{element_tag}.{class}:{property}:{breakpoint}` for disambiguation)
+- `id` — stable identifier: `{element_tag}:{property}:{breakpoint}` (legacy / no case) or `{element_tag}:{property}:{breakpoint}:{case}` (case mode). `{element_tag}.{class}:...` for disambiguation.
+- `case` — the case key this variance was observed on, or `null` for legacy / non-case-scoped runs. When set, matches a key from `.theme-forge/cases/<page>.json`.
 - `element` — human-readable element description (tag + class or text hint)
 - `property` — CSS property name in camelCase (matches `getComputedStyle` output)
 - `breakpoints` — which breakpoints this variance appears at
@@ -185,16 +207,28 @@ When a test says PASS but the user reports the variance still exists:
 
 ## Step 1: Resolve Arguments and State
 
-1. Read `.theme-forge/config.json` for `live_url`, `dev_url`, and `dev_store`.
+1. **Resolve origins.** If `--live-url` AND `--dev-url` are both passed, use
+   them verbatim. Do NOT read `.theme-forge/config.json`. If exactly one is
+   passed, hard-error:
+   ```
+   ERROR: --live-url and --dev-url must be passed together (or both omitted).
+   ```
+   If neither is passed, read `.theme-forge/config.json` for `live_url`,
+   `dev_url`, and `dev_store` as before.
 2. Resolve section selector:
    - Read `.theme-forge/mappings/sections/{section-key}.json` for the section's CSS selector on both live and dev sites
    - If no mapping, use `#shopify-section-{section-key}` as default
 3. Resolve page URL path:
-   - If `--page` is provided, use the default page path for that template (e.g., `product` → `/products/{first-product-handle}`)
+   - **Case mode (`--case <key>` or `--cases`):** Read
+     `.theme-forge/cases/<page>.json` (or `_shared.json` for sections
+     classified as shared in `.theme-forge/mappings/sections/<section>.json`).
+     For each scoped case, the path is `cases[<key>].path`.
+   - If `--page` is provided and no case is scoped, use the default page path
+     for that template (e.g., `product` → `/products/{first-product-handle}`)
    - Otherwise read from the section report
 4. Read existing section report at `.theme-forge/reports/sections/{section-key}.json`:
    - If it has a `variances` array, load it (for merge)
-   - If it has `live_cache`, check freshness (see Step 2)
+   - If it has `live_cache` or `live_cache_by_case`, check freshness (see Step 2)
 5. Read ALL files in `.theme-forge/learnings/` for test correction learnings that apply.
 
 ### Breakpoint scoping (`--breakpoint`)
@@ -236,6 +270,62 @@ find-variances <section-key> --breakpoint <name>
 ```
 Exit 0.
 
+### Case scoping (`--cases` / `--case <key>`)
+
+When `--cases` or `--case <key>` is provided:
+
+1. **Locate the cases file.**
+   - Per-page sections: `.theme-forge/cases/<page>.json`.
+   - Shared sections (header, footer, announcement bar, cart drawer, anything
+     classified `shared: true` in `.theme-forge/mappings/sections/<section>.json`):
+     `.theme-forge/cases/_shared.json`. The classification drives the file
+     choice automatically — the caller does not pass a flag.
+   - If the file is missing, hard-error with the next command:
+     ```
+     ERROR: No cases file for page "<page>".
+
+     Expected:
+       .theme-forge/cases/<page>.json
+
+     Create it with:
+       /theme-forge intake-cases <page> --from <screenshot-or-csv>
+     ```
+2. **Resolve the scoped cases.**
+   - `--case <key>`: exactly one case. If `cases[<key>]` is missing or its
+     `status` is not `active`, hard-error with the list of valid active keys.
+   - `--cases`: every case whose `status === "active"`. `dormant` and `draft`
+     cases are skipped with a printed line each, so the skip is never silent.
+   - `--cases` and `--case` cannot be combined. Hard-error if both passed.
+3. **Loop ordering.** For each scoped case: run Step 2 (live extract),
+   Step 3 (dev extract), Step 4 (compare). The outer `--breakpoint` scope
+   still applies — a `--cases --breakpoint mobile` run does `for each case,
+   mobile only`. Breakpoint is outer, case is inner in the higher-level
+   matrix drivers, but inside find-variances the order is case → breakpoint
+   because breakpoints are a within-case viewport sweep, not a cross-case
+   gate.
+4. **Tag every variance with `case: <key>`.** Stable ID becomes
+   `{element}:{property}:{breakpoint}:{case}`. Merge against existing
+   entries using the case-aware ID. **Entries with a different case are
+   untouched** — not re-evaluated, not marked stale.
+5. **Cache per case.** Write extracted live values to
+   `live_cache_by_case[<case>]` instead of the flat `live_cache`. Cache
+   hits are scoped to the same `(case, url_path, section_selector)`
+   tuple.
+6. **Mark the section report** with the scoped extraction run:
+   ```json
+   {
+     "last_extraction": {
+       "case_scope": ["full_personalizer", "tag_personalizer"],
+       "breakpoint_filter": null,
+       "timestamp": "..."
+     }
+   }
+   ```
+7. **Legacy mode coexistence.** A section report can contain both legacy
+   (case: null) variances from a pre-cases run AND case-scoped entries.
+   Do not rewrite legacy entries. They remain valid for the default
+   (no-`--cases`) path.
+
 ### `--add` mode
 
 If `--add "description"` was passed, skip extraction and go to Step 6 (Add User Variance).
@@ -243,7 +333,8 @@ If `--add "description"` was passed, skip extraction and go to Step 6 (Add User 
 ## Step 2: Extract Live Site Styles
 
 **Check cache first** (unless `--force`):
-- If `live_cache` exists in the section report AND `live_cache.url_path` matches the current page path AND `live_cache.section_selector` matches: use cached values. Skip to Step 3.
+- Legacy (no case scoped): if `live_cache` exists AND `live_cache.url_path` matches the current page path AND `live_cache.section_selector` matches: use cached values. Skip to Step 3.
+- Case mode: if `live_cache_by_case[<case>]` exists AND its `url_path` / `section_selector` match the current case's path and selector: use cached values for that case. Skip to Step 3 for that case.
 - Otherwise, extract fresh.
 
 **Extract at each breakpoint** (desktop 1280px, tablet 768px, mobile 375px):
@@ -259,7 +350,9 @@ When `--breakpoint <name>` is set, iterate only the scoped breakpoint. Skip the
 others entirely (no navigation, no extraction). The cached values for other
 breakpoints remain valid from prior runs.
 
-**Write cache** to the section report:
+**Write cache** to the section report. Legacy (no case) runs write the flat
+`live_cache` object; case-scoped runs write to `live_cache_by_case[<case>]`:
+
 ```json
 {
   "live_cache": {
@@ -269,6 +362,24 @@ breakpoints remain valid from prior runs.
     "desktop": { ... extracted values ... },
     "tablet": { ... extracted values ... },
     "mobile": { ... extracted values ... }
+  },
+  "live_cache_by_case": {
+    "full_personalizer": {
+      "url_path": "/products/thames-pinky-ring",
+      "section_selector": "#shopify-section-product-information",
+      "extracted_at": "2026-04-20T12:00:00Z",
+      "desktop": { ... },
+      "tablet": { ... },
+      "mobile": { ... }
+    },
+    "tag_personalizer": {
+      "url_path": "/products/birth-flower-disk-necklace",
+      "section_selector": "#shopify-section-product-information",
+      "extracted_at": "2026-04-20T12:01:00Z",
+      "desktop": { ... },
+      "tablet": { ... },
+      "mobile": { ... }
+    }
   }
 }
 ```
@@ -344,10 +455,10 @@ For each breakpoint (desktop, tablet, mobile), compare every extracted property 
    - Apply any test correction learnings
    - Set confidence based on how the selector was discovered
 5. **Merge with existing variances** (if re-extraction):
-   - Match by stable ID (`{element}:{property}:{breakpoint}`)
+   - Match by stable ID — legacy: `{element}:{property}:{breakpoint}`; case mode: `{element}:{property}:{breakpoint}:{case}`.
    - Existing entry found: update `live_value`, `dev_value`. If dev now matches live, set `status: "fixed"`. Preserve `attempts`, `user_approved`, `source`.
-   - No existing entry: add as new with `status: "open"`, `source: "extraction"`
-   - Existing entry not in extraction: set `stale: true`
+   - No existing entry: add as new with `status: "open"`, `source: "extraction"`. In case mode, tag `case: <key>`; in legacy mode, leave `case: null`.
+   - Existing entry not in extraction **AND with the same case scope** as this run: set `stale: true`. Entries with a different `case` value are never marked stale by this run — they belong to a different cell of the matrix.
 
 **Consolidate across breakpoints:** If the same element:property fails at all 3 breakpoints, create ONE entry with `breakpoints: ["desktop", "tablet", "mobile"]` rather than 3 separate entries. If values differ per breakpoint, create separate entries.
 
@@ -806,34 +917,47 @@ Update the section report at `.theme-forge/reports/sections/{section-key}.json`:
   "variances_fixed": 0,
   "variances_remaining": 8,
   "live_cache": { ... },
+  "live_cache_by_case": { ... },
   "find_variances_run": {
     "extracted_at": "2026-04-12T04:00:00Z",
     "live_url": "https://example.com/products/ring",
     "dev_url": "http://127.0.0.1:9292/products/ring",
     "breakpoints": ["desktop", "tablet", "mobile"],
+    "case_scope": ["full_personalizer"],
     "shadow_dom_properties_discovered": 3
   }
 }
 ```
 
-**Display the variance table:**
+`case_scope` is `null` for legacy (no-case) runs, an array of case keys in
+case mode. Downstream skills (verify-section, refine-section) read this to
+know which cells were just touched.
+
+**Display the variance table.** Legacy (no case) runs omit the case column.
+Case mode adds a Case column:
+
+```
+VARIANCE REPORT: {section-key}  (cases: full_personalizer)
+════════════════════════════════════════════════════════════════════════════
+#   Case                 Element          Property        Live    Dev    Type    Bp
+1   full_personalizer    h1               fontWeight      200     700    setting D/T/M
+2   full_personalizer    .price-money     fontWeight      300     500    css     D/T/M
+3   full_personalizer    .add-to-cart     fontSize        13px    16px   css     D/T/M
+════════════════════════════════════════════════════════════════════════════
+TOTAL: 3 variances in case full_personalizer (1 setting, 2 css)
+Shadow DOM properties discovered: 3
+Test conditions generated: 3/3
+════════════════════════════════════════════════════════════════════════════
+```
+
+For a legacy run (no case scoped), the output matches the pre-cases format:
 
 ```
 VARIANCE REPORT: {section-key}
 ════════════════════════════════════════════════════════════
 #   Element              Property         Live         Dev          Type     Breakpoints
 1   h1                   fontWeight       200          700          setting  D/T/M
-2   .price-money         fontWeight       300          500          css      D/T/M
-3   .add-to-cart         fontSize         13px         16px         css      D/T/M
-4   .add-to-cart         textTransform    uppercase    none         css      D/T/M
-5   .variant-label       letterSpacing    0.1em        normal       css      D/T/M
-6   section              paddingTop       80px         60px         css      D only
-7   img[0] container     height           480px        371px        layout   D only
-8   [structural]         trust-badges     present      missing      structural  D/T/M
-════════════════════════════════════════════════════════════
-TOTAL: 8 variances (1 structural, 1 setting, 5 css, 1 layout)
-Shadow DOM properties discovered: 3 (--heading-font-weight, --price-font-weight, --button-font-size)
-Test conditions generated: 8/8
+...
 ════════════════════════════════════════════════════════════
 ```
 
@@ -1376,7 +1500,7 @@ Replace `SECTION_SELECTOR` with the actual section selector.
 ```json
 {
   "id": "h1:visibility:desktop",
-  "element": "h1 (About GLDN Jewelry)",
+  "element": "h1 (About Our Jewelry)",
   "property": "visibility",
   "type": "visibility",
   "status": "open",
@@ -1396,7 +1520,7 @@ variances. There is no point fixing font-weight if the user can't see the text a
 
 ### Worked Example: Hero Banner Text Clipped by Overflow
 
-The live site shows "About GLDN Jewelry" overlaid on the hero image. After refine-section
+The live site shows "About Our Jewelry" overlaid on the hero image. After refine-section
 added `overflow: hidden` to constrain the hero height, the text overlay was clipped because
 the text content extended below the overflow boundary.
 
@@ -1410,7 +1534,7 @@ the text content extended below the overflow boundary.
 
 **With visibility check** (the fix):
 1. find-variances extracts computed styles AND runs the visibility check
-2. Visibility check finds: `h1 "About GLDN Jewelry" — clipped-by-overflow (.hero, overflow:hidden)`
+2. Visibility check finds: `h1 "About Our Jewelry" — clipped-by-overflow (.hero, overflow:hidden)`
 3. A variance is created: `h1:visibility:desktop — visible vs clipped-by-overflow`
 4. This variance blocks the section from being marked complete
 5. refine-section must fix the overflow issue before any property variances can PASS

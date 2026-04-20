@@ -23,7 +23,7 @@ one atomic change per iteration, verified before the next, with git as state mac
 ## Arguments
 
 ```
-/theme-forge refine-section <section-key> [--page <page>] [--breakpoint <name>] [--variances "<element>:<property>, ..."]
+/theme-forge refine-section <section-key> [--page <page>] [--breakpoint <name>] [--cases] [--case <key>] [--live-url <url>] [--dev-url <url>] [--variances "<element>:<property>, ..."]
 ```
 
 - `section-key` — e.g., `product-information`, `header`, `hero-1`
@@ -37,6 +37,20 @@ one atomic change per iteration, verified before the next, with git as state mac
   breakpoint only — other breakpoints' assertions are untouched. The queue
   display shows the active filter. Any unknown value (including misspellings like
   `mobiel`) hard-errors with the allowed list.
+- `--cases` — iterate every `active` case from `.theme-forge/cases/<page>.json`
+  (or `_shared.json` for shared sections). Runs the experiment loop once per
+  case, using each case's URL for HYPOTHESIZE / APPLY / VERIFY. Promotion
+  emits assertions tagged with the case. Cross-case regression is caught by
+  the final cross-case gate in `refine-page --cases`, not inside this skill.
+  Alias: `--archetypes`. Cannot be combined with `--case`.
+- `--case <key>` — run the loop for exactly one case. Used by matrix drivers
+  (`refine-page --cases`) to invoke this primitive per cell. Reads the case's
+  path from the cases file unless `--live-url` / `--dev-url` overrides are
+  passed.
+- `--live-url <url>`, `--dev-url <url>` — stateless origin overrides. Both
+  passed together or both omitted (half-override hard-errors). Matrix drivers
+  use these to run parallel sessions on different pages without racing on
+  shared `.theme-forge/config.json`.
 - `--variances` — optional comma-separated list of user-specified priority variances. Format: `"element:property"` pairs (e.g., `"h1:fontWeight, .price:fontSize"`). These become the highest-priority items in the queue. find-variances still runs to discover all variances, but user-provided ones sort to the top.
 
 ## Prerequisites
@@ -134,6 +148,51 @@ When `--breakpoint <name>` is provided:
 6. **Display the filter in the queue.** The queue header (Step 1.3) shows
    `BREAKPOINT FILTER: <name>` so the user sees the scope at a glance.
 
+### 1.0.5 Case scoping (`--cases` / `--case <key>`)
+
+When `--cases` or `--case <key>` is provided:
+
+1. **Reject the combo.** `--cases` and `--case` together hard-error.
+2. **Locate the cases file** — per-page sections: `.theme-forge/cases/<page>.json`;
+   shared sections: `.theme-forge/cases/_shared.json`. Missing file hard-errors
+   with the `intake-cases` next command (same contract as find-variances).
+3. **Resolve scoped cases:**
+   - `--case <key>`: exactly one case (must be `status: "active"`).
+   - `--cases`: every `active` case. Dormant / draft cases printed and skipped.
+4. **Filter the variance queue by case.** After loading variances (Step 1),
+   keep only entries where `variance.case === <key>` for any scoped case (or
+   `variance.case === null` — universal variances apply on every case). Legacy
+   variances with no `case` field remain eligible.
+5. **Outer loop ordering.** The Step 2 experiment loop runs once per
+   (case, variance) cell. For each scoped case:
+   - Navigate to the case's URL (`${dev_url}${cases[<key>].path}`, or the
+     `--dev-url` override).
+   - Walk the filtered variance queue for that case.
+   - Apply / verify / promote as in the single-case flow.
+   - The SAME CSS override file is edited across cases — if a universal
+     property fix is applied while processing case A, it may also close the
+     equivalent variance on case B, which is fine. The verify step catches
+     this by seeing a PASS without attempting a change.
+6. **Cross-case regression is NOT checked inside this skill.** The experiment
+   loop verifies the current (case, breakpoint) cell only. Cross-case gates
+   live in `refine-page --cases` (default `--gate final`). This is a
+   deliberate factoring — refine-section owns per-cell hypothesis-verify;
+   refine-page owns matrix-level gates.
+7. **Empty queue.** If zero open variances match the scope, print the empty
+   message with both scopes named:
+   ```
+   refine-section <section-key> --case <key>
+     No open variances for case <key>. Nothing to refine.
+   ```
+   Exit 0.
+8. **Display the scope in the queue header.** `CASE SCOPE: <keys>` alongside
+   any breakpoint filter.
+
+**URL origin resolution.** When `--live-url` and `--dev-url` are both passed,
+use them verbatim. Otherwise read `.theme-forge/config.json`. Half-override
+hard-errors. Per-case path is appended to the origin to build the full URL
+for each case.
+
 ### 1.1 Merge User-Provided Variances
 
 If `--variances` was passed, parse the comma-separated `"element:property"` pairs and merge them into the queue:
@@ -195,6 +254,15 @@ Read ALL files in `.theme-forge/learnings/` before starting the loop. If a learn
 ## Step 2: The Experiment Loop
 
 For each variance in the queue:
+
+**Case-mode navigation.** When `--cases` or `--case` is in scope, HYPOTHESIZE /
+APPLY / VERIFY all operate on the case's URL — `${dev_url}${cases[variance.case].path}`
+(or the `--dev-url` override). The browser session re-navigates when the
+current variance's `case` differs from the previous one. Within a single case,
+multiple variances share the same page session for speed. Legacy (case: null)
+variances use the default template path as before.
+
+
 
 ### 2.1 HYPOTHESIZE
 
@@ -259,7 +327,7 @@ For each variance in the queue:
 Before applying the change, scan the existing CSS override file for conflicting rules.
 **Skip this step if** the override file does not exist yet (first section being pulled).
 
-1. **Read the CSS override file** (e.g., `assets/gldn-global-overrides.css`).
+1. **Read the CSS override file** (e.g., `assets/custom-global-overrides.css`).
 
 2. **Find all rules that match the target element or its ancestors/descendants:**
    - Search for selectors containing the same component class (`.hero`, `.hero__container`, `.hero-wrapper`)
@@ -413,7 +481,7 @@ This overrides the conflicting global min-height AND sets the correct responsive
 
    ```
    RESULT: PASS ✓  (font-weight: 500 → 300, matches live)
-   VISIBILITY GATE: FAIL ✗  (h1 "About GLDN Jewelry" clipped by .hero overflow:hidden)
+   VISIBILITY GATE: FAIL ✗  (h1 "About Our Jewelry" clipped by .hero overflow:hidden)
    → Treating as REGRESSION. Reverting.
    ```
 
@@ -486,6 +554,8 @@ This overrides the conflicting global min-height AND sets the correct responsive
 git add <modified-file> .theme-forge/reports/sections/{section-key}.json
 git commit -m "refine: {section} — {property} {old_value} → {new_value}"
 ```
+When in case mode, include the case in the message:
+`refine: {section} ({case}) — {property} {old_value} → {new_value}`.
 Update the variance entry in the report: set `status: "fixed"`, record the attempt in `attempts`. Move to next.
 
 **FAIL (same value)** — the change had no effect:
@@ -716,14 +786,22 @@ were never verified in this run; promoting them would write an unverified
 assertion. The variance entry stays open at the unscoped breakpoints, awaiting a
 future refine.
 
+**When `--cases` or `--case <key>` was set**, fan out only the scoped cases —
+every promoted assertion carries the variance's `case` value. Variances
+closed on case `full_personalizer` produce assertions tagged
+`case: "full_personalizer"`; legacy (case: null) variances promote as
+universal assertions (case omitted). An assertion id in case mode is
+`{element}:{property}:{bp}:default:{case}`.
+
 ```json
 {
-  "id": "{element}:{property}:{bp}:default",
+  "id": "{element}:{property}:{bp}:default:{case}",
   "selector": "{variance.test.selector}",
   "property": "{variance.test.property}",
   "expected": "{variance.test.expected}",
   "state": "default",
   "breakpoint": "{bp}",
+  "case": "{variance.case}",
   "source": "regression",
   "confidence": "{variance.test.confidence}",
   "comparator": "strict",
@@ -733,13 +811,17 @@ future refine.
 ```
 
 - Iterate `variance.breakpoints` and emit one assertion per entry
-- Derive `{element}` and `{property}` by splitting `variance.id` on `:` (variance ids
-  are `{element}:{property}:{primaryBp}` — strip the primary bp, substitute the
-  current loop bp to form the assertion id)
+- Derive `{element}` and `{property}` from the variance's test/element fields
+  (variance ids may be `{element}:{property}:{bp}` or `{element}:{property}:{bp}:{case}`
+  — promotion reconstructs ids from the canonical fields, not string-split)
 - Pull `selector`, `property`, `expected` directly from the variance's `test` field
 - `expected` is the live value — when find-variances consolidates breakpoints into
   one variance record, values are identical across all three, so the same `expected`
   applies at every breakpoint (per find-variances consolidation rule)
+- Copy `variance.case` onto the assertion. Omit the field (or set `null`) for
+  legacy variances. **This is the single load-bearing change that makes
+  case-scoped contracts durable** — verify-section reads this field to decide
+  which case each assertion belongs to.
 - Set `source: "regression"` always (differentiates from hand-authored `manual`)
 
 **Worked example.** A variance `h1:fontWeight:desktop` with

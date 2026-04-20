@@ -390,7 +390,7 @@ At the end of pull-section, write `$DEBUG_DIR/summary.json`:
     "upgradability": "high",
     "settings": [
       { "name": "Heading Text", "category": "native", "target": "text block → text setting" },
-      { "name": "Text Width", "category": "css_only", "target": "gldn-global-overrides.css", "value": "25em", "varies": false },
+      { "name": "Text Width", "category": "css_only", "target": "custom-global-overrides.css", "value": "25em", "varies": false },
       { "name": "Make it h1?", "category": "deprecate", "reason": "auto heading hierarchy" }
     ]
   }
@@ -631,13 +631,13 @@ SETTINGS MIGRATION: {section-name}
 |------------------------|------------------|---------|----------------|---------------------------------|
 | Heading Text           | "$10 off..."     | yes     | NATIVE         | text block → text setting       |
 | Background Image       | shop_images/...  | yes     | NATIVE         | section → image setting         |
-| Text Width             | 25em             | no      | CSS-ONLY       | gldn-global-overrides.css       |
-| Text Padding Desktop   | 7em 2em 0 0      | no      | CSS-ONLY       | gldn-global-overrides.css       |
-| Text Padding Tablet    | 0 0 3em          | no      | CSS-ONLY       | gldn-global-overrides.css       |
+| Text Width             | 25em             | no      | CSS-ONLY       | custom-global-overrides.css       |
+| Text Padding Desktop   | 7em 2em 0 0      | no      | CSS-ONLY       | custom-global-overrides.css       |
+| Text Padding Tablet    | 0 0 3em          | no      | CSS-ONLY       | custom-global-overrides.css       |
 | Eyebrow Color          | #FDFDFD          | no      | MAPPED         | color scheme (scheme-1)         |
 | Title Color            | #FDFDFD          | no      | MAPPED         | color scheme (scheme-1)         |
 | Arrow Buttons Color    | #FDFDFD          | no      | MAPPED         | color scheme (scheme-1)         |
-| Text Shadow            | [css value]      | no      | CSS-ONLY       | gldn-global-overrides.css       |
+| Text Shadow            | [css value]      | no      | CSS-ONLY       | custom-global-overrides.css       |
 | Button Version         | White            | no      | MAPPED         | button style + color scheme     |
 | Make it h1?            | true             | yes*    | DEPRECATE      | auto heading hierarchy          |
 | Klaviyo List ID        | HMuMXy           | no      | EXTEND         | custom-liquid block             |
@@ -852,7 +852,7 @@ When the mapping recommends `extension_section` or `custom_from_scratch`, you MU
 Write a spec to the transcript:
 
 ```
-SECTION SPEC: gldn-cta-gallery
+SECTION SPEC: custom-cta-gallery
 LAYOUT: CSS Grid, 4 columns (1fr 1fr 1fr 2fr), 2 rows, gap: 8px
 CONTAINER: max-width 1296px, padding 0 72px, background rgb(253, 253, 253)
 
@@ -1580,7 +1580,7 @@ When the base theme has separate sections for different footer areas (e.g., `foo
 2. Is this a third-party integration that requires exact HTML? (e.g., Klaviyo form with specific `action` URL and hidden fields) → **Use `custom-liquid`.** This is the correct use case.
 3. Does the base theme have a unique layout not achievable with native blocks? (e.g., interleaved social icons within a menu column) → **Try native blocks with CSS overrides first.** Use a `group` with `menu` + `social-links` blocks and CSS positioning. Only use `custom-liquid` if CSS can't achieve the layout.
 
-**Real example (GLDN footer):**
+**Real example (jewelry store footer):**
 - BAD: `custom-liquid` with hardcoded `<nav>` HTML, inline SVGs, and `linklists.footer.links` Liquid → not editable, SVGs break on theme update
 - GOOD: `menu` block (menu: "footer", heading: "", link_preset: "paragraph") + `social-links` block (facebook_url: "...", instagram_url: "...", pinterest_url: "...") → editable in theme editor, inherits theme styles
 

@@ -1,5 +1,5 @@
 {
-  "version": "0.7.0",
+  "version": "0.19.0",
   "live_url": "",
   "target_theme": ".",
   "target_type": "auto",
@@ -16,5 +16,6 @@
   "reports_format": "json",
   "default_retry_limit": 3,
   "computed_style_match_threshold": 85,
-  "same_shopify_store": true
+  "same_shopify_store": true,
+  "cases_commit_default": true
 }
