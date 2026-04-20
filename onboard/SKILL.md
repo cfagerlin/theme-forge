@@ -233,6 +233,7 @@ Create `.theme-forge/config.json` in the target theme root:
   "dev_store": "store.myshopify.com",
   "extension_prefix": "custom-",
   "live_theme_id": 131911450755,
+  "same_shopify_store": true,
   "capabilities": {
     "browse": true,
     "browse_method": "playwright_cli",
@@ -255,6 +256,8 @@ The `dev_*` fields are set by `scripts/dev-server.sh` (Step 4):
 - `dev_url`, `dev_preview_url`, `dev_editor_url` — URLs for the user to interact with the dev theme
 
 Each worktree has its own config, so parallel sessions don't conflict.
+
+`same_shopify_store` defaults to `true` and should stay true for almost every project. It tells image-handling code that the live site and dev theme live on the same Shopify store, so any image URL visible on the live page (Shopify CDN URL, `shopify://shop_images/...` reference, hardcoded Liquid path) can be reused as-is in the target theme — no re-upload, no manual admin step. Set to `false` only when migrating to a different Shopify store entirely (rare). Existing projects without the flag default to `true` retroactively on next session.
 
 Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) which pulls sections, snippets, blocks, layout, and code assets alongside templates and config.
 

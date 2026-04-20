@@ -519,14 +519,25 @@ These rules prevent the most common mistakes observed in real migrations. Follow
 
 If the primary template and `settings_data.json` disagree on a content value, `settings_data.json` wins — it reflects what the theme editor has set, which is what the live site shows.
 
-**IMAGE SOURCING RULE**: Images do NOT need to be uploaded or set via the Shopify admin. The store's images already exist on Shopify's CDN. Copy the image references from the **base theme's** `config/settings_data.json` into the **target theme's** `config/settings_data.json`. Image references use the `shopify://shop_images/filename.ext` protocol (e.g., `shopify://shop_images/hero-banner.jpg`). These URLs resolve to the store's CDN automatically — they work in any theme on the same store.
+**IMAGE SOURCING RULE**: Images do NOT need to be uploaded or set via the Shopify admin. When `config.same_shopify_store` is `true` (the default — check `.theme-forge/config.json`), the live site and dev theme share the exact same Shopify store and the exact same CDN. ANY image URL or reference visible anywhere on the live site can be reused as-is in the target theme. That includes:
 
-Where to find image references:
-1. **`config/settings_data.json`** — most section images are stored here under the section's key (e.g., `"image": "shopify://shop_images/hero.jpg"`)
-2. **Template JSON files** — some images are referenced in the template's section blocks
-3. **Global settings** — logo, favicon, and other global images are in the `current` key of `settings_data.json`
+- `shopify://shop_images/filename.ext` references (preferred — protocol form, theme-portable)
+- `shopify://shop_files/filename.ext` references (Files API form)
+- Direct `cdn.shopify.com/s/files/...` URLs from rendered HTML (`<img src>`, `background-image: url(...)`)
+- Hardcoded paths in base theme Liquid templates (e.g., `{{ 'hero.jpg' | asset_url }}`)
 
-**NEVER tell the user that images need to be uploaded manually or set through the theme editor.** If an image shows a placeholder, you missed copying the image reference from the base theme. Go back and find the correct `shopify://shop_images/` URL in the base theme's `settings_data.json` and write it to the target theme's `settings_data.json`.
+All of these resolve against the same CDN bucket regardless of which theme requests them. Re-uploading is wrong, never necessary, and creates duplicate assets.
+
+**Image source fallback chain.** Look in this order until you find the reference for a given image setting:
+
+1. **Base theme `config/settings_data.json`** — most section images live here under the section's key (e.g., `"image": "shopify://shop_images/hero.jpg"`). Global images (logo, favicon) are under the `current` key.
+2. **Base template JSON files** — some images are stored on individual template section blocks (`templates/index.json`, etc.).
+3. **Base section/snippet Liquid files** — hardcoded `{{ 'filename.ext' | asset_url }}` paths or inline `src` attributes. Copy the same form into the target's section/extension code.
+4. **Live page HTML** — if you cannot find the image in any of the above, inspect the rendered live page (`document.querySelector(...).src` or background-image computed style). Take that URL verbatim and write it into the target's settings or code.
+
+If `config.same_shopify_store` is `false` (rare — different Shopify store entirely), the chain still applies but URLs from steps 4 will not resolve in the target theme. In that case, flag the missing image as an `escalated` variance for the user to handle.
+
+**NEVER tell the user that images need to be uploaded manually or set through the theme editor when `same_shopify_store` is `true`.** If an image shows a placeholder, you missed sourcing the reference. Walk the fallback chain again. Re-uploading is not a fix.
 
 1. Check if `scan` has already been run — look for this section in `.theme-forge/site-inventory.json`
    - If present, use the **resolved CSS** from the inventory (all Liquid variables already substituted with actual values). This saves significant time vs manual cross-referencing.

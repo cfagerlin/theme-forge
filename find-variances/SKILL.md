@@ -277,6 +277,14 @@ For each breakpoint (desktop, tablet, mobile), compare every extracted property 
    - `css` — needs CSS override
    - `layout` — bounding box differences (width, height, position)
    - `content` — text or image src differences (flag only, do not auto-fix)
+
+   **Equivalent image URL filter.** When comparing `<img src>`, background-image URLs, or any image-typed setting value, the live and dev sites can reference the same image with different URL forms. When `config.same_shopify_store` is `true` (default — read from `.theme-forge/config.json`), do NOT emit a `content` variance if the live and dev URLs are equivalent under any of these tests:
+   - Same filename (basename + extension after stripping query params and CDN versioning), e.g., `cdn.shopify.com/.../hero.jpg?v=123` ≡ `cdn.shopify.com/.../hero.jpg?v=456` ≡ `shopify://shop_images/hero.jpg`
+   - Same Shopify reference, e.g., `shopify://shop_images/X` ≡ a CDN URL whose path ends in `/X`
+   - Both empty / both placeholders
+   
+   Only emit a `content` variance for an image when the underlying file actually differs (different filename) or one side is empty and the other isn't. URL-form-only differences are not regressions on the same store. If `same_shopify_store: false`, fall back to strict string equality (any URL difference is a real variance because the dev store may not have the live store's CDN file).
+
 4. **Generate test condition:**
    - Use the element's verified selector from extraction
    - If Shadow DOM was detected, set `shadow_host` and `custom_property`
