@@ -360,6 +360,9 @@ Tell the user:
 - Or run `/theme-forge pull-page index` to start pulling the homepage (scan + map happens automatically)
 - Or run `/theme-forge pull-section <name>` to start pulling immediately (will auto-map first)
 
+Also mention the publish-safety guardrail:
+- All `shopify theme push` / `shopify theme delete` calls in theme-forge route through `scripts/shopify-safe.sh`, which queries the currently-live theme at execution time and refuses any operation that would overwrite or delete it. Refuses `shopify theme publish` outright. This is a deterministic shell-level check (cross-platform, agent-independent) — even if a future skill or agent slips, the wrapper still blocks. The user can also alias `shopify=$(pwd)/scripts/shopify-safe.sh` in their shell for raw-terminal coverage (optional, opt-in).
+
 ## Output
 
 - `.theme-forge/config.json` — Project configuration file (committed)

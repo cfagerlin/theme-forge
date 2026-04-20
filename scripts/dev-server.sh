@@ -22,6 +22,12 @@
 
 set -euo pipefail
 
+# Resolve the directory this script lives in so we can call sibling scripts
+# (notably shopify-safe.sh, which deterministically blocks pushes/deletes
+# targeting the live theme).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAFE_SHOPIFY="$SCRIPT_DIR/shopify-safe.sh"
+
 # Parse --path argument if provided
 PROJECT_ROOT=""
 ARGS=()
@@ -386,7 +392,7 @@ Dev server would sync local files to the LIVE production theme. Aborting."
       info "Syncing files to existing theme..."
       local sync_stderr_file
       sync_stderr_file=$(mktemp /tmp/tf-sync-XXXXXX)
-      shopify theme push --theme "$dev_theme_id" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$sync_stderr_file" >/dev/null || {
+      "$SAFE_SHOPIFY" theme push --theme "$dev_theme_id" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$sync_stderr_file" >/dev/null || {
         warn "Theme sync stderr: $(cat "$sync_stderr_file")"
         rm -f "$sync_stderr_file"
         warn "Could not sync files to existing theme. Continuing with stale files."
@@ -400,7 +406,7 @@ Dev server would sync local files to the LIVE production theme. Aborting."
       local push_stderr_file
       push_stderr_file=$(mktemp /tmp/tf-push-XXXXXX)
       local push_output
-      push_output=$(shopify theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$push_stderr_file") || {
+      push_output=$("$SAFE_SHOPIFY" theme push --unpublished --theme "$tf_name" --store "$dev_store" --path "$PROJECT_ROOT" --json 2>"$push_stderr_file") || {
         warn "Theme push stderr: $(cat "$push_stderr_file")"
         warn "Theme push stdout: $push_output"
         rm -f "$push_stderr_file"
@@ -615,7 +621,7 @@ cmd_cleanup() {
   # Delete unpublished theme if we created it
   if [[ "$dev_theme_created" == "true" && -n "$dev_theme_id" && -n "$dev_store" ]]; then
     info "Deleting unpublished theme $dev_theme_id..."
-    if shopify theme delete --theme "$dev_theme_id" --store "$dev_store" --force 2>/dev/null; then
+    if "$SAFE_SHOPIFY" theme delete --theme "$dev_theme_id" --store "$dev_store" --force 2>/dev/null; then
       info "Theme $dev_theme_id deleted."
     else
       warn "Could not delete theme $dev_theme_id."
@@ -642,7 +648,7 @@ cmd_cleanup() {
       running=$(ps aux | grep "shopify theme dev" | grep -- "--theme $oid" | grep -v grep || true)
       if [[ -z "$running" ]]; then
         info "  Orphan found: theme $oid — deleting..."
-        if shopify theme delete --theme "$oid" --store "$dev_store" --force 2>/dev/null; then
+        if "$SAFE_SHOPIFY" theme delete --theme "$oid" --store "$dev_store" --force 2>/dev/null; then
           info "  Deleted."
           orphan_count=$((orphan_count + 1))
         else
