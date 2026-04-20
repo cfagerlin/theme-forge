@@ -33,13 +33,28 @@ page-level summary line.
 **Options:**
 - `--only <section-key>` — limit to a single section (equivalent to
   `verify-section <section-key> --page <template>`)
-- `--rebaseline` — forwarded to each verify-section run (interactive per STALE)
+- `--rebaseline` — forwarded to each verify-section run (interactive per STALE).
+  In case mode, `--rebaseline --cases` requires `--yes` (matrix multiplier
+  acknowledgement — one STALE prompt per cell gets overwhelming fast).
 - `--breakpoint <name>` — forwarded to each verify-section run. Restricts every
   section to assertions at that breakpoint only (`desktop`, `tablet`, or `mobile`).
   Sections with zero assertions at the target breakpoint are reported as
   `(no assertions at <name>)` and skipped without spinning up a browser. Every
   per-section `next:` line in the page report carries the same `--breakpoint` flag,
   so the followup `refine-section` / `verify-section` calls stay scoped.
+- `--cases` — enable multi-case matrix mode. Iterates every `active` case from
+  `.theme-forge/cases/<template>.json`. For each case, verifies every section
+  with assertions. Emits a matrix-style summary. Alias: `--archetypes`.
+- `--case <key>` — scope the run to one case only (still multi-section).
+  Mutually exclusive with `--cases` — passing both hard-errors.
+- `--live-url <origin>` — override the live origin for this run (stateless
+  URL resolution). Paired with `--dev-url`. Passing one without the other
+  hard-errors.
+- `--dev-url <origin>` — override the dev origin for this run. Paired with
+  `--live-url`.
+- `--yes` — acknowledge the matrix multiplier for destructive flags
+  (`--rebaseline --cases`). Without `--yes`, `--rebaseline --cases` hard-errors
+  and prints the cell count that would be affected.
 - `--format <terminal|markdown>` — output target (default `terminal`)
 
 ## Read-only contract (inherited)
@@ -58,6 +73,15 @@ To find which sections to verify on a template:
    `.theme-forge/reports/sections/<section>.json`)
 4. Skip sections without `assertions.json` (not an error — just nothing to verify)
 
+In case mode, the filter is identical (one assertions.json per section — case
+is a field inside assertion entries, not a file-level partition). For each
+discovered section, the per-cell filter is:
+- `assertion.case === <scoped-case-key>` (case-specific)
+- OR `assertion.case === null` / missing (universal — applies to all cases)
+
+Sections with zero assertions matching the scoped case are skipped with
+`(no assertions for <case>)` — not an error.
+
 If zero sections have assertions for this page, print:
 
 ```
@@ -67,11 +91,25 @@ Run this to promote section variances into assertions:
   /theme-forge refine-page <template>
 ```
 
-Exit 0.
+In case mode, if the `.theme-forge/cases/<template>.json` file is missing,
+hard-error BEFORE any section discovery:
+
+```
+ERROR: No cases file for template "<template>".
+
+Expected:
+  .theme-forge/cases/<template>.json
+
+Create it with:
+  /theme-forge intake-cases <template> --from <screenshot-or-csv>
+```
+
+Exit 0 on empty discovery (not an error). Exit nonzero on missing cases file
+in case mode (configuration error).
 
 ## Execution
 
-For each section in discovery order:
+**Legacy path (no `--cases` / `--case`)** — for each section in discovery order:
 
 1. Invoke `verify-section <section-key> --page <template>` (same arguments
    forwarded: `--rebaseline`, `--breakpoint`, etc.)
@@ -91,7 +129,65 @@ Every `next:` line written to the page report MUST include `--breakpoint <name>`
 when the page run was scoped, so a user iterating mobile-only stays mobile-only
 across the whole loop.
 
-## Output (terminal, primary)
+**Case-mode path (`--cases` or `--case`)** — iterate the matrix:
+
+1. **Preflight.** Reject `--cases` + `--case` combo (hard-error). Read
+   `.theme-forge/cases/<template>.json`, validate every active case has a
+   `path` starting with `/`, resolve scoped cases (`--case <key>` = one; 
+   `--cases` = all active). Print dormant / draft cases as skipped.
+
+2. **Rebaseline gate.** If `--rebaseline --cases` and NOT `--yes`:
+   ```
+   ERROR: --rebaseline --cases is destructive across the whole matrix.
+
+   This would prompt for STALE rewrites across <C> cases × <S> sections ×
+   <B> breakpoints = <cells> cells.
+
+   Re-run with --yes to acknowledge:
+     /theme-forge verify-page <template> --cases --rebaseline --yes
+   ```
+   Exit nonzero.
+
+3. **Loop ordering.** Outer loop = breakpoint (one browser resize per sweep),
+   middle loop = case (one navigate per case change), inner loop = section.
+   Mirrors refine-page's matrix loop so cache semantics align.
+
+   ```
+   for bp in [breakpoints in scope]:
+     resize browser to bp
+     for case in [scoped active cases]:
+       navigate to live_url + case.path
+       navigate to dev_url + case.path
+       for section in [sections with assertions matching (bp, case)]:
+         invoke verify-section <section-key> \
+           --page <template> \
+           --case <case-key> \
+           --breakpoint <bp> \
+           --live-url <live_url> \
+           --dev-url <dev_url>
+   ```
+
+   verify-section already understands `--case` (task #46) and filters its
+   assertion scope to that case + universals. No new filtering needed here.
+
+4. **Cell identity + status.** Each cell is one (template, section,
+   breakpoint, case) tuple. Cell status derives from verify-section's run log:
+   - `PASS` — all assertions in scope passed
+   - `FAIL` — ≥1 assertion failed
+   - `STALE` — ≥1 assertion's selector resolved missing (not an assertion
+     failure; a selector-drift signal)
+   - `ERROR` — infrastructure failure
+   - `SKIP` — no assertions matched this cell
+
+   No short-circuit. Run every cell, always.
+
+5. **Per-cell delta vs prior run.** If a prior page-matrix report exists at
+   `.theme-forge/verify/_page-reports/<template>-matrix-latest.json`, compare
+   each cell's current status against the prior status. A cell is a
+   **regression** iff prior was `PASS` and current is `FAIL`. Record regressions
+   in the matrix report — refine-page's `--gate` step reads them.
+
+## Output (terminal, primary — legacy mode)
 
 ```
 verify-page index
@@ -126,16 +222,59 @@ Stale assertions:
 Run logs: .theme-forge/verify/*/run-logs/20260419-164201.json
 ```
 
+### Output (terminal — case mode, TD-2 row layout)
+
+Cases as rows, breakpoints as column groups, sections concat within a group:
+
+```
+verify-page product --cases
+
+MATRIX RESULTS: product — 99/99 cells
+════════════════════════════════════════════════════════════════════════
+                     │ desktop        │ tablet         │ mobile
+case                 │ H PF TB CC CTA │ H PF TB CC CTA │ H PF TB CC CTA
+─────────────────────┼────────────────┼────────────────┼───────────────
+full_personalizer    │ ✓ ✓  ✓  ✓  ✓  │ ✓ ✓  ✓  ✗  ✓  │ ✓ ✓  ✓  ✓  ✓
+tag_personalizer     │ ✓ ✗  ✓  ✓  ✓  │ ✓ ✓  ✓  ✓  ✓  │ ✓ ✓  ✓  ✓  ✓
+ready_to_ship        │ ✓ ✓  ✓  ✓  ✓  │ ✓ ✓  ✓  ✓  ✓  │ ✓ ✓  ✓  ✓  ✓
+...
+════════════════════════════════════════════════════════════════════════
+Legend: ✓ PASS  ✗ FAIL  S STALE  E ERROR  · SKIP
+Sections: H=hero-1 PF=product-form TB=trust-bar CC=cross-sell CTA=sticky-cta
+
+Totals: 97 PASS · 2 FAIL · 0 STALE · 0 ERROR · 0 SKIP
+
+Regressions introduced since prior run:
+  • product-form:color:desktop:tag_personalizer  (was PASS, now FAIL)
+
+Failures to fix:
+  /theme-forge refine-section product-form --page product --case tag_personalizer --variances ".btn:color"
+  /theme-forge refine-section cross-sell --page product --case full_personalizer --breakpoint tablet --variances ".card:padding"
+
+Run logs: .theme-forge/verify/*/run-logs/20260420-140200.json
+Matrix report: .theme-forge/verify/_page-reports/product-matrix-20260420-140200.json
+```
+
+When section count > 5, wrap to per-breakpoint blocks. When case count > 10,
+paginate to 10 per block. Legend stays visible on every page.
+
 ### Multi-section FAIL consolidation
 
 If FAILs span multiple sections, verify-page prints one `refine-section` command
 per section (not one consolidated line), because `refine-section` is scoped to a
 single section at a time.
 
+In case mode, each FAIL → one `refine-section ... --case <key>` line. A single
+section with FAILs across 3 cases = 3 lines (user can batch with
+`refine-page ... --cases --only-failed --resume` for the rollup).
+
 ### PASS-only collapsing
 
 When every assertion in a section passes, collapse to one line: `PASS  (all N
 assertions)`. Don't flood the terminal with green.
+
+In case mode, the matrix grid is the rollup — per-section listings are
+suppressed. A `--verbose` flag (future) could re-enable them.
 
 ## Output (markdown, when `--format markdown`)
 
@@ -145,7 +284,7 @@ or email. Never overwrites per-section `generated.md` — page reports are separ
 
 ## Page run log
 
-After all sections complete, write:
+After all sections complete, write (legacy mode):
 
 ```
 .theme-forge/verify/_page-reports/<template>-<timestamp>.json
@@ -179,6 +318,64 @@ After all sections complete, write:
   ]
 }
 ```
+
+### Matrix run log (case mode)
+
+Written to:
+```
+.theme-forge/verify/_page-reports/<template>-matrix-<timestamp>.json
+```
+
+Plus a `-latest.json` symlink / copy updated atomically (for delta diffing
+against the next run):
+```
+.theme-forge/verify/_page-reports/<template>-matrix-latest.json
+```
+
+Schema:
+```json
+{
+  "timestamp": "2026-04-20T14:02:00Z",
+  "template": "product",
+  "scope": {
+    "breakpoints": ["desktop", "tablet", "mobile"],
+    "cases": ["full_personalizer", "tag_personalizer", "ready_to_ship"],
+    "sections": ["hero-1", "product-form", "trust-bar", "cross-sell", "sticky-cta"]
+  },
+  "totals": { "pass": 97, "fail": 2, "stale": 0, "error": 0, "skip": 0 },
+  "cells": [
+    {
+      "section": "product-form",
+      "breakpoint": "desktop",
+      "case": "tag_personalizer",
+      "status": "FAIL",
+      "pass": 4, "fail": 1, "stale": 0, "error": 0,
+      "failed_assertion_ids": ["btn:color:desktop:tag_personalizer"]
+    }
+  ],
+  "regressions": [
+    {
+      "cell_key": "product-form:desktop:tag_personalizer",
+      "prior_status": "PASS",
+      "current_status": "FAIL",
+      "assertion_id": "btn:color:desktop:tag_personalizer",
+      "next": "/theme-forge refine-section product-form --page product --case tag_personalizer --variances \".btn:color\""
+    }
+  ],
+  "failures": [
+    {
+      "section": "product-form",
+      "case": "tag_personalizer",
+      "breakpoint": "desktop",
+      "assertion_id": "btn:color:desktop:tag_personalizer",
+      "next": "/theme-forge refine-section product-form --page product --case tag_personalizer --variances \".btn:color\""
+    }
+  ]
+}
+```
+
+Cell identity = `{template, section, breakpoint, case}`. The `regressions`
+array is the hook refine-page's `--gate` reads to detect cross-case damage.
 
 ## MVP Cut (what's IN v1)
 

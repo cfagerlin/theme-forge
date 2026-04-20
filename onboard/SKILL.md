@@ -225,7 +225,7 @@ Create `.theme-forge/config.json` in the target theme root:
 
 ```json
 {
-  "version": "0.8.0",
+  "version": "0.19.0",
   "live_url": "https://example.com",
   "target_theme": ".",
   "target_type": "horizon",
@@ -234,6 +234,7 @@ Create `.theme-forge/config.json` in the target theme root:
   "extension_prefix": "custom-",
   "live_theme_id": 131911450755,
   "same_shopify_store": true,
+  "cases_commit_default": true,
   "capabilities": {
     "browse": true,
     "browse_method": "playwright_cli",
@@ -258,6 +259,8 @@ The `dev_*` fields are set by `scripts/dev-server.sh` (Step 4):
 Each worktree has its own config, so parallel sessions don't conflict.
 
 `same_shopify_store` defaults to `true` and should stay true for almost every project. It tells image-handling code that the live site and dev theme live on the same Shopify store, so any image URL visible on the live page (Shopify CDN URL, `shopify://shop_images/...` reference, hardcoded Liquid path) can be reused as-is in the target theme — no re-upload, no manual admin step. Set to `false` only when migrating to a different Shopify store entirely (rare). Existing projects without the flag default to `true` retroactively on next session.
+
+`cases_commit_default` defaults to `true`. When true, `intake-cases` commits the `.theme-forge/cases/<page>.json` it writes (so parallel sessions share the same case definitions). Set to `false` for projects where case files contain client-confidential URLs that shouldn't ship to the repo — intake-cases will write the file locally and print a reminder to commit manually. Existing projects without the flag default to `true` retroactively.
 
 Note: `base_theme` path is no longer stored. Sessions use targeted base pull (`.theme-forge/base-cache/`) which pulls sections, snippets, blocks, layout, and code assets alongside templates and config.
 
@@ -297,7 +300,9 @@ Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (s
 
 1. Confirm the target theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
 2. If a browse tool is available, verify the live URL is reachable
-3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/`, `.theme-forge/tmp/` directories
+3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/`, `.theme-forge/tmp/`, `.theme-forge/cases/` directories
+
+   `.theme-forge/cases/` is the multi-case workflow home (one JSON per template, plus `_shared.json` for header/footer/cart-drawer cases). Empty at onboard. Populated by `/theme-forge intake-cases <template> --from <artifact>` when a template has multiple archetypes (e.g., `product` renders 11 different layouts on gldn.com). Committed by default (see `cases_commit_default` in config).
 4. **Check `.gitignore`**: Add session-specific and tool-generated paths to `.gitignore`:
    ```
    .theme-forge/base-cache/
@@ -359,6 +364,11 @@ Tell the user:
 - Run `/theme-forge scan` to inventory the full site and apply global settings
 - Or run `/theme-forge pull-page index` to start pulling the homepage (scan + map happens automatically)
 - Or run `/theme-forge pull-section <name>` to start pulling immediately (will auto-map first)
+
+**If the theme has templates with multiple archetypes** (single template renders N different layouts depending on tags/metafields/product type — e.g., `product` renders 11 different layouts on gldn.com):
+
+- Run `/theme-forge intake-cases <template> --from <screenshot-or-csv>` to define the archetype matrix
+- Then use `--cases` on refine-page / verify-page / find-variances to iterate the full matrix in one command instead of 27+ manual config edits
 
 Also mention the publish-safety guardrail:
 - All `shopify theme push` / `shopify theme delete` calls in theme-forge route through `scripts/shopify-safe.sh`, which queries the currently-live theme at execution time and refuses any operation that would overwrite or delete it. Refuses `shopify theme publish` outright. This is a deterministic shell-level check (cross-platform, agent-independent) — even if a future skill or agent slips, the wrapper still blocks. The user can also alias `shopify=$(pwd)/scripts/shopify-safe.sh` in their shell for raw-terminal coverage (optional, opt-in).

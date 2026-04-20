@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.19.0 — 2026-04-20
+
+**Multi-case (multi-archetype) support. One template renders N layouts? Iterate the full matrix in one command instead of 27+ manual config edits.**
+
+The pain: a single Shopify template like `product` renders 11 different layouts on gldn.com depending on tags, metafields, and product type. Today, refining all 11 means hand-editing `config.json` 11 times, running refine-page 11 times, then verifying by cross-referencing 11 different report files. The agent drifts, cells get missed, regressions hide across archetypes.
+
+This release adds a `--cases` matrix across find-variances, refine-section, verify-section, refine-page, and verify-page. Define the archetypes once with `intake-cases`, then iterate the full (case × section × breakpoint) matrix with one command.
+
+### What's new
+
+- **`intake-cases` (NEW)** — ingest a screenshot, CSV, markdown table, or prose description of a template's archetypes into `.theme-forge/cases/<page>.json`. Shared sections (header, footer) live in `_shared.json`. Status per case: `active`, `dormant`, `draft`. Normalizes keys, validates paths, commits by default.
+- **find-variances `--cases` / `--case <key>`** — case-scoped style extraction. `live_cache_by_case` keeps a separate live-site cache per case (no cross-contamination when two cases render different layouts from the same section). Variance IDs extended to `{element}:{property}:{bp}:{case}`. Legacy (non-case) variances coexist with `case === null`.
+- **refine-section `--cases` / `--case <key>`** — queue filter: `variance.case === <key>` OR `case === null` (universal). Outer loop per case, re-navigate on case change. Assertions promoted at the end carry the `case` field — verify-section reads it back and scopes to the correct cell.
+- **verify-section `--cases` / `--case <key>`** — case-aware assertion filtering. Optional `case` field on assertions (null = universal). Per-(section, case) 50-assertion cap keeps the catalog bounded. `--rebaseline --cases` requires explicit `--yes` (matrix multiplier acknowledgement).
+- **refine-page `--cases` / `--case <key>`** — the matrix driver. Outer-breakpoint / middle-case / inner-section loop. Cross-case regression gate via `--gate <final|breakpoint|none>`. `--fail-fast`, `--resume`, `--only-failed`, `--summary` flags for long runs. Row-layout matrix progress view (cases as rows, scales to 20+ archetypes). Matrix report at `.theme-forge/reports/pages/<page>-matrix.json` with cell identity `{page, section, breakpoint, case}` for resume.
+- **verify-page `--cases` / `--case <key>`** — matrix regression runner. Delta vs prior run detects cross-case regressions (prior PASS, current FAIL). Matrix report at `.theme-forge/verify/_page-reports/<page>-matrix-<ts>.json` with `-latest.json` for delta diffing.
+- **URL overrides on primitives** — all four primitives (find-variances, refine-section, verify-section, plus the matrix invocations from refine-page / verify-page) accept `--live-url <origin>` and `--dev-url <origin>` for stateless URL resolution. Half-override (one without the other) hard-errors.
+- **`cases_commit_default` flag in config** — cases files commit by default (parallel sessions share archetype definitions). Set to `false` for projects with client-confidential URLs; intake-cases writes locally and prints a reminder.
+
+### Validation + DX
+
+- Preflight block before matrix runs prints `C × S × B = cells` dimensions, gate cadence, est runtime, and report path. No surprises. Not suppressed by `--summary` — it's the only thing the user sees during background runs.
+- Resume detection via AskUserQuestion when an incomplete matrix report exists (Resume / Overwrite / Abort). `--resume` auto-selects resume; `--only-failed --resume` filters to FAIL / ERROR cells.
+- Missing cases file hard-errors pre-browser with the exact `intake-cases` next command. Invalid paths (case missing `/`) hard-error with the offending case key.
+- `--cases` + `--case` combination is rejected at entry. Unknown breakpoint names hard-error once.
+- All `next:` lines propagate `--case` and `--breakpoint` when the run was scoped, so iteration loops stay scoped across verify → refine cycles.
+
+### Why this matters
+
+Multi-archetype themes are where refactors break. A color token change that looks clean on the default product page can silently break the personalizer archetype that only renders for `tag:personalizer` products. Today those regressions get caught when a customer hits the broken variant at checkout. With `verify-page --cases`, they get caught in minutes, before the PR lands. For gldn.com specifically: 11 archetypes × ~8 sections × 3 breakpoints = 264 cells verified in one command instead of 264 manual inspections.
+
 ## 0.18.0 — 2026-04-20
 
 **`--breakpoint` flag across verify, refine, and find-variances. Iterate one breakpoint at a time without hand-filtering 40+ variance arrays.**

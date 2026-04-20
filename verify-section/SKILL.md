@@ -41,7 +41,9 @@ decides.
 - `--print-example` — print a minimum valid assertion JSON to stdout and exit
   (non-mutating, no dev server needed)
 - `--rebaseline` — interactive batch update for STALE assertions (prompts per
-  stale entry: keep / update selector / delete)
+  stale entry: keep / update selector / delete). When paired with `--cases`,
+  requires explicit `--yes` to acknowledge the matrix multiplier (rebaselining
+  a STALE assertion across 9 active cases writes 9 cells).
 - `--breakpoint <name>` — restrict the run to a single breakpoint. `<name>` must
   be one of `desktop`, `tablet`, `mobile`. Filters the assertion array to entries
   whose `breakpoint` field (after defaults) matches. Only the matching breakpoint's
@@ -49,6 +51,22 @@ decides.
   mobile-only audits, regression sweeps after a responsive change, etc. Any
   unknown value (including misspellings like `mobiel`) hard-errors with the
   allowed list.
+- `--cases` — iterate every `active` case from `.theme-forge/cases/<page>.json`
+  (or `_shared.json` for shared sections). Runs the assertion set once per
+  case, with each case's URL path used for the browser navigation. Emits a
+  matrix-style report: one row per case, one column per breakpoint. Alias:
+  `--archetypes`. Dormant / draft cases are printed and skipped, never silently
+  dropped.
+- `--case <key>` — run exactly one case. Used by matrix drivers
+  (`verify-page --cases`) to invoke this primitive per cell. Reads the case's
+  path from the cases file; falls back to `--live-url` / `--dev-url` overrides
+  when passed. Cannot be combined with `--cases`.
+- `--live-url <url>`, `--dev-url <url>` — stateless origin overrides. Mirror
+  the find-variances contract: both must be passed together or both omitted.
+  Parallel matrix runs on different pages use these to avoid racing on
+  shared `.theme-forge/config.json`.
+- `--yes` — required acknowledgement when combining `--rebaseline` with
+  `--cases`. Without it, the run refuses and prints the affected cell count.
 - `--only <assertion-id>` — run a single assertion by id (v1.1 — deferred)
 
 ## Read-only contract (HARD RULE)
@@ -103,6 +121,7 @@ When fields are omitted, these defaults apply:
 |---|---|
 | `state` | `"default"` |
 | `breakpoint` | `"desktop"` |
+| `case` | `null` (universal — applies on any case) |
 | `source` | `"manual"` |
 | `confidence` | `"high"` |
 | `comparator` | `"strict"` |
@@ -123,19 +142,30 @@ When fields are omitted, these defaults apply:
       "expected": "120px",
       "state": "default",
       "breakpoint": "desktop",
+      "case": null,
       "source": "regression",
       "confidence": "high",
       "comparator": "strict",
       "tolerance": "none",
       "note": "logo width on homepage header"
+    },
+    {
+      "id": "engrave-btn:display:desktop:default:full_personalizer",
+      "selector": ".engrave-button",
+      "property": "display",
+      "expected": "block",
+      "case": "full_personalizer",
+      "source": "regression",
+      "note": "engraving button only appears on full_personalizer case"
     }
   ]
 }
 ```
 
 **Field reference:**
-- `id` — stable identifier: `{element}:{property}:{breakpoint}:{state}`. Auto-generated
-  when authoring by promotion. Required only when the minimum shape would collide.
+- `id` — stable identifier: `{element}:{property}:{breakpoint}:{state}` (case-less)
+  or `{element}:{property}:{breakpoint}:{state}:{case}` (case-scoped). Auto-generated
+  by refine-section promotion. Required only when the minimum shape would collide.
 - `selector` — CSS selector (DOM query) — **REQUIRED**
 - `property` — CSS property name in camelCase (matches `getComputedStyle`) — **REQUIRED**
 - `expected` — expected computed value as string — **REQUIRED**
@@ -143,6 +173,9 @@ When fields are omitted, these defaults apply:
   `slow-network` (v2)
 - `breakpoint` — `desktop` (2560×1440), `tablet` (768×1024), `mobile` (375×812).
   Uses constants from `scripts/screenshot.sh`
+- `case` — the case key this assertion applies to (from `.theme-forge/cases/<page>.json`).
+  `null` or missing = universal (applies on every case). Set to a key like
+  `"full_personalizer"` when the contract only holds on that rendering.
 - `source` — `regression` (promoted from refine), `manual` (user-authored),
   `edge_case` (user-authored, flagged important)
 - `confidence` — `high` / `medium` / `low`. Cosmetic — shown in reports but doesn't
@@ -151,10 +184,13 @@ When fields are omitted, these defaults apply:
 - `tolerance` — `"none"` (v1). Reserved: `"±1px"` (v2)
 - `note` — optional human-readable context, shown in reports
 
-### 50 assertions/section cap
+### 50 assertions/section cap (per case)
 
-v1 warns and refuses to run if `assertions.length > 50` on a single section. Keep
-assertions focused on load-bearing properties.
+v1 warns and refuses to run if any `(section, case)` bucket exceeds 50 assertions.
+Universal assertions (no `case`) count as their own bucket. Case-scoped assertions
+count against that case only. Example: a section can have 50 universal + 50 per
+case × 9 cases = up to 500 assertions total, but never more than 50 in any one
+bucket. Keep assertions focused on load-bearing properties.
 
 ## Empty-state handling
 
@@ -263,6 +299,49 @@ The filter is purely a scope reduction — it never mutates `assertions.json`. O
 breakpoints' assertions are untouched and re-eligible the next time you run without
 the flag.
 
+### Step 1.6 — Resolve case scope (`--cases` / `--case <key>`)
+
+If the user passed `--cases` or `--case <key>`:
+
+1. **Reject the combo.** `--cases` and `--case` together hard-error.
+2. **Locate the cases file** — per-page sections: `.theme-forge/cases/<page>.json`;
+   shared sections (header/footer/etc., classified in
+   `.theme-forge/mappings/sections/<section>.json`): `.theme-forge/cases/_shared.json`.
+   Missing file hard-errors with the `intake-cases` next command:
+   ```
+   ERROR: No cases file for page "<page>".
+
+   Expected:
+     .theme-forge/cases/<page>.json
+
+   Create it with:
+     /theme-forge intake-cases <page> --from <screenshot-or-csv>
+   ```
+3. **Resolve scoped cases:**
+   - `--case <key>`: exactly one case (must be `status: "active"`). Invalid key
+     or non-active status hard-errors with the list of valid active keys.
+   - `--cases`: every case where `status === "active"`. Dormant and draft cases
+     are printed with a status line each — skip is never silent.
+4. **Filter the assertion array per case.** For each scoped case, keep only
+   assertions where `case === <key>` OR `case` is missing/null (universal).
+   Legacy assertions automatically run on every case.
+5. **Loop ordering.** Outer loop: breakpoint. Inner loop: case. For each
+   (breakpoint, case) cell, run one `browser_navigate` + `browser_resize` +
+   single `browser_evaluate`. Mirrors the find-variances ordering: breakpoint
+   is the expensive viewport boundary, case is cheap inside the same
+   breakpoint session.
+6. **Case-less mode still works.** When neither `--cases` nor `--case` is
+   passed, verify-section runs ONLY universal assertions (those with no
+   `case` field). Case-scoped assertions are counted and reported as skipped:
+   ```
+   Skipped 12 case-scoped assertions. Run with --cases to include them.
+   ```
+7. **Tag the run log** with the case scope:
+   ```json
+   { "case_scope": ["full_personalizer", "tag_personalizer"] }
+   ```
+   `null` for legacy runs.
+
 ### Step 2 — Apply defaults, group by breakpoint
 
 For each assertion missing optional fields, apply defaults. Group assertions by
@@ -270,9 +349,10 @@ For each assertion missing optional fields, apply defaults. Group assertions by
 tablet / mobile) instead of one per assertion. With `--breakpoint` set, only the
 target breakpoint's group is non-empty.
 
-### Step 3 — Run batched per breakpoint
+### Step 3 — Run batched per breakpoint (× per case in case mode)
 
-For each breakpoint that has at least one assertion:
+**Legacy mode (no `--cases` / `--case`).** For each breakpoint that has at least one
+assertion:
 
 1. `browser_navigate` to `${dev_url}/<page-path>`
 2. `browser_resize` to the breakpoint dimensions (desktop 2560×1440, tablet 768×1024,
@@ -281,6 +361,27 @@ For each breakpoint that has at least one assertion:
    - Iterates every assertion for this breakpoint
    - For each: queries the selector, reads `getComputedStyle`, compares to `expected`
    - Returns an array of `{id, status, actual, expected, selector, reason}`
+
+**Case mode (`--cases` or `--case <key>`).** Outer loop over breakpoints, inner
+loop over scoped cases:
+
+1. For each breakpoint that has at least one applicable assertion (universal or
+   case-scoped to any of the scoped cases):
+   1. `browser_resize` once for the breakpoint.
+   2. For each scoped case:
+      - Resolve the case's URL: `${dev_url}${cases[<key>].path}`. When
+        `--dev-url` is passed, use it as the origin instead of
+        `.theme-forge/config.json`.
+      - `browser_navigate` to that URL.
+      - Filter assertions to `(breakpoint-match) AND (case === <key> OR case
+        is null)`.
+      - `browser_evaluate` with the same canonical executor JS.
+      - Tag each result with `case: <key>` for the matrix report.
+
+**URL origin resolution.** If `--live-url` and `--dev-url` are both passed, use
+them verbatim (no config read). If both are omitted, read
+`.theme-forge/config.json` for `dev_url`. Half-overrides hard-error (mirror of
+find-variances rule).
 
 **Canonical executor JS (use this template — do not improvise):**
 
@@ -346,7 +447,7 @@ synchronous, dependency-free, and does not touch the DOM — pure read-only.
 
 Terminal output is the primary interface. Markdown is audit-only.
 
-Example terminal output:
+**Legacy mode (no case scope) — per-assertion rows:**
 
 ```
 verify-section header --page index
@@ -372,6 +473,47 @@ Summary: 2 PASS · 1 FAIL · 1 STALE · 0 ERROR
 Run log: .theme-forge/verify/header/run-logs/20260419-164201.json
 ```
 
+**Case mode — matrix report (one row per case × breakpoint, per TD-2).** The
+layout scales to 20+ cases because cases are rows, not columns:
+
+```
+verify-section product-information --page product --cases
+
+Cases: 3 active from .theme-forge/cases/product.json (2 dormant skipped)
+Assertions: 14 (5 universal, 9 case-scoped)
+Cells:      42 total (3 cases × 3 breakpoints × avg assertions)
+
+SECTION: product-information
+case                       desktop          tablet           mobile
+full_personalizer          PASS(12)         PASS(12)         FAIL(1) PASS(11)
+tag_personalizer           PASS(12)         PASS(12)         PASS(12)
+plain_jewelry              FAIL(2) PASS(10) PASS(12)         STALE(1) PASS(11)
+
+──────────────────────────────────────────────────────────────
+Failures:
+
+FAIL  cta:backgroundColor:mobile:default (case: full_personalizer)
+  selector: .cta-button
+  expected: rgb(20, 110, 200)
+  actual:   rgb(50, 50, 50)
+  next:     /theme-forge refine-section product-information --page product --variances ".cta-button:backgroundColor" --case full_personalizer --breakpoint mobile
+
+FAIL  price:fontSize:desktop:default (case: plain_jewelry)
+  ...
+
+STALE engrave-btn:display:mobile:default (case: plain_jewelry)
+  selector: .engrave-button  (not found)
+  reason:   engrave-btn is not expected on plain_jewelry — likely a bad promotion.
+  next:     /theme-forge verify-section product-information --page product --rebaseline --cases --yes
+
+──────────────────────────────────────────────────────────────
+Summary: 34 PASS · 2 FAIL · 1 STALE · 0 ERROR across 3 cases
+Run log: .theme-forge/verify/product-information/run-logs/20260420-143012.json
+```
+
+When the matrix has 20+ cases, each case still fits on one row at any terminal
+width because breakpoint cells collapse to compact status+count like `FAIL(2) PASS(10)`.
+
 ### Multi-FAIL batch command
 
 If 2+ FAILs, a single consolidated next: line at the bottom:
@@ -383,10 +525,11 @@ Next: /theme-forge refine-section header --page index --variances ".cta-button:b
 This line uses `refine-section`'s existing `--variances "el:prop, el:prop, ..."` API
 (see `refine-section/SKILL.md`). The user copies one line, refines the whole batch.
 
-### Propagating `--breakpoint` to next: lines
+### Propagating `--breakpoint` / `--cases` / `--case` to next: lines
 
-When the run was scoped with `--breakpoint <name>`, every `next:` line MUST include
-the same flag so the followup workflow stays scoped to the same breakpoint:
+When the run was scoped with `--breakpoint`, `--cases`, or `--case`, every
+`next:` line MUST forward the same scope so the followup workflow stays
+scoped to the same cells:
 
 ```
 FAIL  cta:backgroundColor:mobile:default
@@ -402,9 +545,24 @@ Multi-FAIL consolidated line:
 Next: /theme-forge refine-section header --page index --variances ".cta-button:backgroundColor, .hero h1:fontWeight" --breakpoint mobile
 ```
 
-Without this propagation a user doing a mobile-only audit would silently get
-desktop variances back the next time they run refine. Forwarding the flag keeps
-the iteration loop tight and predictable.
+Case-scoped FAILs attach the specific case so refine closes only that cell:
+
+```
+FAIL  cta:backgroundColor:mobile:default (case: full_personalizer)
+  next:     /theme-forge refine-section header --page index --variances ".cta-button:backgroundColor" --case full_personalizer --breakpoint mobile
+```
+
+Multi-FAIL across cases — one consolidated line per case (users rarely want to
+debug multiple archetypes in a single refine pass):
+
+```
+Next (full_personalizer): /theme-forge refine-section product-information --page product --variances ".cta-button:backgroundColor, .hero h1:fontWeight" --case full_personalizer
+Next (plain_jewelry):     /theme-forge refine-section product-information --page product --variances ".price-money:fontSize" --case plain_jewelry
+```
+
+Without this propagation a user doing a mobile-only or archetype-scoped audit
+would silently get desktop-or-all-cases variances back the next time they run
+refine. Forwarding the flag keeps the iteration loop tight and predictable.
 
 ### Step 5 — Write run log
 
@@ -416,14 +574,19 @@ Append to `.theme-forge/verify/<section-key>/run-logs/<timestamp>.json`:
   "section_key": "header",
   "page": "index",
   "schema_version": 1,
+  "breakpoint_filter": null,
+  "case_scope": null,
   "totals": { "pass": 2, "fail": 1, "stale": 1, "error": 0 },
   "results": [
-    {"id": "logo:width:desktop:default", "status": "PASS", "actual": "120px", "expected": "120px"},
-    {"id": "cta:backgroundColor:mobile:default", "status": "FAIL", "actual": "rgb(50, 50, 50)", "expected": "rgb(20, 110, 200)", "selector": ".cta-button"},
-    {"id": "nav:color:tablet:default", "status": "STALE", "selector": ".old-site-nav a"}
+    {"id": "logo:width:desktop:default", "case": null, "status": "PASS", "actual": "120px", "expected": "120px"},
+    {"id": "cta:backgroundColor:mobile:default", "case": null, "status": "FAIL", "actual": "rgb(50, 50, 50)", "expected": "rgb(20, 110, 200)", "selector": ".cta-button"},
+    {"id": "nav:color:tablet:default", "case": null, "status": "STALE", "selector": ".old-site-nav a"}
   ]
 }
 ```
+
+In case mode, `case_scope` is an array of case keys and every `results[]`
+entry carries its `case` field so the log is greppable per-cell.
 
 Run logs accumulate. They do not mutate `assertions.json`. They are never deleted by
 verify — user prunes via editor.
@@ -487,6 +650,20 @@ rebaseline loop (partial changes already applied are kept; user decides).
 Never run `--rebaseline` on FAILs (FAILs are regressions, not stale contracts — they
 should go through refine, not rebaseline). Never run `--rebaseline` without at least
 one STALE result.
+
+**`--rebaseline --cases` requires `--yes`.** The matrix multiplier (one STALE
+assertion across 9 active cases writes 9 cells) is large enough that a
+one-keystroke confirmation is warranted. Without `--yes`, the command refuses:
+
+```
+ERROR: --rebaseline --cases affects N cells across M cases.
+  Re-run with --yes to acknowledge.
+
+Affected:
+  • full_personalizer  (desktop / tablet / mobile)
+  • tag_personalizer   (desktop / tablet / mobile)
+  • plain_jewelry      (desktop / tablet / mobile)
+```
 
 ## Distinction from other skills
 
