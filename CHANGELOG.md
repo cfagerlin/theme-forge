@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.17.0 — 2026-04-19
+
+**verify-section + verify-page: regression assertion runner (spec).**
+
+Reviewed through /autoplan CEO + Eng + DX. DX scorecard 48 → 86 after all 13 checklist items baked into the spec. Implementation follows. This release ships the design contract; no runtime code yet.
+
+### New sub-skills
+
+- `verify-section/SKILL.md` — read-only regression assertion runner for a single section. Executes saved assertions against the dev site, reports PASS / FAIL / STALE / ERROR. Never invokes refine. FAIL output embeds the exact `refine-section --variances ...` command as a user-copyable bridge.
+- `verify-page/SKILL.md` — loops `verify-section` across every section on a template with saved assertions. Page-level summary with per-section next: commands.
+- `verify-section/_example/assertions.json` — 3 progressive example assertions (min shape, partial, full) for hand-authoring.
+
+### Hard contract: read-only
+
+`verify-*` never mutates code and never auto-invokes refine. It writes only to `.theme-forge/verify/<section>/run-logs/` and `generated.md`. `--rebaseline` is the one exception — interactive STALE-only updates, per-assertion AskUserQuestion consent.
+
+### Schema v1
+
+Minimum assertion: 3 required fields (`selector`, `property`, `expected`). 6 defaults (`state=default`, `breakpoint=desktop`, `source=manual`, `confidence=high`, `comparator=strict`, `tolerance=none`). 50 assertions/section cap.
+
+### Directory consolidation
+
+All verify artifacts under `.theme-forge/verify/<section-key>/{assertions.json, generated.md, notes.md, run-logs/}`. One place to look. `notes.md` is user-authored and never clobbered.
+
+### refine-section: promotion hook (Step 5)
+
+After refine closes variances, batched AskUserQuestion offers to promote closed variances to `assertions.json`. Prints the mandatory `Run: /theme-forge verify-section ...` line after a successful promotion. Merges by stable `id`; re-promotion is idempotent. Cap enforcement refuses promotion over 50 assertions.
+
+### Routing
+
+- Root `SKILL.md`: added `verify-section` / `verify-page` to Quick Start, added natural-language shortcuts ("regression test", "check assertions", "rebaseline"), added explicit verify vs refine distinction.
+- `CLAUDE.md`: added routing rules + "IMPORTANT: verify vs refine distinction" block so agents never auto-bridge.
+- `README.md`: added "Four commands, four different jobs" table distinguishing find-variances / refine-section / verify-section / review.
+
+### v2 deferred
+
+- `verify --all` multi-template
+- `state: hover` / `js-disabled` / `theme-editor` / `slow-network`
+- Screenshot / visual diff assertions
+- `verify-section --add` interactive authoring
+- `--only <assertion-id>` single-run
+- CI integration
+- Markdown → JSON promotion
+
+### Blocking tests (T1-T10)
+
+10 integration tests specified, blocking for merge. T1-T7 for verify-section (empty-state, preflight, min-shape PASS, STALE, FAIL, multi-FAIL consolidation, rebaseline abort). T8-T10 for verify-page (empty, mixed aggregation, all-PASS collapse).
+
 ## 0.16.7 — 2026-04-15
 
 **Image verification gates for pull-section.**

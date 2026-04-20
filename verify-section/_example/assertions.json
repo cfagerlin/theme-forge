@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "section_key": "header",
+  "page": "index",
+  "assertions": [
+    {
+      "selector": ".logo img",
+      "property": "width",
+      "expected": "120px"
+    },
+    {
+      "selector": ".site-nav a",
+      "property": "fontSize",
+      "expected": "16px",
+      "breakpoint": "tablet"
+    },
+    {
+      "id": "cta:bg:mobile:default",
+      "selector": ".cta-button",
+      "property": "backgroundColor",
+      "expected": "rgb(20, 110, 200)",
+      "breakpoint": "mobile",
+      "note": "brand accent — verified against live 2026-04"
+    }
+  ]
+}

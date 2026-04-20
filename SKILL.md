@@ -1,8 +1,8 @@
 ---
 name: theme-forge
 description: >
-  **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, refine-section, refine-page, find-variances, review, cutover, status, upgrade.
-  - MANDATORY TRIGGERS: theme-forge, theme pull, migrate theme, pull section, pull page, pull header, pull footer, refine section, refine page, find variances, extract variances, compare styles, fix variances, close FAILs, scan theme, map section, map page, theme migration, theme status, theme review
+  **Shopify Theme Migration Toolkit**: AI-assisted visual migration from any Shopify theme to any target theme. Orchestrates section-by-section comparison, mapping, and pixel-perfect pulling. Commands: onboard, scan, map-section, map-page, pull-section, pull-page, pull-header, pull-footer, refine-section, refine-page, find-variances, verify-section, verify-page, review, cutover, status, upgrade.
+  - MANDATORY TRIGGERS: theme-forge, theme pull, migrate theme, pull section, pull page, pull header, pull footer, refine section, refine page, find variances, extract variances, compare styles, fix variances, close FAILs, scan theme, map section, map page, theme migration, theme status, theme review, verify section, verify page, regression test, check assertions, run regression, rebaseline
 ---
 
 # theme-forge — Shopify Theme Migration Toolkit
@@ -34,11 +34,13 @@ AI-assisted visual migration from any Shopify theme to any target theme. Think o
 /theme-forge refine-section <name> [--page <template>] [--variances "el:prop, ..."] — Close variances with experiment loop
 /theme-forge refine-page [path] [--variances "el:prop, ..."] — Refine all sections on a page
 /theme-forge find-variances <name> [--page <template>] [--force] [--add "desc"] — Extract + compare computed styles, write variance array
-/theme-forge dev-server start   — Start dev server (safe: blocks live themes, isolates sessions)
-/theme-forge dev-server restart — Restart dev server (same port + theme, cache invalidation)
-/theme-forge dev-server stop    — Stop dev server, clear config
-/theme-forge dev-server status  — Check if dev server is running
-/theme-forge dev-server cleanup — Stop + delete unpublished theme + orphan scan
+/theme-forge verify-section <name> --page <t> [--print-example] [--rebaseline] — Run saved regression assertions (read-only)
+/theme-forge verify-page <t>    — Run assertions across every section on a template
+/theme-forge env start          — Start dev server (safe: blocks live themes, isolates sessions)
+/theme-forge env restart        — Restart dev server (same port + theme, cache invalidation)
+/theme-forge env stop           — Stop dev server, clear config
+/theme-forge env status         — Check if dev server is running
+/theme-forge env cleanup        — Stop + delete unpublished theme + orphan scan
 /theme-forge capture <url> --section <sel> — Section-scoped screenshot at all breakpoints
 /theme-forge cutover            — Show cutover checklist for production go-live
 /theme-forge upgrade            — Check for and apply updates
@@ -62,12 +64,18 @@ When invoked as `/theme-forge <command> [args]`:
    - "what's next?" / "next section" / "what should I pull?" → `status --next`
    - "list sections on [page]" / "show me the [page] sections" / "what's on the homepage?" → `status --page <template>`
    - "what's left?" / "what sections are remaining?" → `status --detail`
-6. **`dev-server` routes to the shell script**, not a sub-skill SKILL.md:
+6. **`env` (alias: `dev-server`) routes to the shell script**, not a sub-skill SKILL.md:
    ```bash
    eval "$(scripts/dev-server.sh <action>)"
    ```
    Where `<action>` is `start`, `restart`, `stop`, `status`, or `cleanup`. Present the output variables (`DEV_PORT`, `DEV_URL`, etc.) to the user. If the script doesn't exist at `scripts/dev-server.sh`, try `~/.claude/skills/theme-forge/scripts/dev-server.sh --path .`.
-7. **"restart the server" / "dev server is down" / "server got clobbered"** → route to `dev-server restart`. Do NOT run `shopify theme dev` directly. Ever.
+7. **"restart the server" / "dev server is down" / "server got clobbered"** → route to `env restart`. Do NOT run `shopify theme dev` directly. Ever.
+8. **Verify / regression shortcuts** — route these to `verify-section` or `verify-page`:
+   - "regression test [section]" / "check assertions [section]" / "verify [section]" → `verify-section <section> --page <template>`
+   - "regression test the page" / "check the [template] page" / "verify page" → `verify-page <template>`
+   - "rebaseline [section]" / "selector changed" / "fix stale assertions" → `verify-section <section> --page <template> --rebaseline`
+   - "show me an example assertion" / "what does an assertion look like?" → `verify-section <section> --print-example`
+   - **Never confuse `verify` with `refine`.** verify is read-only (reports regressions). refine mutates code (closes variances). If the user says "fix this regression," invoke `verify-section` first to confirm the FAIL, then invoke `refine-section` using the `next:` command from the verify output.
 
 ### Pipeline Flags
 
@@ -527,7 +535,7 @@ NEVER modify the target theme's core files. This preserves upstream upgradabilit
 
 ### Safety Rules
 
-- **NEVER run `shopify theme dev` directly.** Always use `/theme-forge dev-server start` (which runs `scripts/dev-server.sh start`). This includes when the user asks you to "restart the server," "start on a new port," or "the server got clobbered." The script enforces safety checks (blocks live themes), handles parallel session isolation (unpublished themes for concurrent agents), discovers open ports, and captures session URLs. Running `shopify theme dev` manually bypasses all of these safeguards and risks syncing to the wrong theme or colliding with another session. If you find yourself typing `shopify theme dev`, STOP and use the script instead.
+- **NEVER run `shopify theme dev` directly.** Always use `/theme-forge env start` (which runs `scripts/dev-server.sh start`). This includes when the user asks you to "restart the server," "start on a new port," or "the server got clobbered." The script enforces safety checks (blocks live themes), handles parallel session isolation (unpublished themes for concurrent agents), discovers open ports, and captures session URLs. Running `shopify theme dev` manually bypasses all of these safeguards and risks syncing to the wrong theme or colliding with another session. If you find yourself typing `shopify theme dev`, STOP and use the script instead.
 - **NEVER run `shopify theme push` or `shopify theme publish` without explicit user approval.** All theme work happens locally. The `shopify theme dev` server hot-reloads local files, so pushing is unnecessary during development. When the user is ready to push, they will tell you. This is a bright red line — no exceptions, no "just pushing config", no "only pushing one file".
 - **NEVER access the production store's Shopify admin.** The live site is read-only (public storefront only).
 - **NEVER modify the base theme files.** The base theme export is a read-only reference.
