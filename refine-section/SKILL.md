@@ -636,33 +636,43 @@ choice — per-variance prompting turns a 10-variance refine into a 10-prompt ch
 
 ### Review mode (option B)
 
-If the user chose B, iterate closed variances and present each:
+If the user chose B, iterate closed variances and present each. Show all breakpoints
+the variance covers so the user sees the full promotion impact, not just one bp:
 
 ```
-Promote this?
+Promote this? (will write 3 assertions — one per breakpoint)
   logo:width:desktop:default
+  logo:width:tablet:default
+  logo:width:mobile:default
   selector: .logo img
   expected: 120px
   source: regression (promoted from variance closed this session)
 
-A) Yes, include in assertions.json
+A) Yes, include all 3 in assertions.json
 B) No, skip
 C) Accept all remaining (stop prompting)
 D) Abort — don't save any
 ```
 
+For single-breakpoint variances, the prompt shows one assertion id. Acceptance is
+all-or-nothing per variance — if you want to promote only mobile (not desktop),
+decline here and hand-author the assertion with `--print-example`.
+
 ### Write assertions.json
 
-For each variance selected for promotion, build an assertion:
+For each variance selected for promotion, fan out one assertion per breakpoint in
+`variance.breakpoints`. A variance that failed at desktop + tablet + mobile produces
+three assertions so `verify-section` catches regressions at every breakpoint, not
+just desktop.
 
 ```json
 {
-  "id": "{variance.id}",
+  "id": "{element}:{property}:{bp}:default",
   "selector": "{variance.test.selector}",
   "property": "{variance.test.property}",
   "expected": "{variance.test.expected}",
   "state": "default",
-  "breakpoint": "{variance.breakpoints[0]}",
+  "breakpoint": "{bp}",
   "source": "regression",
   "confidence": "{variance.test.confidence}",
   "comparator": "strict",
@@ -671,11 +681,21 @@ For each variance selected for promotion, build an assertion:
 }
 ```
 
+- Iterate `variance.breakpoints` and emit one assertion per entry
+- Derive `{element}` and `{property}` by splitting `variance.id` on `:` (variance ids
+  are `{element}:{property}:{primaryBp}` — strip the primary bp, substitute the
+  current loop bp to form the assertion id)
 - Pull `selector`, `property`, `expected` directly from the variance's `test` field
-- Use the first breakpoint from `variance.breakpoints` (multi-breakpoint variances
-  promote to the first — user can duplicate in editor if needed)
-- Preserve the variance's stable `id` so cross-references remain stable
+- `expected` is the live value — when find-variances consolidates breakpoints into
+  one variance record, values are identical across all three, so the same `expected`
+  applies at every breakpoint (per find-variances consolidation rule)
 - Set `source: "regression"` always (differentiates from hand-authored `manual`)
+
+**Worked example.** A variance `h1:fontWeight:desktop` with
+`breakpoints: ["desktop", "tablet", "mobile"]` promotes to three assertions:
+`h1:fontWeight:desktop:default`, `h1:fontWeight:tablet:default`,
+`h1:fontWeight:mobile:default` — all sharing the same selector, property, and
+expected value, differing only by `breakpoint`.
 
 **Merge semantics:** If `.theme-forge/verify/{section-key}/assertions.json` already
 exists, merge by `id`. New entries append. Same id = overwrite the existing entry

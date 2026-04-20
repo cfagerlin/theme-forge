@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.1 — 2026-04-20
+
+**Fix: refine-section promotion hook now fans out across all breakpoints.**
+
+Previous behavior: a multi-breakpoint variance (desktop + tablet + mobile) only promoted the first breakpoint to an assertion. Mobile regressions could slip through silently.
+
+New behavior: one assertion per (variance × breakpoint). A variance with `breakpoints: ["desktop", "tablet", "mobile"]` promotes to three assertions sharing the same selector/property/expected, differing only by `breakpoint`. This matches `verify-section`'s multi-breakpoint runner, which already resizes to each breakpoint and runs assertions there.
+
+Review mode prompt now shows all assertion ids the variance will produce so the user sees the full promotion impact before accepting.
+
+50-assertion cap unchanged — fan-out just means you hit it sooner, which is correct.
+
 ## 0.17.0 — 2026-04-19
 
 **verify-section + verify-page: regression assertion runner (spec).**
