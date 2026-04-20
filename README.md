@@ -42,6 +42,8 @@ Optionally, run `./setup` to check dependencies (Shopify CLI, browse tools, Git)
 | `/theme-forge pull-page [page]` | Pull all sections on a page |
 | `/theme-forge pull-header` | Pull the site header |
 | `/theme-forge pull-footer` | Pull the site footer |
+| `/theme-forge verify-section <name> --page <tpl>` | Run saved regression assertions on a section (read-only) |
+| `/theme-forge verify-page <tpl>` | Run assertions across every section on a template |
 | `/theme-forge review [page]` | Post-work variance review |
 | `/theme-forge status` | Human-readable progress report |
 | `/theme-forge upgrade` | Check for and apply updates |
@@ -69,6 +71,22 @@ Session 3: /theme-forge pull-page collection
 ```
 
 Each session is self-sufficient. It pulls fresh base data, scans its page, handles globals if needed, and commits progress as it goes. Other sessions see completed work via `git pull`.
+
+## Four commands, four different jobs
+
+These look similar. They're not.
+
+| Command | What it does | Lifecycle |
+|---|---|---|
+| `find-variances` | Compare live vs dev, list what's different right now | Ephemeral (regenerated every run) |
+| `refine-section` | Fix known variances with an experiment loop | Ephemeral (variances close and disappear) |
+| `verify-section` | Run saved regression contracts, catch drift | **Durable** (assertions frozen across refactors) |
+| `review` | Human/visual audit at end of migration | Manual |
+
+**Variances are diagnostic** — what's different *right now* between live and dev.
+**Assertions are contracts** — what must *always* be true. Different objects, different
+lifetimes. After you close variances with `refine-section`, promote them to assertions
+so future CSS changes don't silently break what you just built.
 
 ## How Pull Works
 

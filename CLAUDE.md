@@ -20,4 +20,13 @@ Key routing rules:
 - Refine section, fix variances, close FAILs → invoke theme-forge refine-section
 - Refine page, refine all sections → invoke theme-forge refine-page
 - Find variances, extract styles, compare styles → invoke theme-forge find-variances
-- Restart dev server, server down, server clobbered, start server → invoke theme-forge dev-server restart (or start/stop/status)
+- Regression test section, verify section, check assertions, run section checks → invoke theme-forge verify-section
+- Regression test page, verify page, check page assertions → invoke theme-forge verify-page
+- Selector changed, rebaseline, fix stale assertions → invoke theme-forge verify-section with --rebaseline
+- Restart dev server, server down, server clobbered, start server → invoke theme-forge env restart (or start/stop/status)
+
+**IMPORTANT: verify vs refine distinction.**
+- `verify-*` is READ-ONLY. It reports regressions. It never edits code.
+- `refine-*` mutates code. It closes variances with an experiment loop.
+- If the user says "fix this regression": invoke `verify-section` first to confirm the FAIL, then invoke `refine-section` using the `next:` command from the verify output.
+- Never auto-bridge verify → refine. The user decides whether to refine.

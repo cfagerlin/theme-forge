@@ -597,3 +597,137 @@ FAIL rows:    0 remaining
 ```
 
 If all variances are closed (0 remaining), update the section report status from `needs_refinement` to `completed`.
+
+## Step 5: Assertion Promotion
+
+After the summary prints and the section is marked `completed`, offer to promote the
+closed variances into regression assertions. Assertions are the frozen contract that
+`verify-section` will re-check on every future run — catching regressions from CSS
+refactors, theme updates, or unrelated changes.
+
+This is the primary authoring path for assertions in v1. Hand-writing JSON is
+supported via `/theme-forge verify-section <section> --print-example`, but promotion
+from refine is the expected flow.
+
+### When to prompt
+
+Only prompt if:
+- At least one variance was closed during this refine run (`variances_closed >= 1`)
+- The section ended in `completed` status (0 open variances)
+
+Skip the prompt when the session ended with escalated/user-accepted variances only —
+those are not durable contracts.
+
+### Single batched prompt (AskUserQuestion)
+
+```
+Promote {N} closed variances to regression assertions?
+
+These will be saved to .theme-forge/verify/{section-key}/assertions.json and
+re-checked every time you run /theme-forge verify-section {section-key}.
+
+A) Yes, promote all {N}
+B) Review each one first (interactive yes/no per variance)
+C) No thanks, I'll add assertions manually later
+```
+
+One AskUserQuestion call, not one per variance. Batching is a load-bearing DX
+choice — per-variance prompting turns a 10-variance refine into a 10-prompt chore.
+
+### Review mode (option B)
+
+If the user chose B, iterate closed variances and present each:
+
+```
+Promote this?
+  logo:width:desktop:default
+  selector: .logo img
+  expected: 120px
+  source: regression (promoted from variance closed this session)
+
+A) Yes, include in assertions.json
+B) No, skip
+C) Accept all remaining (stop prompting)
+D) Abort — don't save any
+```
+
+### Write assertions.json
+
+For each variance selected for promotion, build an assertion:
+
+```json
+{
+  "id": "{variance.id}",
+  "selector": "{variance.test.selector}",
+  "property": "{variance.test.property}",
+  "expected": "{variance.test.expected}",
+  "state": "default",
+  "breakpoint": "{variance.breakpoints[0]}",
+  "source": "regression",
+  "confidence": "{variance.test.confidence}",
+  "comparator": "strict",
+  "tolerance": "none",
+  "note": "promoted from refine-section {timestamp}"
+}
+```
+
+- Pull `selector`, `property`, `expected` directly from the variance's `test` field
+- Use the first breakpoint from `variance.breakpoints` (multi-breakpoint variances
+  promote to the first — user can duplicate in editor if needed)
+- Preserve the variance's stable `id` so cross-references remain stable
+- Set `source: "regression"` always (differentiates from hand-authored `manual`)
+
+**Merge semantics:** If `.theme-forge/verify/{section-key}/assertions.json` already
+exists, merge by `id`. New entries append. Same id = overwrite the existing entry
+(re-promotion of a re-closed variance is idempotent).
+
+Create the `.theme-forge/verify/{section-key}/` directory if missing. Create
+`assertions.json`, `generated.md` (empty stub), and `notes.md` (empty, user-owned)
+on first promotion only — never clobber `notes.md`.
+
+### Cap enforcement
+
+If the merged `assertions.length > 50`, refuse to write. Print:
+
+```
+Cannot promote: would exceed 50-assertion cap (current: 48, attempted: +6).
+
+Either:
+  • Select fewer variances in review mode (option B above)
+  • Prune existing assertions manually at:
+      .theme-forge/verify/{section-key}/assertions.json
+```
+
+Do not silently drop. Do not auto-prune. The cap is a forcing function, not a
+convenience.
+
+### Post-promotion copy (BLOCKING DX requirement)
+
+After writing, ALWAYS print exactly:
+
+```
+Saved {N} regression assertions → .theme-forge/verify/{section-key}/assertions.json
+
+Run: /theme-forge verify-section {section-key} --page {page}
+```
+
+This is the single most important line for first-value DX. Time-to-first-value for
+verify-section depends on this exact copy appearing. Do not summarize it, do not
+reformat it — the `Run: ...` line must be copy-paste-ready.
+
+### If user declined (option C, "no thanks")
+
+Print a quieter pointer so the option remains discoverable:
+
+```
+Assertions not promoted. When you're ready, author by hand with:
+  /theme-forge verify-section {section-key} --print-example
+```
+
+### Hard rules
+
+1. **Never prompt mid-refine.** Promotion is end-of-run only, after the summary.
+2. **Never auto-promote without asking.** User consent is required.
+3. **Never clobber `notes.md`.** It's user-authored; refine doesn't touch it.
+4. **Never drop variances silently on cap overflow.** Refuse with a clear error.
+5. **Always print the `Run: ...` line** after a successful promotion. No exceptions.
