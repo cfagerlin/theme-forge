@@ -327,7 +327,7 @@ variances use the default template path as before.
 Before applying the change, scan the existing CSS override file for conflicting rules.
 **Skip this step if** the override file does not exist yet (first section being pulled).
 
-1. **Read the CSS override file** (e.g., `assets/gldn-global-overrides.css`).
+1. **Read the CSS override file** (e.g., `assets/custom-global-overrides.css`).
 
 2. **Find all rules that match the target element or its ancestors/descendants:**
    - Search for selectors containing the same component class (`.hero`, `.hero__container`, `.hero-wrapper`)
@@ -481,7 +481,7 @@ This overrides the conflicting global min-height AND sets the correct responsive
 
    ```
    RESULT: PASS ✓  (font-weight: 500 → 300, matches live)
-   VISIBILITY GATE: FAIL ✗  (h1 "About GLDN Jewelry" clipped by .hero overflow:hidden)
+   VISIBILITY GATE: FAIL ✗  (h1 "About Our Jewelry" clipped by .hero overflow:hidden)
    → Treating as REGRESSION. Reverting.
    ```
 

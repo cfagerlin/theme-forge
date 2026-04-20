@@ -4,7 +4,7 @@
 
 **Multi-case (multi-archetype) support. One template renders N layouts? Iterate the full matrix in one command instead of 27+ manual config edits.**
 
-The pain: a single Shopify template like `product` renders 11 different layouts on gldn.com depending on tags, metafields, and product type. Today, refining all 11 means hand-editing `config.json` 11 times, running refine-page 11 times, then verifying by cross-referencing 11 different report files. The agent drifts, cells get missed, regressions hide across archetypes.
+The pain: a single Shopify template like `product` can render 10+ different layouts on a real store depending on tags, metafields, and product type. Today, refining all of them means hand-editing `config.json` N times, running refine-page N times, then verifying by cross-referencing N different report files. The agent drifts, cells get missed, regressions hide across archetypes.
 
 This release adds a `--cases` matrix across find-variances, refine-section, verify-section, refine-page, and verify-page. Define the archetypes once with `intake-cases`, then iterate the full (case × section × breakpoint) matrix with one command.
 
@@ -29,7 +29,7 @@ This release adds a `--cases` matrix across find-variances, refine-section, veri
 
 ### Why this matters
 
-Multi-archetype themes are where refactors break. A color token change that looks clean on the default product page can silently break the personalizer archetype that only renders for `tag:personalizer` products. Today those regressions get caught when a customer hits the broken variant at checkout. With `verify-page --cases`, they get caught in minutes, before the PR lands. For gldn.com specifically: 11 archetypes × ~8 sections × 3 breakpoints = 264 cells verified in one command instead of 264 manual inspections.
+Multi-archetype themes are where refactors break. A color token change that looks clean on the default product page can silently break the personalizer archetype that only renders for `tag:personalizer` products. Today those regressions get caught when a customer hits the broken variant at checkout. With `verify-page --cases`, they get caught in minutes, before the PR lands. Real numbers from a typical jewelry store: 11 archetypes × ~8 sections × 3 breakpoints = 264 cells verified in one command instead of 264 manual inspections.
 
 ## 0.18.0 — 2026-04-20
 
@@ -301,7 +301,7 @@ Two changes that close the gap where pull-section/find-variances missed structur
 
 - **Fix**: Before creating a new unpublished theme, the script now runs `shopify theme list --json` and looks for an existing `[TF] <repo> / <branch>` theme matching the current branch. If found, reuses that theme ID and syncs files to it instead of creating a duplicate.
 - This prevents a 3rd parallel session from creating a new theme and clobbering an existing session's port/process.
-- Theme naming convention: `[TF] <repo-name> / <branch-name>` (e.g., `[TF] gldn-hrzn4 / pull-megamenus`).
+- Theme naming convention: `[TF] <repo-name> / <branch-name>` (e.g., `[TF] my-theme / pull-megamenus`).
 
 ## 0.15.4 — 2026-04-13
 
@@ -807,7 +807,7 @@ The targeted base pull was only fetching `templates/*` and `config/*`, leaving t
 - **New rule #12**: Prefer native blocks over `custom-liquid`. Only use custom-liquid for third-party integrations or when no native block exists.
 - **Step 2 expanded**: Must read `blocks/*.liquid` schemas for every block type used — not just the section's `{% schema %}`. Block settings like `font_size`, `line_height`, `color` have `visible_if` conditions that silently ignore values when conditions aren't met.
 - **Gotcha: Block schema settings are conditional**: `text` block typography requires `type_preset: "custom"`. Setting `font_size` with `type_preset: "h2"` does nothing.
-- **Gotcha: Native blocks before custom-liquid**: Decision tree for when to use native vs custom-liquid. Real GLDN footer example.
+- **Gotcha: Native blocks before custom-liquid**: Decision tree for when to use native vs custom-liquid. Real jewelry-store footer example.
 - **Gotcha: Setting values must match schema options**: `font_size` only accepts specific rem values, `line_height` accepts keywords not numbers. Arbitrary values silently fall back to defaults.
 
 ## 0.9.0 — 2026-04-10
@@ -827,7 +827,7 @@ The targeted base pull was only fetching `templates/*` and `config/*`, leaving t
 
 **Playwright MCP support as primary browser tool.** Complete rewrite of the capture skill with dual-path architecture: Playwright MCP (preferred) with gstack browse as fallback.
 
-- **Playwright MCP (Path A)**: Stable browser sessions across tool calls, no daemon timeout issues, inline screenshot results, clean JS evaluation without shell escaping. Tested and verified on gldn.com.
+- **Playwright MCP (Path A)**: Stable browser sessions across tool calls, no daemon timeout issues, inline screenshot results, clean JS evaluation without shell escaping. Tested and verified on a real Shopify storefront.
 - **gstack browse (Path B)**: Preserved as fallback with all existing workarounds (JS-based waits, scroll-triggered dismiss, Attentive/Klaviyo/Privy removal).
 - **Install prompt**: When no browser tool is detected, suggests `claude mcp add playwright -- npx @playwright/mcp --headless --caps vision --viewport-size 1280x720 --ignore-https-errors`.
 - **Fixed dismiss selector**: Removed `[class*=overlay]` which was too aggressive and deleted legitimate footer/header overlay elements. Now targets only specific popup providers by name/src (Attentive, Klaviyo, Privy).
@@ -841,7 +841,7 @@ The targeted base pull was only fetching `templates/*` and `config/*`, leaving t
 
 ## 0.8.6 — 2026-04-10
 
-**Fix popup blocking and browse daemon crashes on live Shopify sites.** Complete rewrite of capture timing and popup dismissal. Verified working on gldn.com — clean footer capture with full content visible.
+**Fix popup blocking and browse daemon crashes on live Shopify sites.** Complete rewrite of capture timing and popup dismissal. Verified on a real Shopify storefront — clean footer capture with full content visible.
 
 Three root causes fixed:
 1. **Shell `sleep` kills the browse daemon.** The daemon has a ~2-3 second idle timeout and shuts down during shell sleeps, producing blank screenshots on subsequent commands. All waits now use JS `Promise`+`setTimeout` to keep the daemon alive.
@@ -894,7 +894,7 @@ Changes:
 - **`--only` glob syntax**: Use `'templates/*'` not `templates/`. Shopify CLI uses glob matching
 - **Browse tool crash fallback**: `wait --networkidle` kills the browser on some live sites. Falls back to `sleep 3` on `forLoadState` errors
 - **Legacy theme support**: Base themes with `.liquid` templates now documented — sections live in `settings_data.json` under `current`, not in JSON template files
-- **Client identity scrubbed**: All gldn.com/GLDN references replaced with generic examples
+- **Client identity scrubbed**: All client-identifying references replaced with generic examples
 - **Setup script**: Added missing `capture` and `cutover` skills, improved post-install guidance
 - **Install hint**: Root SKILL.md now shows clone command for agents encountering the skill before install
 

@@ -80,7 +80,7 @@ counterpart to `pull-page`, closing the gaps that pull-section left behind.
 2. **Build the section list.** For each section found in the template:
    - Derive the **section key** used for report filenames:
      - JSON templates: `{section-type}_{page-path}` (e.g., `hero-1_index`)
-     - Liquid templates: `{section-name}_{page-path}` (e.g., `gldn-bridal-hero_page.bridal`)
+     - Liquid templates: `{section-name}_{page-path}` (e.g., `custom-bridal-hero_page.bridal`)
    - Verify the section file exists at `sections/{section-type}.liquid` or `sections/{section-name}.liquid`
 
 3. **Read all section reports** for this page from `.theme-forge/reports/sections/`.

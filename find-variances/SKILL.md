@@ -1500,7 +1500,7 @@ Replace `SECTION_SELECTOR` with the actual section selector.
 ```json
 {
   "id": "h1:visibility:desktop",
-  "element": "h1 (About GLDN Jewelry)",
+  "element": "h1 (About Our Jewelry)",
   "property": "visibility",
   "type": "visibility",
   "status": "open",
@@ -1520,7 +1520,7 @@ variances. There is no point fixing font-weight if the user can't see the text a
 
 ### Worked Example: Hero Banner Text Clipped by Overflow
 
-The live site shows "About GLDN Jewelry" overlaid on the hero image. After refine-section
+The live site shows "About Our Jewelry" overlaid on the hero image. After refine-section
 added `overflow: hidden` to constrain the hero height, the text overlay was clipped because
 the text content extended below the overflow boundary.
 
@@ -1534,7 +1534,7 @@ the text content extended below the overflow boundary.
 
 **With visibility check** (the fix):
 1. find-variances extracts computed styles AND runs the visibility check
-2. Visibility check finds: `h1 "About GLDN Jewelry" — clipped-by-overflow (.hero, overflow:hidden)`
+2. Visibility check finds: `h1 "About Our Jewelry" — clipped-by-overflow (.hero, overflow:hidden)`
 3. A variance is created: `h1:visibility:desktop — visible vs clipped-by-overflow`
 4. This variance blocks the section from being marked complete
 5. refine-section must fix the overflow issue before any property variances can PASS

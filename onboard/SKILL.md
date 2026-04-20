@@ -302,7 +302,7 @@ Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (s
 2. If a browse tool is available, verify the live URL is reachable
 3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/`, `.theme-forge/tmp/`, `.theme-forge/cases/` directories
 
-   `.theme-forge/cases/` is the multi-case workflow home (one JSON per template, plus `_shared.json` for header/footer/cart-drawer cases). Empty at onboard. Populated by `/theme-forge intake-cases <template> --from <artifact>` when a template has multiple archetypes (e.g., `product` renders 11 different layouts on gldn.com). Committed by default (see `cases_commit_default` in config).
+   `.theme-forge/cases/` is the multi-case workflow home (one JSON per template, plus `_shared.json` for header/footer/cart-drawer cases). Empty at onboard. Populated by `/theme-forge intake-cases <template> --from <artifact>` when a template has multiple archetypes (e.g., `product` renders 10+ different layouts depending on tags or product type). Committed by default (see `cases_commit_default` in config).
 4. **Check `.gitignore`**: Add session-specific and tool-generated paths to `.gitignore`:
    ```
    .theme-forge/base-cache/
@@ -365,7 +365,7 @@ Tell the user:
 - Or run `/theme-forge pull-page index` to start pulling the homepage (scan + map happens automatically)
 - Or run `/theme-forge pull-section <name>` to start pulling immediately (will auto-map first)
 
-**If the theme has templates with multiple archetypes** (single template renders N different layouts depending on tags/metafields/product type — e.g., `product` renders 11 different layouts on gldn.com):
+**If the theme has templates with multiple archetypes** (single template renders N different layouts depending on tags/metafields/product type — e.g., a jewelry store's `product` template renders 10+ layouts based on personalizer vs ready-to-ship vs gift-card tags):
 
 - Run `/theme-forge intake-cases <template> --from <screenshot-or-csv>` to define the archetype matrix
 - Then use `--cases` on refine-page / verify-page / find-variances to iterate the full matrix in one command instead of 27+ manual config edits
