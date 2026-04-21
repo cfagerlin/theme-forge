@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.21.0 — 2026-04-20
+
+**intake-anchors, second pass. Role libraries ship. Theme-family detection. Multi-case probing. Score-based selector matching. No-guess policy. Generative discovery. Cross-verify pairings.**
+
+The 0.20 first-run surfaced six silent-failure modes in auto-discover. Agents ran `intake-anchors standard_product` on a legacy-jewelry live site with a Horizon dev theme, walked away with 37 "resolved" roles, and 18 of them paired a live selector with a dev selector that pointed at unrelated elements (live `.gldn-product-title h1` → dev `.header__inline-menu a` because both happened to be the first matching `h1` under their respective anchors). Selectors got fabricated when nothing matched. Single-case probing concluded variant pickers didn't exist on sections where they only appeared for variant-having products. The role-libraries directory was referenced but never shipped.
+
+This release closes all six holes and ships the libraries.
+
+### What's new
+
+- **Role libraries shipped (NEW)** — five baseline files bundled with the framework:
+  - `intake-anchors/role-libraries/sections/product-information.json` (13 roles: product_title, subtitle, reviews_summary, detail_price, compare_at_price, variant_picker_container, primary_atc, quantity_selector, description, accordion_details, shipping_estimate, installments_block, share_buttons).
+  - `intake-anchors/role-libraries/sections/header.json` (8 roles: logo, primary_nav, primary_nav_item, search_trigger, cart_trigger, cart_count, account_link, announcement_bar).
+  - `intake-anchors/role-libraries/sections/footer.json` (8 roles: newsletter_form, newsletter_heading, nav_column, nav_heading, social_icons, payment_icons, copyright, policy_links).
+  - `intake-anchors/role-libraries/themes/horizon.json` (Horizon-specific candidates: `variant-option`, `swatch-input`, `product-form-component`, `.price__current`, etc.).
+  - `intake-anchors/role-libraries/themes/legacy_jewelry.json` (legacy-jewelry candidates: `.gldn-*`, `.variant-material`, `.variant-size`, `.personalize-btn`, `.make-it-solid-gold-btn`, Okendo + Judge.me + Yotpo review widgets).
+- **Theme-family detection per side (Step 2.1)** — auto-discover now resolves a theme family per side (live, dev) via explicit flag → config hint → base-cache `settings_schema.json` fingerprint → DOM probe. Detected families are recorded in the anchor map header: `"theme_family": { "live": "legacy_jewelry", "dev": "horizon" }`. New args: `--theme-family-live`, `--theme-family-dev`.
+- **Layered role library merge (Step 2.2)** — section library + theme-family (live) + theme-family (dev) + project override merge in order, appending candidates (not replacing) so later layers add vocabulary without losing baseline selectors.
+- **Multi-case parallel probing (Step 2.3)** — every active case in `cases/<page>.json` gets probed for every role. A role is "present" if ANY case produces a winner scoring ≥ 0.4. Divergent selectors across cases auto-generate case overrides. One-case probing is gone.
+- **Candidate-scoring (Step 2.3)** — each candidate selector gets scored on size (0.25) + y-position (0.25) + text content fit (0.2) + expected attributes (0.15) + library weight (0.15). Highest score wins; runners-up recorded. First-match-wins is gone. Threshold: 0.4. Below threshold = `no_match`.
+- **No-guess policy (Step 2.3)** — selectors are never fabricated. If no candidate scores ≥ 0.4, the role is written as `"live": null, "status": "no_match"` (or `no_match_live`/`no_match_dev` for asymmetric gaps). find-variances surfaces these as `structural` variances tagged `source: "intake_anchors_gap"` — visible, fixable, user-actionable.
+- **Generative role discovery (Step 2.5)** — parses `base-cache/sections/<section>.liquid` for structural landmarks: `<h[1-6]>` headings, `{% render 'NAME' %}` snippets, `<button type="submit">` forms, unique `data-*` attributes. Propagates them through the same scoring pipeline as library roles. Themes with custom snippets (`{% render 'gldn-pdp-shipping' %}`, `{% render 'special-request' %}`) stop being invisible.
+- **Cross-verify pairings (Step 2.6)** — every resolved pair (live selector + dev selector) is validated with text similarity (0.5) + y-position match (0.3) + size ratio match (0.2). Score < 0.5 flags `cross_verify: "failed"` on the role. Auto-accept is blocked until the user explicitly acknowledges or fixes. find-variances tags resulting variances `confidence: "low"`.
+- **New anchor map fields** — `theme_family`, per-role `status` (`resolved | no_match | no_match_live | no_match_dev | case_scoped`), per-role `score`, `cross_verify`, per-side `sample_text`, `notes`. `rhythm.order_source` (`dom_y_coord` vs `hand_authored`), `rhythm.template_block_order` (cross-reference from template JSON), `rhythm.divergence`.
+- **Project role-library overrides** — `.theme-forge/role-libraries/sections/<type>.json` and `.theme-forge/role-libraries/themes/<family>.json` now layer on top of the framework libraries. Empty at onboard; populate per project when the baseline misses vocabulary.
+- **find-variances honors role status** — `status: "no_match_*"` roles emit structural variances tagged `source: "intake_anchors_gap"` with the role's `notes` inlined. `cross_verify: "failed"` roles still extract but tag variances `confidence: "low"`. Runtime-missing selectors (valid at intake, missing at extraction) get tagged `source: "runtime_missing"` so users can distinguish intake gaps from live-site drift.
+- **Soft-fallback on missing section mapping** — auto-discover no longer hard-errors when `.theme-forge/mappings/sections/<section>.json` is absent. Writes a minimal stub and continues. Anchors are more valuable than strict mapping.
+
+### Why this matters
+
+Every silent failure in 0.20 was a place where auto-discover guessed instead of reporting. Silent guesses compound: a fabricated selector pairs with a real one and find-variances emits a bogus variance against a button that doesn't exist, refine-section writes CSS targeting nothing, verify-section asserts nothing, and the matrix passes while the live site is still broken.
+
+0.21 rewrites auto-discover around a single principle: honest failure beats silent failure. No selector is written that isn't backed by a scored candidate. Every unresolved role is a visible gap, not a hidden one. Cross-verify catches bad pairings before they hit extraction. Multi-case probing catches roles that live in specific archetypes. Generative discovery catches theme-specific vocabulary that libraries won't predict.
+
+### Breaking changes
+
+None. Pre-0.21 anchor maps continue to load (missing `status` is treated as legacy and tagged `source: "legacy_anchor_gap"` if the selector is null). No migration required. Re-run `intake-anchors <section>` to upgrade maps.
+
+### Migration
+
+To get the full benefit on an existing project:
+
+```bash
+# Re-run intake-anchors for each section — benefits from role libraries, multi-case probing, cross-verify.
+/theme-forge intake-anchors product-information-main --auto-discover --page product
+/theme-forge intake-anchors header --auto-discover --page _shared
+/theme-forge intake-anchors footer --auto-discover --page _shared
+
+# Then re-extract:
+/theme-forge find-variances product-information-main --page product --cases
+```
+
+For theme families that aren't `horizon`, `legacy_jewelry`, or `dawn`, either contribute a library PR or drop one in `.theme-forge/role-libraries/themes/<family>.json` and pass `--theme-family-live <family>` explicitly.
+
 ## 0.20.0 — 2026-04-20
 
 **Semantic anchor map. Positional extraction (heading-0, button-0) is out. Role-based comparison (product_title, primary_atc) is in.**

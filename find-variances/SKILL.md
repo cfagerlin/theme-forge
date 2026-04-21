@@ -352,9 +352,17 @@ Before running positional extraction, load the section's anchor map. The anchor 
    - If `--cases` or `--case` is set AND the anchor map is missing, still fall back (don't hard-error), but tag the warning with "matrix runs without an anchor map typically produce unreliable variances per case."
 
 2. **Resolve roles for the current case.** For each role in `anchor_map.roles`:
-   - Start with `roles[<role>]`. This gives `{live, dev, element_type, capture}`.
+   - Start with `roles[<role>]`. This gives `{live, dev, status, element_type, capture, sample_text, score, cross_verify, notes}`.
    - If `--case <key>` is set AND `anchor_map.overrides[<key>].roles[<role>]` exists, merge the override on top. Fields in the override replace fields in the base. An override with `{"present": false}` means this role is absent for this case — skip extraction for the role, and if the role is referenced in an `expect_variance` with `expect_behaviors[<role>] != "absent"`, emit a variance because the user asserted it should be present.
-   - A role with unresolved live selector (live DOM returns no node) is marked `live_missing: true` for this case; same for dev. Both-missing roles are dropped silently. Asymmetric-missing roles become `structural` variances automatically.
+   - **Honor the role `status` (v0.21 schema):**
+     - `status: "resolved"` — run full extraction on both sides.
+     - `status: "no_match_live"` — live selector is null. Emit a `structural` variance with `id: intake_gap:{role}:{case}`, `describe: "role '<role>' unresolved on live side — intake-anchors found no candidate above score 0.4"`, `source: "intake_anchors_gap"`, `side: "live"`. Skip extraction for this role. Include `anchor_map.roles.<role>.notes` in the variance `describe` field if present.
+     - `status: "no_match_dev"` — symmetric to above, `side: "dev"`.
+     - `status: "no_match"` — both sides null. Emit ONE `structural` variance tagged `source: "intake_anchors_gap"`, `side: "both"`, with `describe: "role '<role>' unresolved on both sides — run /theme-forge intake-anchors <section> --add-case <case> to fix"`. Skip extraction.
+     - `status: "case_scoped"` — role only exists for some cases (resolved via overrides). Use override values if present; otherwise skip.
+     - Missing `status` field (legacy v0.20 anchor map) — treat null selectors the same as `no_match*` but tag `source: "legacy_anchor_gap"` so users know the map predates v0.21.
+   - **Cross-verify signal.** If `cross_verify: "failed"` on a resolved role, still run extraction but tag every resulting variance with `confidence: "low"` and `notes: "anchor cross-verify failed — pairing may compare unrelated elements"`. This surfaces in refine-section's priority order so the user sees the warning before attempting a fix.
+   - Legacy fallback: a role with unresolved live selector (live DOM returns no node at runtime despite a non-null selector string) is marked `live_missing: true` for this case; same for dev. Both-missing runtime roles drop silently. Asymmetric runtime-missing becomes a `structural` variance tagged `source: "runtime_missing"` (not `intake_anchors_gap` — selector was valid at intake time but no longer matches DOM).
 
 3. **Resolve behavioral assertions.** If the case has `expect_behaviors`, resolve each role:
    - `"present"` — role selector must resolve to a visible node on DEV. If missing or `display: none` / zero-size, emit a `structural` variance tagged `source: "expect_behaviors"`.
