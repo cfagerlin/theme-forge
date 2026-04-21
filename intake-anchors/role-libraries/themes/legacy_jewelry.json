@@ -1,6 +1,8 @@
 {
   "theme_family": "legacy_jewelry",
   "description": "Heavily-customized legacy Shopify theme common to jewelry brands (gldn, mejuri-style). Uses .gldn-* prefixed classes, .variant-picker + .variant-material containers, data-variant-* attributes.",
+  "confidence": "speculative",
+  "confidence_notes": "Selectors validated against gldn.com in v0.21 eval but not against other jewelry brands. Promote a per-project gldn.json into .theme-forge/role-libraries/projects/ via `/theme-forge intake-anchors <section> --update-project` to override the 0.5x speculative downweight for your project.",
   "fingerprint": {
     "selectors_present": [".gldn-product-form", "[data-variant-material]", ".variant-material"],
     "theme_name_patterns": ["Custom", "Modified Dawn", "GLDN *"]

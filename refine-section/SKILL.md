@@ -118,6 +118,21 @@ Read the variance array from `.theme-forge/reports/sections/{section-key}.json`.
 ```
 (Forward `--breakpoint <name>` if set.) Then re-read the report.
 
+### 1.0a Rejected variance filter (v0.22)
+
+BEFORE any priority sort or breakpoint filter: remove every variance with `confidence: "rejected"` from the workable queue. These were emitted by find-variances when `cross_verify: "failed"` on the source role (live/dev anchors pointed at unrelated elements). Attempting a fix would edit the wrong node.
+
+Display them under a `REJECTED (cross-verify failed — intake re-run required)` header in the queue output so the user sees the count and the per-variance `notes`, but the refine loop does NOT touch them. If the queue is entirely rejected, print:
+
+```
+refine-section <section-key>
+  All <N> variances are rejected (cross-verify failed).
+  Run: /theme-forge intake-anchors <section> --rebaseline
+  to re-resolve the anchor map, then re-run find-variances before refining.
+```
+
+Exit 0. This is different from "empty queue" — the user has real work gated behind an intake re-run, so the message must tell them exactly which command unblocks.
+
 ### 1.0 Breakpoint scoping (`--breakpoint`)
 
 When `--breakpoint <name>` is provided:

@@ -1,6 +1,8 @@
 {
   "theme_family": "horizon",
   "description": "Shopify Horizon theme (and derivatives). Uses web components (variant-option, swatch-input, product-form-component) and BEM-style classes (product-information__*, product__*).",
+  "confidence": "speculative",
+  "confidence_notes": "Shipped with theme-forge v0.21 but not yet validated against a real Horizon store. Promote winners from your project into `.theme-forge/role-libraries/projects/<slug>.json` via `/theme-forge intake-anchors --update-project` to override the 0.5x downweight.",
   "fingerprint": {
     "selectors_present": ["variant-option", "swatch-input", "product-form-component"],
     "theme_name_patterns": ["Horizon", "Horizon *"]
