@@ -1,0 +1,16 @@
+{
+  "description": "Description rendered inline via {{ product.description }}. Shipping-estimate block shares visual signals (rich-text paragraph block, similar position). Veto confirms via variable-binding to the description div specifically.",
+  "section_type": "product-information",
+  "candidates": {
+    "description": [
+      { "id": "div.desc", "selector": "div.product-description", "baseScore": 0.67 },
+      { "id": "div.shipping", "selector": "div.shipping-estimate", "baseScore": 0.72 }
+    ]
+  },
+  "expected_winner": {
+    "description": "div.desc"
+  },
+  "expected_tier": {
+    "description": "confirmed"
+  }
+}

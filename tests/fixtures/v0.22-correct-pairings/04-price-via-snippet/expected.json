@@ -1,0 +1,16 @@
+{
+  "description": "Detail price rendered via 'price' snippet. Related-product price on the same page looks structurally identical ($NN.NN in a span) and scores higher on some heuristics. Veto uses the snippet locus (the data-block-id='price' wrapper in the section) to reject the related-price span.",
+  "section_type": "product-information",
+  "candidates": {
+    "detail_price": [
+      { "id": "span.detail-price", "selector": "span.price", "baseScore": 0.70 },
+      { "id": "span.related-price", "selector": "span.related-price", "baseScore": 0.77 }
+    ]
+  },
+  "expected_winner": {
+    "detail_price": "span.detail-price"
+  },
+  "expected_tier": {
+    "detail_price": "confirmed"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "bindings": {
+    "product_title": {
+      "variables": ["product.title"],
+      "snippets": [],
+      "form_action": null
+    },
+    "detail_price": {
+      "variables": ["product.price", "variant.price"],
+      "snippets": ["price", "product-price"],
+      "form_action": null
+    },
+    "compare_at_price": {
+      "variables": ["product.compare_at_price", "variant.compare_at_price"],
+      "snippets": ["price"],
+      "form_action": null
+    },
+    "primary_atc": {
+      "variables": [],
+      "snippets": ["product-form", "buy-buttons"],
+      "form_action": "/cart/add"
+    },
+    "description": {
+      "variables": ["product.description"],
+      "snippets": [],
+      "form_action": null
+    },
+    "variant_picker_container": {
+      "variables": [],
+      "snippets": ["variant-picker", "product-variant-picker"],
+      "form_action": null
+    },
+    "quantity_selector": {
+      "variables": [],
+      "snippets": ["quantity-input", "quantity-selector"],
+      "form_action": null
+    },
+    "reviews_summary": {
+      "variables": ["product.metafields.reviews"],
+      "snippets": ["reviews-summary", "product-rating"],
+      "form_action": null
+    },
+    "subtitle": {
+      "variables": ["product.metafields.custom.subtitle", "section.settings.subtitle"],
+      "snippets": [],
+      "form_action": null
+    },
+    "accordion_details": {
+      "variables": [],
+      "snippets": ["product-accordion", "product-details"],
+      "form_action": null
+    },
+    "shipping_estimate": {
+      "variables": ["section.settings.shipping_text", "product.metafields.shipping"],
+      "snippets": ["shipping-estimate"],
+      "form_action": null
+    },
+    "installments_block": {
+      "variables": [],
+      "snippets": ["shopify-payment-terms", "afterpay-installments", "klarna-installments"],
+      "form_action": null
+    },
+    "share_buttons": {
+      "variables": [],
+      "snippets": ["social-share", "product-share"],
+      "form_action": null
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{%- comment -%}
+  Dawn-style 5-hop chain used to exercise real-world PDP depth:
+  dawn-main-product → dawn-product-form → dawn-buy-buttons → dawn-variant-picker → dawn-variant-options
+{%- endcomment -%}
+<section class="product" id="shopify-section-{{ section.id }}" data-section-id="{{ section.id }}">
+  <div class="product__info">
+    <h1 class="product__title" data-block-id="title">{{ product.title }}</h1>
+
+    <div class="product__price" data-block-id="price">
+      {% render 'price', product: product %}
+    </div>
+
+    <div class="product__description" data-block-id="description">
+      {{ product.description }}
+    </div>
+
+    {% render 'dawn-product-form', product: product, show_quantity: true %}
+  </div>
+</section>

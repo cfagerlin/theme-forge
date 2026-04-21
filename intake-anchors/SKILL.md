@@ -41,7 +41,7 @@ The v0.20.x first-run taught five lessons. The algorithm now follows them.
 ## Arguments
 
 ```
-/theme-forge intake-anchors <section-key> [--auto-discover] [--from <artifact>] [--list] [--add-case <key>] [--page <page>] [--theme-family-live <name>] [--theme-family-dev <name>] [--update-project] [--dry-run]
+/theme-forge intake-anchors <section-key> [--auto-discover] [--from <artifact>] [--list] [--add-case <key>] [--page <page>] [--theme-family-live <name>] [--theme-family-dev <name>] [--update-project] [--dry-run] [--ignore-source-binding <role>] [--no-source-binding] [--why <role>]
 ```
 
 - `<section-key>` — required. Section filename without extension (e.g., `product-information-main`, `hero-1`).
@@ -53,6 +53,9 @@ The v0.20.x first-run taught five lessons. The algorithm now follows them.
 - `--theme-family-live <name>` / `--theme-family-dev <name>` — explicit theme-family override. Skips auto-detection (Step 2.1). Values: any key under `intake-anchors/role-libraries/themes/`.
 - `--update-project` — promote reverse-probe / discovered winners from this run into `.theme-forge/role-libraries/projects/<project_slug>.json` so the next run starts with them in the library. Requires user confirmation per promoted selector unless `--yes`.
 - `--dry-run` — compute the full run but do not write the anchors file or the project library. Prints what WOULD be written. Pairs well with `--update-project` for reviewing project-layer changes before they land.
+- `--ignore-source-binding <role>` (v0.23+) — fall back to pure v0.22 DOM scoring for one role. Use when `role-bindings.json` is wrong and vetoes a correct candidate. Repeatable. Records `"ignore_source_binding": "cli-flag"` in the decision report for auditability.
+- `--no-source-binding` (v0.23+) — global kill-switch; skips Step 2.0.5 and Step 2.3.6 entirely for the whole run. Useful for isolating source-binding regressions or running against sections without a `role-bindings.json` entry.
+- `--why <role>` (v0.23+) — read `.theme-forge/anchors/<section>.decision-report.json` and pretty-print the role's winner, rejected candidates, and source-binding citation. See Step 6.6.
 
 ## Workflow
 
@@ -79,7 +82,45 @@ The v0.20.x first-run taught five lessons. The algorithm now follows them.
 
 ### Step 2: Auto-discover (default path)
 
-The auto-discover pipeline has five sub-stages. Each is independently useful; a user can stop after any stage and hand-edit the JSON.
+The auto-discover pipeline has seven sub-stages. Each is independently useful; a user can stop after any stage and hand-edit the JSON.
+
+#### 2.0.5 Build source-binding map (v0.23, per side)
+
+Source-binding is the v0.23 primary disambiguation signal. Before library merge and scoring, parse each side's Liquid to derive a role-to-locus map. The locus is the enclosing HTML element where a role's Liquid variable / snippet / form is authored; DOM candidates outside that subtree are vetoed later in Step 2.3.6.
+
+**Inputs:**
+- Section's root `.liquid` file (from `base-cache/sections/<section>.liquid`).
+- `intake-anchors/role-bindings.json` — maps role name → `{ variables, snippets, form_action }`.
+- Snippet resolver — looks up snippet name → filesystem path under `base-cache/snippets/`.
+
+**Driver:** `intake-anchors/lib/run-source-binding.js` → `runSourceBindingForSide({ rootLiquid, html, candidates, roleBindings, resolveSnippet, ignoreVetoRoles })` runs the full pipeline for one side. Returns map of roleName → `{ rank, locusSelector, locusReason, loci }`.
+
+**Internals (all pure functions, all in `intake-anchors/lib/`):**
+
+1. `liquid-parser.js` — parse Liquid via `@shopify/liquid-html-parser@2.9.2`. AST cache keyed on `(filepath, mtime)`. `clearLiquidCache()` resets between runs.
+2. `source-binding.js` → `resolveRoleLocus(role, rootLiquid, roleBindings, { resolveSnippet })` walks the snippet chain transitively (depth cap 10, DFS, cycle detection on `(filename, render_args_hash)`) looking for variable outputs, `{% render %}` calls matching `snippets[]`, and form actions matching `form_action`. Returns `{ loci: [{ enclosingElement, stableAttrs, citation, callChain }], locusReason: null | "no_binding" | "no_locus_match" }`.
+3. `dom-locus.js` → `classifyCandidates({ html, loci, candidates })` parses rendered HTML via `node-html-parser`, matches each locus to a DOM subtree using stable attrs (precedence: `data-block-id` > `data-shopify-editor-id` > `data-section-id` > `id` > distinctive class), and tags each candidate `sourceBindingMatch: "confirmed" | "rejected" | "inconclusive"`.
+
+**Locus cardinality:** a role may have multiple loci (e.g., `primary_atc` in main form AND sticky mobile form). `resolveRoleLocus` returns all, sorted by call-chain depth (shallowest first). `locusSelector` picks the shallowest for the decision report's top-line selector.
+
+**Inconclusive means:**
+- The Liquid binding exists but resolves to a node with no stable attrs (bare `<h1>` inside a non-attributed wrapper).
+- The snippet chain hits a client-side-rendered web component whose children aren't in the server HTML.
+- The role has no entry in `role-bindings.json`.
+
+Inconclusive is not a failure — it falls through to v0.22 element-type scoring in Step 2.3.6. This is intentional; source-binding is an *additional* signal, not a replacement.
+
+**Escape hatches:**
+- `--ignore-source-binding <role>` — CLI flag bypasses veto for named role(s). Collected into `ignoreVetoRoles` Set passed to the driver.
+- `--no-source-binding` — skip Step 2.0.5 and Step 2.3.6 entirely; run pure v0.22.
+- Project config `<role>: {"ignore_source_binding": true}` in `.theme-forge/config.json` → persistent per-project opt-out, merged into the Set.
+
+**Unsupported section error:** if `role-bindings.json` has no entry for ANY role in the section library (e.g., cart, collection — not shipped in v0.23), hard-error:
+```
+ERROR: no role-bindings for section '<section-type>'. Add bindings to
+intake-anchors/role-bindings.json, or run with --no-source-binding to
+fall back to v0.22 scoring.
+```
 
 #### 2.1 Detect theme family (per side)
 
@@ -293,9 +334,38 @@ Rule summary (full spec in `intake-anchors/element-type-rules.json`):
 | `image` | IMG or PICTURE with src or dataset | — |
 | `swatch` | INPUT/LABEL/BUTTON/SPAN with value or aria-label | — |
 
-After adjustments, re-sort the candidate list by `score` and update the winner. Then continue to Step 2.4.
+After adjustments, re-sort the candidate list by `score` and update the winner. Then continue to Step 2.3.6.
 
 **Adjustment cap rationale:** base scorer total sums to exactly 1.0 (0.25+0.25+0.2+0.15+0.15). An uncapped +0.2 or -0.3 would break the 0-1 range assumed by the 0.4 resolution threshold and the 0.5 cross-verify threshold. Cap at `[-0.2, +0.15]` preserves most of the signal while keeping the final score close to normalized.
+
+#### 2.3.6 Source-binding veto (v0.23)
+
+After Stage 1 scoring, apply the three-tier veto from Step 2.0.5's locus map. A determinate source-binding verdict is a **gate**, not a score nudge — there is no magic delta.
+
+**Tiers (`intake-anchors/lib/ranker.js` → `rankWithVeto({ candidates, ignoreVeto })`):**
+
+1. **Confirmed tier** — candidates with `sourceBindingMatch: "confirmed"` (inside the role's Liquid-derived DOM subtree). Rank first.
+2. **Inconclusive tier** — candidates with `sourceBindingMatch: "inconclusive"`. Rank second, using the Stage 1 Element-rule-adjusted score. This is the only tier where screenshot fallback triggers.
+3. **Rejected tier** — candidates with `sourceBindingMatch: "rejected"` (outside the locus). **Removed from consideration entirely** unless `ignoreVeto` is true.
+
+Within each tier, candidates compete by Stage 1 score. The winner is the top-ranked candidate in the highest non-empty tier. Tier precedence: `confirmed > inconclusive`. Role-level tier never returns `"rejected"` — if every candidate is rejected, the ranker falls back to `tier: "inconclusive"` with `inconclusiveReason: "all_rejected"` and surfaces the failure in the decision report.
+
+**Return shape:**
+```js
+{ winner, tier: "confirmed" | "inconclusive", inconclusiveReason: null | "locus_unresolved" | "all_rejected" | "veto_ignored", rejectedCandidates: [...], warnings: [...] }
+```
+
+**Worked example** (the canonical wrong-pairing case this veto was built for):
+- Wrong candidate: base 0.74, element pass, source fail → **rejected**. Removed.
+- Correct candidate: base 0.53, element fail, source pass → **confirmed**. Wins by default (only confirmed candidate).
+
+**Why veto instead of a score delta:** Liquid variable bindings are the canonical definition of what a role *is*. A DOM candidate outside the role's Liquid-declared subtree is wrong by construction, not just low-scoring. Scoring-based tuning couldn't overcome base-score gaps around 0.21 in known wrong-pairing cases; veto eliminates the gap entirely.
+
+**Escape hatches:**
+- `--ignore-source-binding <role>` → sets `ignoreVeto: true` for that role. Rejected candidates are restored; ranking falls back to pure Stage 1 score. Ranker emits `warnings: ["veto_ignored"]` and tier = `"inconclusive"` with `inconclusiveReason: "veto_ignored"` so the decision report records the escape hatch was used.
+- `--no-source-binding` → skips Steps 2.0.5 + 2.3.6 for the whole run.
+
+**Load-bearing guardrail:** `tests/wrong-pairing-regression.test.ts` runs a fixture suite (`tests/fixtures/v0.22-correct-pairings/`) of v0.22-verified-correct pairings. Any binding misconfiguration that flips a correct pairing is caught there before ship.
 
 #### 2.4 Aggregate across cases
 
@@ -396,6 +466,15 @@ role: product_title
 ```
 
 Cross-verify failures block auto-accept. They surface in Step 4's review prompt.
+
+**v0.23 source-binding parity:** after both sides have run through Step 2.3.6, compute `source_binding_parity` per role (from `intake-anchors/lib/ranker.js` → `sourceBindingParity(liveRank, devRank)`):
+
+- **`both_confirmed`** — both winners in their side's confirmed tier. Happy path; skip the v0.22 cross-verify score check (strong signal already).
+- **`partial`** — one side confirmed, the other inconclusive. Warning in decision report; pairing is accepted but flagged.
+- **`mismatch`** — one side confirmed, other side had its Stage 1 winner rejected by source-binding. Strongest wrong-pairing signal we have. Flagged for manual review; **not** auto-rejected (user may override via `--ignore-source-binding`).
+- **`both_inconclusive`** — both sides inconclusive. Fall through to v0.22 cross-verify above.
+
+Parity is a warning layer, not a hard block. The decision report surfaces the conflict; the user decides. `find-variances` honors `mismatch` as `NEEDS_REVIEW` rather than `FAIL` (see `find-variances/SKILL.md`).
 
 ### Step 3: Draft anchors file
 
@@ -626,14 +705,54 @@ Every run writes `.theme-forge/anchors/<section>.decision-report.json` alongside
 }
 ```
 
+**v0.23 source-binding additions** (emitted by `intake-anchors/lib/decision-report.js` → `buildDecisionReport`):
+
+Per role, add a `source_binding` block:
+```json
+"source_binding": {
+  "live": {
+    "locus_selector": "#shopify-section-product-template [data-block-id='title']",
+    "tier": "confirmed",
+    "winner_in_locus": true,
+    "rejected_candidates": []
+  },
+  "dev": {
+    "locus_selector": "#MainProduct-title",
+    "tier": "confirmed",
+    "winner_in_locus": true,
+    "rejected_candidates": ["h2.related-title"]
+  },
+  "parity": "both_confirmed",
+  "citation": { "filepath": "product-template.liquid", "line": 42, "column": 3, "call_chain": ["product-template.liquid:42"] }
+}
+```
+
+`tier` is three-valued: `"confirmed"` | `"inconclusive"` | `"rejected"` (role-level `rejected` means the locus resolved but every candidate was outside it — a stronger failure signal than `inconclusive`; see `decision-report.js` → `reportTierFromRank`).
+
+Top-level summary:
+```json
+"source_binding_coverage": {
+  "roles_confirmed": 10,
+  "roles_inconclusive": 3,
+  "roles_all_rejected": 1,
+  "parity_mismatches": 1,
+  "candidates_vetoed": 4
+}
+```
+
+Summary uses worst-of across sides: a role that's confirmed on live and rejected on dev counts as `roles_all_rejected`, not confirmed.
+
 **What to capture per role:**
 
 - `winner` — the selected candidate with FULL score breakdown (the five base components summing to 1.0, plus the element-type adjustment).
 - `runners_up` — up to 3 next-best, each with source and why it lost (typically just score delta, but `confidence_multiplier` is called out when a speculative library lost after downweight).
 - `rejected` — candidates where `element_type_failures` was non-empty AND final_score < winner. This is the "why didn't the wishlist blob win?" answer.
 - `reverse_probe` — if Step 2.4.5 ran for this role, record inputs and outcome even when it failed.
+- `source_binding` (v0.23+) — per-side tier, locus selector, rejected candidate IDs, parity verdict, Liquid citation.
 
 **Keep the file small.** Sample text truncated to 80 chars. Do not embed the scorer JS or full DOM snapshots. The report should read in under a second and diff cleanly across runs.
+
+**Forward compatibility:** pre-v0.23 decision reports lack `source_binding` fields. The `--why` renderer (Step 6.6) prints "source binding: not available (run intake-anchors to populate)" when absent.
 
 ### Step 6.6: `--why <role>` query
 
@@ -668,6 +787,32 @@ role: detail_price
     Why blocked: the v0.21 eval found a wishlist blob winning detail_price on live
     because size_score dominated. element-type rules filter blob elements where
     text is an attribute JSON dump rather than rendered price.
+
+  source binding (v0.23):
+    live:   tier=confirmed    locus: [data-block-id='price']
+            rejected: [related-product-card .price]
+    dev:    tier=confirmed    locus: #MainProduct-price
+            rejected: []
+    parity: both_confirmed
+    citation: product-template.liquid:56 → price.liquid:4
+```
+
+If the decision report was produced by a pre-v0.23 run, print:
+```
+  source binding: not available (run intake-anchors to populate)
+```
+
+For the `mismatch` / `all_rejected` / `inconclusive` cases, surface the failure and the actionable next step:
+```
+  source binding (v0.23):
+    live:   tier=confirmed    locus: [data-block-id='title']
+    dev:    tier=rejected     all 3 dev candidates outside locus
+                              rejected: [h1.related-title, h2.breadcrumb, h1.site-header]
+    parity: MISMATCH
+    Likely cause: dev's role-binding looks up the wrong Liquid variable,
+                  OR dev DOM is missing the expected stable attrs.
+    Next: re-run with --ignore-source-binding product_title, OR
+          edit intake-anchors/role-bindings.json.
 ```
 
 Exits 0 always. If `<role>` is missing from the report, list the available roles and exit 1.

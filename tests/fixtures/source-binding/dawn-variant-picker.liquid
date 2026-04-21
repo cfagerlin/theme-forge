@@ -1,0 +1,8 @@
+<variant-selects class="variant-picker" data-block-id="variants">
+  {% for option in product.options_with_values %}
+    <fieldset class="variant-picker__option">
+      <legend>{{ option.name }}</legend>
+      {% render 'dawn-variant-options', option: option %}
+    </fieldset>
+  {% endfor %}
+</variant-selects>

@@ -1,0 +1,15 @@
+<div class="product-information" data-section-id="{{ section.id }}">
+  <h1 class="product__title" data-block-id="title">{{ product.title }}</h1>
+
+  <div class="product__price-wrapper">
+    {% render 'price', product: product %}
+  </div>
+
+  <div class="product__form-wrapper">
+    {% render 'product-form', product: product %}
+  </div>
+
+  <div class="product__description">
+    {{ product.description }}
+  </div>
+</div>

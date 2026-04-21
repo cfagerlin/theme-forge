@@ -1,0 +1,9 @@
+<div class="scope-caller">
+  {% assign card_product = product %}
+  <div class="main-card">
+    {% render 'scope-snippet', product: product %}
+  </div>
+  <div class="related-card">
+    {% render 'scope-snippet', product: card_product %}
+  </div>
+</div>
