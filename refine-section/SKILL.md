@@ -64,6 +64,18 @@ one atomic change per iteration, verified before the next, with git as state mac
 
 These override everything else in this document.
 
+### Hairline verification: read text, do not squint at the PNG (v0.23.1)
+- **The model's image input downscales every screenshot to a few hundred pixels wide before you see it.** A 1px `#e8e8e8` border on `#fcfcfc` averages into the surrounding pixels and disappears. You will swear the change "didn't render" when it did, or vice versa. Do not trust your eye on these.
+- **Hairline-class properties** — `border-*`, `outline-*`, `box-shadow` (blur < 4px), `line-height`, `font-weight` (deltas of 100), `opacity` (deltas < 0.2), `letter-spacing`, `divider/separator color`, any color shift with luminance delta < 25 — MUST be verified via:
+  ```bash
+  scripts/computed-style-probe.sh \
+    --url <dev-url> --selector "<sel>" \
+    --properties "border-bottom,line-height,font-weight"
+  ```
+  Reads `PROBE_JSON` and asserts on `matches[0].computed.<property>`. The browser's computed value is the source of truth. Zero resolution loss.
+- **For general visual confirmation** (alignment, spacing, color shifts you DO want to see) — use `scripts/pixel-diff.sh --a <live.png> --b <dev.png>`. Read `DIFF_MISMATCHED`, `DIFF_RATIO`, `DIFF_LARGEST_REGION`. If `DIFF_RATIO` is below your tolerance you are done — do NOT then "verify by looking." The diff already looked, at full resolution.
+- **The bamako case is the canonical failure** — agent applied a `border-bottom: 1px solid #e8e8e8` change, captured the screenshot, looked at it, said "border not visible," kept iterating. The border was there the whole time. If you ever catch yourself saying "I can't see the change" on a hairline property, stop. Probe it.
+
 ### One change per iteration
 - **Make exactly ONE edit to ONE file per loop iteration.** This is not a guideline. The loop structure enforces it: you verify after each change. If you find yourself editing two properties before verifying, you are doing it wrong.
 
@@ -688,6 +700,31 @@ screenshot comparison** as the last gate before marking the section complete.
 
 This catches the class of bugs where every individual property test passes but the overall
 visual result is wrong (e.g., text exists with correct styles but is invisible due to clipping).
+
+#### Pixel-diff first, eyeballing second (v0.23.1)
+
+For each breakpoint, run a pixel-perfect diff between the dev capture and the live reference
+BEFORE looking at the images. The model's downscaling makes naked-eye verification unreliable
+for anything finer than ~10px:
+
+```bash
+scripts/pixel-diff.sh \
+  --a .theme-forge/references/<section>-<page>/desktop.png \
+  --b .theme-forge/tmp/capture/desktop.png \
+  --out .theme-forge/tmp/pixel-diff
+```
+
+Read the KEY=VALUE output:
+- `DIFF_RATIO` ≥ 0.02 (2% of pixels) → fail the gate, treat as a structural mismatch.
+- `DIFF_RATIO` between 0.001 and 0.02 → inspect `DIFF_LARGEST_REGION` (`x,y,w,h,pixels`). If the region overlaps a known-changed area, it's expected. If it overlaps an unrelated section, it's a regression.
+- `DIFF_RATIO` < 0.001 → pass.
+- `DIFF_STATUS=size_mismatch` → captures were taken at different viewports; re-capture with matching breakpoints before comparing.
+
+Only after the numerical gate passes should you look at the images for layout sanity. The
+`DIFF_PNG` output highlights mismatched pixels in red, which is much easier to see than the
+underlying difference.
+
+#### Structural checks (still required, even if pixel-diff passes)
 
 1. **For each breakpoint** (desktop, tablet, mobile), compare the dev screenshot against the live reference:
 
