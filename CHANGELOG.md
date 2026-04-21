@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.23.1 — 2026-04-21
+
+**Hairline verification pass. Pixel-diff text output + computed-style probe for the class of properties the model cannot see in a downscaled screenshot.**
+
+The model's image pipeline downscales every PNG to a few hundred pixels wide before the agent sees it. A 1px `#e8e8e8` border on a `#fcfcfc` background averages into the surrounding pixels and disappears. In the bamako breadcrumb-border case, the agent applied the correct border fix, looked at the screenshot, said "border not visible," and kept iterating against already-correct code. This release gives agents a text-based verification path for hairline-class properties and a calibrated pixel-diff for general visual confirmation.
+
+### What's new
+
+- **`scripts/pixel-diff.sh` + `scripts/lib/pixel-diff.mjs` (NEW)** — Pixelmatch-based PNG diff with region clustering. Outputs KEY=VALUE on stdout (`DIFF_MISMATCHED`, `DIFF_RATIO`, `DIFF_REGION_COUNT`, `DIFF_LARGEST_REGION=x,y,w,h,N`) and full JSON on disk. Default threshold is `0.05`, not pixelmatch's stock `0.1`: at `0.1` the YIQ max-delta budget (`35215 * t²` = 352) exceeds the raw delta of a 1px `#e8e8e8` hairline on `#fcfcfc` (~202), and the hairline reports zero mismatched pixels. Threshold `0.05` (budget 88) catches it while still ignoring jpeg-style noise. Calibrated against the bamako case.
+- **`scripts/computed-style-probe.sh` + `scripts/lib/computed-style-probe.mjs` (NEW)** — Playwright-based `getComputedStyle` reader for hairline-class properties (`border-*`, `outline-*`, `box-shadow`, `line-height`, `font-weight`, `opacity`, `letter-spacing`). Reads live page at specified breakpoint (desktop/tablet/mobile), supports `::before` / `::after`, outputs KEY=VALUE on stdout + full JSON with all matches on disk. For properties the model cannot see, agents read the computed value as text instead of trying to visually confirm.
+- **Regression harness** — `tests/pixel-diff.test.ts` — 14 assertions across 4 scenarios: identical PNGs, the 1px hairline bamako case (asserts region clustering brackets `x=[200,800)` and `y=500`), size-mismatch handling, two-region clustering. Run: `bun tests/pixel-diff.test.ts`.
+- **`refine-section/SKILL.md` Hard Rule** — "Hairline verification: read text, do not squint at the PNG." Lists the property classes that MUST be verified via `computed-style-probe` rather than screenshot inspection. Added "Pixel-diff first, eyeballing second" subsection to the Screenshot Diff Gate with threshold tiers (`≥0.02` fail, `0.001–0.02` inspect region, `<0.001` pass, `size_mismatch` re-capture).
+- **`find-variances/SKILL.md` Hard Rule** — "Hairline properties: trust computed-style, not the screenshot." Makes explicit that extraction's `getComputedStyle()` output is ground truth and the ad-hoc verification path for both find-variances and refine-section is `computed-style-probe` + `pixel-diff`.
+- **New runtime deps** — `pixelmatch@^5.3.0`, `pngjs@^7.0.0`.
+
+### Why this is a skill-doc/tooling fix, not an algorithm change
+
+Extraction already trusts `getComputedStyle()`. The bug was in the refine-section loop: the agent took a visual "no change" signal from a downscaled PNG as authoritative, overriding the computed-style evidence. The fix is to tell agents which properties cannot be seen and hand them a text-based verification path. The underlying logic is unchanged.
+
 ## 0.23.0 — 2026-04-21
 
 **Source-binding pass. Liquid-AST role-to-locus resolution, three-tier veto ranker, decision-report `source_binding` block, parity signal in find-variances, escape hatches, wrong-pairing regression harness.**
