@@ -1,0 +1,16 @@
+{
+  "description": "Two h1s on the page. The related-products heading scores higher on DOM-only features (larger font, prominent position in some themes). Liquid locus only covers the product-information section's h1. Veto must flip the winner to the correct candidate.",
+  "section_type": "product-information",
+  "candidates": {
+    "product_title": [
+      { "id": "h1.title", "selector": "h1.product-title", "baseScore": 0.68 },
+      { "id": "h1.related", "selector": "h1.section-heading", "baseScore": 0.75 }
+    ]
+  },
+  "expected_winner": {
+    "product_title": "h1.title"
+  },
+  "expected_tier": {
+    "product_title": "confirmed"
+  }
+}

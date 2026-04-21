@@ -1,0 +1,16 @@
+{
+  "description": "Primary ATC: form action='/cart/add' matches binding; sticky mobile ATC button is outside the form and must be vetoed. Sticky button scores higher on visibility heuristics (fixed position, viewport-pinned) but is not the real ATC.",
+  "section_type": "product-information",
+  "candidates": {
+    "primary_atc": [
+      { "id": "button.main", "selector": "button.product-form__submit", "baseScore": 0.65 },
+      { "id": "button.sticky", "selector": "button.sticky-atc__button", "baseScore": 0.72 }
+    ]
+  },
+  "expected_winner": {
+    "primary_atc": "button.main"
+  },
+  "expected_tier": {
+    "primary_atc": "confirmed"
+  }
+}

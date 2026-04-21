@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.23.0 — 2026-04-21
+
+**Source-binding pass. Liquid-AST role-to-locus resolution, three-tier veto ranker, decision-report `source_binding` block, parity signal in find-variances, escape hatches, wrong-pairing regression harness.**
+
+v0.22 hardened scoring with element-type rules and a decision report. It still couldn't tell a "Related Products" `h2.product-title` apart from the actual PDP `h1.product-title` when both lived in the same DOM. v0.23 closes that class of error by binding each role to a Liquid source locus before scoring runs: parse `sections/*.liquid` + rendered snippets, find the role's textual home in source, map it to a CSS subtree on the live DOM, and veto candidates that fall outside it. Vetoes are evidence, not score deltas. The veto either fires (confirmed) or doesn't (inconclusive); rejected candidates are removed unless the user explicitly opts back in.
+
+### What's new
+
+- **Source-binding map (Step 2.0.5, NEW per side)** — `runSourceBindingForSide` parses the section's root `.liquid`, follows `{% render %}` / `{% include %}` snippet chains (with call-stack cycle detection on `(filename, render_args_hash)`), locates each role's textual home, and emits a CSS selector for the corresponding live-DOM subtree. Stable-attr precedence: `data-block-id > data-shopify-editor-id > data-section-id > id > distinctive class`. Locus cardinality is shallowest-wins; multi-hop chains yield ordered citations (file, line, column). Wired in `intake-anchors/lib/run-source-binding.js`, backed by `liquid-parser.js`, `source-binding.js`, and `dom-locus.js`.
+- **Three-tier veto ranker (Step 2.3.6, NEW)** — `intake-anchors/lib/ranker.js` resolves candidates against the locus. Tiers: `confirmed` (in-locus winner), `inconclusive` (locus unresolved or no in-locus candidate), `rejected` (out-of-locus, removed from contention). Rejected candidates carry vetoing-locus citations for diagnostics. The ranker returns `{ winner, tier, inconclusiveReason, rejectedCandidates, warnings }`. Tier precedence: `confirmed > inconclusive`; rejected never wins unless `--ignore-source-binding <role>` is set.
+- **Decision report `source_binding` block (Step 6.5)** — every role entry now carries `{ live, dev, parity, citation }`. `parity` is one of `both_confirmed | partial | mismatch | both_inconclusive`. New top-level `source_binding_coverage` summary counts `roles_confirmed`, `roles_inconclusive`, `roles_all_rejected`, `parity_mismatches`, `candidates_vetoed`. Schema is forward-compatible: pre-v0.23 reports parse cleanly with the block absent (treated as `both_inconclusive`).
+- **Parity signal in find-variances** — `find-variances/SKILL.md` Step 1.5 reads `source_binding.parity` per role: `both_confirmed` → strong signal, do not downgrade; `partial` → `confidence: "low"` with one-side-verified note; `mismatch` → `confidence: "rejected"` (refine-section MUST NOT act); `both_inconclusive` → fall back to v0.22 cross_verify outcome.
+- **Escape hatches** — `--ignore-source-binding <role>` re-admits rejected candidates for that role and emits a `veto_ignored` warning; `--no-source-binding` disables the entire pass; project config `<role>: {"ignore_source_binding": true}` for permanent per-role bypass. Diagnostics (rejected list, citations) are always preserved.
+- **`--why <role>` extension (Step 6.6)** — pretty-prints the `source_binding` section per side, showing tier, locus selector, winner-in-locus, rejected candidates, and parity. Mismatch case includes actionable next steps.
+- **Wrong-pairing regression harness (NEW, load-bearing)** — `tests/wrong-pairing-regression.test.ts` is a fixture-driven safety net under `tests/fixtures/v0.22-correct-pairings/`. Six Shopify-realistic cases ship: product-title basic, product-title vs related-products, primary-ATC form vs sticky bar, price-via-snippet (multi-hop chain), description-inline, inconclusive-no-stable-attrs. Run: `bun tests/wrong-pairing-regression.test.ts`. Expansion is drop-in: add a case directory.
+- **Supporting test suites** — `tests/ranker.test.ts` (tier precedence, parity computation, escape-hatch behavior), `tests/decision-report.test.ts` (3-valued tier mapping, side-report shape, parity counters), `tests/source-binding.test.ts` (resolveRoleLocus + snippet chain), `tests/integration-source-binding.test.ts` (multi-hop citations), `tests/liquid-parser.test.ts` (AST cache + render-args hash), `tests/scorer-adjustments.test.ts` (Stage-1 element-type clamp).
+- **Liquid-AST parser dependency** — `@shopify/liquid-html-parser@2.9.2` for source parsing, `node-html-parser@7.1.0` for DOM subtree traversal. Hashed render-args for cycle detection.
+
+### Why veto, not delta
+
+Treating source-binding as a score adjustment would mean a strong out-of-locus candidate could still win on a high base score. v0.22 already had element-type rules in `[-0.2, +0.15]` clamp range; piling another delta on top would be unprincipled. Source-binding is evidence: the source code says "the price lives here." If a candidate is not there, it is not the price. Veto. The user keeps control via `--ignore-source-binding` when they know the source map is wrong.
+
+### Carved out for v0.23.1 follow-up
+
+This release ships the doc/lib/test foundation. The following items are scoped but not in v0.23.0:
+- Fallback screenshot flow for inconclusive-tier prompts.
+- `/theme-forge upgrade --to v0.23` migration script.
+- 20 real-capture replacements for the synthetic regression seeds.
+- Bamako cross-project smoke test.
+
+### Breaking changes
+
+None for end users. Decision reports written by v0.23 carry the new `source_binding` block; v0.22 readers ignore unknown fields.
+
 ## 0.22.0 — 2026-04-20
 
 **Algorithm hardening pass. Scorer bug fix, asymmetric reverse-probe (L2), element-type rules (L6), speculative downweight, project-layer library first-class, decision report, cross-verify rejection, regression harness.**

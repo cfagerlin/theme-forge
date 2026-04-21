@@ -1,0 +1,15 @@
+{
+  "description": "Trivial confirmed case: single h1 with data-block-id. No false positive candidates. Veto should confirm without drama.",
+  "section_type": "product-information",
+  "candidates": {
+    "product_title": [
+      { "id": "h1.title", "selector": "h1.product-title", "baseScore": 0.72 }
+    ]
+  },
+  "expected_winner": {
+    "product_title": "h1.title"
+  },
+  "expected_tier": {
+    "product_title": "confirmed"
+  }
+}

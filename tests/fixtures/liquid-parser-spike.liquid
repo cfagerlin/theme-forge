@@ -1,0 +1,45 @@
+{%- comment -%}
+  Spike fixture for @shopify/liquid-html-parser validation.
+  Covers every node type v0.23 source-binding needs.
+{%- endcomment -%}
+
+<div class="product-information" data-section-id="{{ section.id }}">
+  <h1 class="product__title">{{ product.title }}</h1>
+
+  {% if product.subtitle %}
+    <p class="product__subtitle">{{ product.subtitle }}</p>
+  {% elsif section.settings.subtitle %}
+    <p class="product__subtitle">{{ section.settings.subtitle }}</p>
+  {% endif %}
+
+  {%- liquid
+    assign card_product = product
+    if product.available
+      assign atc_label = 'Add to cart'
+    else
+      assign atc_label = 'Sold out'
+    endif
+  -%}
+
+  {% render 'price', product: product %}
+
+  {% render 'product-form' with product as item, show_quantity: true %}
+
+  {% include 'legacy-reviews' %}
+
+  <form action="/cart/add" method="post" id="product-form-{{ section.id }}">
+    <button type="submit" name="add">{{ atc_label }}</button>
+  </form>
+
+  <div class="product__description">
+    {{ product.description }}
+  </div>
+
+  {% for tag in product.tags %}
+    <span class="product-tag">{{ tag }}</span>
+  {% endfor %}
+
+  {% raw %}
+    {{ this.is.raw.not.parsed }}
+  {% endraw %}
+</div>

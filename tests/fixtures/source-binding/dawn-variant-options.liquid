@@ -1,0 +1,8 @@
+<div class="variant-picker__options">
+  {% for value in option.values %}
+    <label class="variant-picker__option-label">
+      <input type="radio" name="options[{{ option.name }}]" value="{{ value }}">
+      <span>{{ value }}</span>
+    </label>
+  {% endfor %}
+</div>
