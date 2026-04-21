@@ -23,6 +23,8 @@ Key routing rules:
 - Regression test section, verify section, check assertions, run section checks → invoke theme-forge verify-section
 - Regression test page, verify page, check page assertions → invoke theme-forge verify-page
 - Selector changed, rebaseline, fix stale assertions → invoke theme-forge verify-section with --rebaseline
+- Define cases, archetype matrix, setup cases file → invoke theme-forge intake-cases
+- Define anchors, anchor map, setup roles, fix positional false positives → invoke theme-forge intake-anchors
 - Restart dev server, server down, server clobbered, start server → invoke theme-forge env restart (or start/stop/status)
 
 **IMPORTANT: verify vs refine distinction.**

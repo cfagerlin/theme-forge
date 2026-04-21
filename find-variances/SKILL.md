@@ -330,6 +330,54 @@ When `--cases` or `--case <key>` is provided:
 
 If `--add "description"` was passed, skip extraction and go to Step 6 (Add User Variance).
 
+## Step 1.5: Resolve Anchors (semantic extraction)
+
+Before running positional extraction, load the section's anchor map. The anchor map replaces "element-at-index-N" comparison with role-based comparison: the live site's `primary_atc` compares against the dev site's `primary_atc`, not live's element-0 against dev's element-0.
+
+**Why this exists:** Positional extraction (`heading-0`, `button-0`) breaks when dev injects extra DOM — sticky ATC bars, drawer triggers, personalizer buttons. Positional indices shift, extraction pairs the wrong elements, and you get false positives on real stylistic matches plus missed real regressions. Anchors pin semantic identity to a selector pair (live, dev) so the comparison survives DOM reshuffling.
+
+1. **Load the anchor map.** Read `.theme-forge/anchors/<section>.json`.
+   - If the file exists, parse it and continue.
+   - If the file is MISSING, fall back to positional extraction AND print a loud warning with the next command:
+     ```
+     WARN: no anchor map at .theme-forge/anchors/<section>.json
+       Using positional extraction (heading-0, button-0, ...).
+       Positional extraction produces false positives when live and dev
+       have different DOM order. Expected in case mode.
+
+     Create an anchor map with:
+       /theme-forge intake-anchors <section>
+     ```
+     Set `extraction_mode: "positional"` in the section report's `last_extraction` block so downstream skills know this run used the fallback path.
+   - If `--cases` or `--case` is set AND the anchor map is missing, still fall back (don't hard-error), but tag the warning with "matrix runs without an anchor map typically produce unreliable variances per case."
+
+2. **Resolve roles for the current case.** For each role in `anchor_map.roles`:
+   - Start with `roles[<role>]`. This gives `{live, dev, element_type, capture}`.
+   - If `--case <key>` is set AND `anchor_map.overrides[<key>].roles[<role>]` exists, merge the override on top. Fields in the override replace fields in the base. An override with `{"present": false}` means this role is absent for this case — skip extraction for the role, and if the role is referenced in an `expect_variance` with `expect_behaviors[<role>] != "absent"`, emit a variance because the user asserted it should be present.
+   - A role with unresolved live selector (live DOM returns no node) is marked `live_missing: true` for this case; same for dev. Both-missing roles are dropped silently. Asymmetric-missing roles become `structural` variances automatically.
+
+3. **Resolve behavioral assertions.** If the case has `expect_behaviors`, resolve each role:
+   - `"present"` — role selector must resolve to a visible node on DEV. If missing or `display: none` / zero-size, emit a `structural` variance tagged `source: "expect_behaviors"`.
+   - `"absent"` — role selector must NOT resolve on DEV. If it does, emit a `structural` variance tagged `source: "expect_behaviors"` with `describe: "<role> should be absent for case <case>"`.
+   - Any other string — treated as a state name. Recorded for the multi-state probe in Step 4.4.
+   Behavioral variances get `id` = `behavior:{role}:{case}`. They don't run through positional extraction.
+
+4. **Resolve expect_variances.** For each entry in `cases[<case>].expect_variances`:
+   - Resolve `anchor` against the anchor map. If the anchor does not exist in the map, hard-error:
+     ```
+     ERROR: case "<case>" expect_variances references unknown anchor "<anchor>"
+
+     Add it to the anchor map:
+       /theme-forge intake-anchors <section> --add-role <anchor>
+
+     Or remove it from the case:
+       /theme-forge intake-cases <page> --update <case>
+     ```
+   - Each expect_variance becomes a `planned_probe` entry in Step 4.4.
+   - Record `expected_regions: [<region>, ...]` in the section report for this case so verify-section / refine-section can assert every planned probe emitted a variance (the regression-benchmark contract).
+
+5. **Cache the resolved map per case.** Write the resolved (post-override) role set to `extraction_state.anchors_by_case[<case>]` in working memory. This is consumed by Steps 2-4.
+
 ## Step 2: Extract Live Site Styles
 
 **Check cache first** (unless `--force`):
@@ -776,6 +824,201 @@ Settings and app variances follow the same merge contract as CSS variances (Step
   results (e.g., the app was removed from live), set `stale: true`.
 - `source` is preserved on merge. A variance with `source: "settings_comparison"` stays
   `settings_comparison` even after re-extraction updates its values.
+
+## Step 4.4: Anchor-Driven Extractors (layout / rhythm / text / per-state)
+
+This step runs anchor-driven extractors that catch what positional extraction misses: widget layout geometry, inter-anchor vertical rhythm, text content at known anchors, and per-variant-state visual changes. It runs whenever an anchor map exists (fallback positional runs skip it entirely). It also runs the `planned_probe` list from Step 1.5 so every `expect_variance` gets attempted, even if the anchor wasn't inherently a layout/rhythm candidate.
+
+**Skip this step if** no anchor map was loaded in Step 1.5.
+
+For each scoped case, for each role in the resolved anchor map, run the extractors the role's `capture` object requests. Run each on both live and dev, compare, and emit variances.
+
+### Extractor: layout_signature
+
+Runs on roles whose `capture.layout_signature` is true, or whose `element_type` is `container`.
+
+Captures the flex/grid container fingerprint — the thing positional extraction can't see because it requires reading the parent container, not the child element.
+
+```javascript
+((selector) => {
+  const el = document.querySelector(selector);
+  if (!el) return JSON.stringify({ error: 'not found' });
+  const cs = getComputedStyle(el);
+  const rect = el.getBoundingClientRect();
+  const children = [...el.children].map(c => {
+    const cr = c.getBoundingClientRect();
+    const ccs = getComputedStyle(c);
+    return {
+      tag: c.tagName.toLowerCase(),
+      width: Math.round(cr.width),
+      height: Math.round(cr.height),
+      top: Math.round(cr.top - rect.top),
+      left: Math.round(cr.left - rect.left),
+      display: ccs.display
+    };
+  });
+  return JSON.stringify({
+    display: cs.display,
+    flexDirection: cs.flexDirection,
+    flexWrap: cs.flexWrap,
+    gap: cs.gap,
+    gridTemplateColumns: cs.gridTemplateColumns,
+    gridTemplateRows: cs.gridTemplateRows,
+    gridAutoFlow: cs.gridAutoFlow,
+    justifyContent: cs.justifyContent,
+    alignItems: cs.alignItems,
+    padding: cs.padding,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    child_count: el.children.length,
+    children: children.slice(0, 24),
+    rows_detected: (() => {
+      const tops = new Set(children.map(c => c.top));
+      return tops.size;
+    })(),
+    cols_first_row: (() => {
+      if (!children.length) return 0;
+      const firstTop = children[0].top;
+      return children.filter(c => Math.abs(c.top - firstTop) < 3).length;
+    })()
+  });
+})('ROLE_SELECTOR')
+```
+
+Compare live vs dev result object-by-object. Emit a variance for any mismatch using the strictest matchable field first:
+
+- `rows_detected` or `cols_first_row` differ → variance `type: "layout"`, `property: "rowsColumns"`, describe with both shapes (e.g., `live: 2 rows × 3 cols, dev: 1 row × 6 cols`).
+- `display` / `flexDirection` / `gridTemplateColumns` / `gridAutoFlow` differ → variance `type: "layout"`, `property: "<field>"`.
+- `gap` / `padding` / `justifyContent` / `alignItems` differ → variance `type: "css"`, `property: "<field>"`.
+- Child count differs → variance `type: "structural"`, `property: "childCount"`.
+
+Variance ID: `{role}:layout_signature:{field}:{breakpoint}:{case}`. Set `source: "layout_signature"`.
+
+### Extractor: vertical_rhythm
+
+Runs when the anchor map has a `rhythm` block, or when any `expect_variance` targets a role with `extract: "vertical_rhythm"`. Uses `rhythm.order` as the ordered role list and measures the inter-anchor gap (top of role N+1 minus bottom of role N) for each consecutive pair.
+
+```javascript
+((rolesJson) => {
+  const roles = JSON.parse(rolesJson);  // [{role, selector}, ...]
+  const results = [];
+  let prev = null;
+  for (const r of roles) {
+    const el = document.querySelector(r.selector);
+    if (!el) { results.push({ role: r.role, missing: true }); prev = null; continue; }
+    const rect = el.getBoundingClientRect();
+    const entry = { role: r.role, top: Math.round(rect.top), bottom: Math.round(rect.bottom), height: Math.round(rect.height) };
+    if (prev) entry.gap_from_prev = Math.round(rect.top - prev.bottom);
+    results.push(entry);
+    prev = { top: entry.top, bottom: entry.bottom };
+  }
+  return JSON.stringify(results);
+})('ROLES_JSON')
+```
+
+Compare live's `gap_from_prev` against dev's for each pair. Tolerance: ±4px. Beyond that, emit a variance:
+
+- ID: `rhythm:{role_prev}__{role_next}:{breakpoint}:{case}`
+- `type: "layout"`
+- `property: "gap_from_prev"`
+- `live_value` / `dev_value` are the px gaps
+- `source: "vertical_rhythm"`
+- `fix_hint`: `"adjust margin-top/bottom on {role_next} or {role_prev}'s sibling spacing"`
+
+Missing-on-one-side roles become `structural` variances (already emitted in Step 1.5 — don't double-emit).
+
+### Extractor: text_content
+
+Runs on roles whose `capture.text_content` is true, or whose `element_type` is `heading` or `text`, or when an `expect_variance` targets the role with `extract: "text_content"`.
+
+```javascript
+((selector) => {
+  const el = document.querySelector(selector);
+  if (!el) return JSON.stringify({ error: 'not found' });
+  const text = el.textContent?.trim().replace(/\s+/g, ' ') || '';
+  return JSON.stringify({ text, truncated: text.length > 200 ? text.slice(0, 200) + '…' : text });
+})('ROLE_SELECTOR')
+```
+
+Compare live text vs dev text (case-sensitive, collapsed whitespace).
+
+Variance emitted if different:
+- ID: `{role}:text_content:{breakpoint}:{case}`
+- `type: "content"`
+- `property: "textContent"`
+- `source: "text_content"`
+- `fix_hint`: `"update copy in <section>.liquid or the matching section setting"`
+
+Text_content variances do NOT auto-fix (same policy as existing `content` type). They flag for user review.
+
+### Extractor: per_state (multi-state probe for variant widgets)
+
+Runs on roles listed in `anchor_map.multi_state` OR when an `expect_variance` has `extract: "per_state"`.
+
+For each role with a `probe_selector` and `click_each: true`, the probe iterates every matching probe element (radio, swatch, dropdown option), clicks it, waits 250ms for layout settle, and captures the fields listed in `capture_per_state`.
+
+```javascript
+(async (hostSelector, probeSelector, captureFields) => {
+  const host = document.querySelector(hostSelector);
+  if (!host) return JSON.stringify({ error: 'host not found' });
+  const probes = [...host.querySelectorAll(probeSelector)];
+  const states = [];
+  for (const p of probes) {
+    p.click();
+    await new Promise(r => setTimeout(r, 250));
+    const state = { probe_label: p.value || p.getAttribute('aria-label') || p.textContent?.trim()?.slice(0, 40) || '?' };
+    for (const field of captureFields) {
+      if (field === 'swatch_image_url') {
+        const img = host.querySelector('.swatch img, [class*="swatch"] img');
+        state.swatch_image_url = img?.getAttribute('src') || null;
+      } else if (field === 'inline_text') {
+        const txt = host.querySelector('.selected-value, [class*="selected"], [aria-live]');
+        state.inline_text = txt?.textContent?.trim() || null;
+      } else if (field === 'computed_styles') {
+        const cs = getComputedStyle(p);
+        state.computed_styles = {
+          backgroundColor: cs.backgroundColor,
+          borderColor: cs.borderColor,
+          outline: cs.outline,
+          transform: cs.transform
+        };
+      } else if (field === 'bounding_box') {
+        const r = p.getBoundingClientRect();
+        state.bounding_box = { width: Math.round(r.width), height: Math.round(r.height) };
+      }
+    }
+    states.push(state);
+  }
+  return JSON.stringify({ states });
+})('HOST_SELECTOR', 'PROBE_SELECTOR', CAPTURE_FIELDS_ARRAY)
+```
+
+Run on both live and dev. Compare the `states` arrays by `probe_label`.
+
+Emit a variance for any state whose captured fields differ:
+- ID: `{role}:per_state:{probe_label}:{field}:{breakpoint}:{case}`
+- `type: "css"` for computed_styles, `type: "content"` for swatch_image_url / inline_text, `type: "layout"` for bounding_box
+- `source: "per_state"`
+- Store both full state arrays on the variance under `probe_evidence.live_states` / `probe_evidence.dev_states` so refine-section has the full context.
+
+Probe_label missing on one side → `structural` variance (the option itself is missing, not just styled differently).
+
+### expect_variances regression benchmark
+
+After all extractors run, check every `planned_probe` from Step 1.5:
+
+1. For each expect_variance with `region: <R>` on role `<role>` with `extract: <E>`, look for any variance emitted in this run whose ID starts with `{role}:{E}` and matches the scoped case.
+2. If no matching variance was emitted, mark the planned probe `benchmark_status: "missed"` and add a top-level warning to the section report:
+   ```
+   WARN: expect_variance "<region>" on role "<role>" not detected.
+     The user asserted this gap exists but find-variances did not emit it.
+     Check whether the anchor selector is pointing at the right element,
+     or whether the gap was already closed by a prior refine pass.
+   ```
+3. If at least one matching variance was emitted, mark the planned probe `benchmark_status: "confirmed"` and cross-link the emitted variance IDs via `planned_probe.matched_variance_ids: [...]`.
+4. Write the full planned_probe list + statuses to `section_report.case_benchmarks[<case>]`.
+
+This is the regression-benchmark contract: the user's `expect_variances` list is the ground truth for "these specific gaps exist on this case." verify-section uses `case_benchmarks` to gate PASS. If any benchmark is `missed`, the case is `incomplete`, not `clean`.
 
 ## Step 4.5: Multi-Resolution Probe (Layout Variances Only)
 

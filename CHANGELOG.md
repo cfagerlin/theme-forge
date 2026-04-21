@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.20.0 — 2026-04-20
+
+**Semantic anchor map. Positional extraction (heading-0, button-0) is out. Role-based comparison (product_title, primary_atc) is in.**
+
+The pain: after shipping `--cases`, the first real matrix run produced 16 false-positive variances and missed 7 real ones. Root cause: positional slicing compared `element-at-index-0` on live to `element-at-index-0` on dev. Dev had injected a sticky ATC bar at the top of `<main>`, so live's `<h1>` got paired with dev's `<h3>` — two totally unrelated elements. Meanwhile, real design gaps (Material/Finish side-by-side layout, 6×3 size grid, header vertical rhythm) went undetected because the extractor couldn't see parent containers, inter-sibling gaps, or text content.
+
+This release replaces positional extraction with a semantic anchor map plus four new extractors that catch layout geometry, vertical rhythm, text content, and per-variant-state differences. `expect_variances` on a case becomes a regression benchmark: if find-variances can't reproduce a user-declared gap, the section is flagged `INCOMPLETE` — not a silent pass.
+
+### What's new
+
+- **`intake-anchors` (NEW)** — ingests a section's semantic roles into `.theme-forge/anchors/<section>.json`. Auto-discovers roles from the live DOM using section-type role libraries (`.theme-forge/role-libraries/<section-type>.json`). Each role binds a live+dev selector pair, an `element_type` (heading, button, container, price, text, image, toggle), and a `capture` policy. Per-case `overrides` let roles swap selectors or be marked absent for specific archetypes (e.g., `full_personalizer` replaces native ATC with a custom personalize button).
+- **Semantic extraction in find-variances** — Step 1.5 loads the anchor map and resolves roles (with per-case overrides) before extraction. Fallback to positional when no anchor map exists, with a loud warning pointing at `intake-anchors`. `extraction_mode: "positional" | "semantic"` is tagged on every run so downstream skills know the provenance.
+- **Four new extractors (Step 4.4)** —
+  - `layout_signature` captures parent container fingerprint: `display`, `flexDirection`, `gridTemplateColumns`, `gap`, `rows_detected`, `cols_first_row`, child count, per-child bounding boxes. Catches "live is 2×3 grid, dev is 1×6 row" which positional extraction can't see.
+  - `vertical_rhythm` measures inter-anchor gaps (top of role N+1 minus bottom of role N) using the anchor map's `rhythm.order`. Tolerance ±4px. Catches tight-vs-loose header spacing, mis-aligned content blocks.
+  - `text_content` captures anchor text content (collapsed whitespace). Flags content differences without auto-fixing (same policy as existing `content` type).
+  - `per_state` is a multi-state probe for variant widgets: clicks each option, waits for layout settle, captures swatch images, inline labels, computed styles, bounding boxes per state. Catches "swatch image changes on live but not on dev" and state-specific styling gaps.
+- **`expect_variances` on cases** — `intake-cases` schema now accepts a list of user-declared design gaps per case: `{region, anchor, describe, extract}`. find-variances probes each anchor with the requested extractor. If the extractor doesn't emit a matching variance, it's recorded as `benchmark_status: "missed"` in `section_report.case_benchmarks[<case>]`.
+- **`expect_behaviors` on cases** — boolean-ish assertions like `{personalizer_button: "present", native_atc: "absent"}`. Resolved against the anchor map during Step 1.5; mismatches emit `structural` variances with `source: "expect_behaviors"`.
+- **`INCOMPLETE` status in verify-section** — new status axis below PASS/FAIL/STALE/ERROR. Surfaces benchmark coverage gaps: the user declared a gap, find-variances failed to reproduce it, section is not certified clean until the discrepancy is resolved. INCOMPLETE ≠ FAIL — it distinguishes tooling gaps from product regressions.
+- **New variance sources in refine-section** — `layout_signature`, `vertical_rhythm`, `text_content`, `per_state`, `expect_behaviors` all route to distinct hypothesis strategies (fix the parent container, adjust role margin, flag for copy review, target state-specific selectors, use per-case liquid conditionals). Per-case selector lookup via `overrides[<case>].roles[<role>]` before writing CSS overrides.
+- **`.theme-forge/anchors/` and `.theme-forge/role-libraries/` directories** — created at onboard. Anchors commit by default alongside section reports. Role libraries ship with the framework.
+
+### Why this matters
+
+Without semantic anchors, `--cases` amplifies the problem instead of solving it: every positional false positive gets multiplied by the number of cases. With an anchor map, live and dev are compared role-to-role, per-case overrides let archetypes legitimately diverge, and `expect_variances` turns the user's domain knowledge into a regression benchmark. The matrix stays honest.
+
+### Breaking changes
+
+None. Sections without an anchor map fall back to positional extraction (with a warning). `expect_variances` and `expect_behaviors` are optional case fields. Existing reports continue to work.
+
+### Migration
+
+For best results on a multi-archetype template, run `intake-anchors <section>` once per section, then add `expect_variances` to any case where design differs from the baseline (e.g., the archetype that inspired a specific layout change). Without expect_variances, the matrix still runs — it just can't benchmark user-declared gaps.
+
 ## 0.19.0 — 2026-04-20
 
 **Multi-case (multi-archetype) support. One template renders N layouts? Iterate the full matrix in one command instead of 27+ manual config edits.**

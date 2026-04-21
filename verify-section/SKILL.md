@@ -442,6 +442,21 @@ synchronous, dependency-free, and does not touch the DOM — pure read-only.
 | `FAIL` | selector found; value does not match expected |
 | `STALE` | `document.querySelector(selector)` returned null — DOM changed |
 | `ERROR` | Invalid selector, getComputedStyle threw, or property returned empty (usually a camelCase mistake like `font-size` instead of `fontSize`) |
+| `INCOMPLETE` | Benchmark-only. A user-declared `expect_variance` was not emitted by the last find-variances run (`benchmark_status: "missed"` in `section_report.case_benchmarks[<case>]`). The section cannot be certified clean until find-variances is re-run and the benchmark is `confirmed`. Not measured in the browser; see Step 3.5. |
+
+### Step 3.5 — Benchmark assertions (expect_variances coverage)
+
+If the cases file has `expect_variances` for any scoped case AND the section report has a `case_benchmarks` block from find-variances, evaluate benchmark coverage for every (scoped case, planned_probe) pair:
+
+1. For each scoped case, read `section_report.case_benchmarks[<case>]`.
+2. For each planned_probe:
+   - `benchmark_status: "confirmed"` → map to a synthetic assertion with `id: "benchmark:{region}:{case}"`, `status: PASS`. Increments the case's PASS count.
+   - `benchmark_status: "missed"` → map to a synthetic assertion with `status: INCOMPLETE`. Do NOT call this PASS or FAIL — `INCOMPLETE` is a new status added for benchmark coverage.
+   - No `case_benchmarks` block at all (anchor map never loaded or find-variances ran pre-anchor-map) → print once per case: `benchmarks unavailable (no case_benchmarks block; run find-variances <section> --cases to populate)`. Do not downgrade section status.
+3. Benchmark assertions do NOT run in the browser. They are metadata-only — the actual extraction work happened in find-variances Step 4.4. verify-section's job is just to surface the coverage gap.
+4. Add `INCOMPLETE` to the status axis below PASS/FAIL/STALE/ERROR. Semantics: the assertion exists on paper but was not reproduced by find-variances, which means the section cannot be certified clean until the user re-runs find-variances or edits the expect_variance.
+
+**Why INCOMPLETE is not FAIL:** FAIL means "the section's current state disagrees with a known-good expected value." INCOMPLETE means "we can't tell because the tooling didn't measure it." Treating them the same masks extraction bugs as product regressions.
 
 ### Step 4 — Emit report (terminal first)
 
@@ -469,7 +484,7 @@ STALE nav:color:tablet:default
   next:     /theme-forge verify-section header --page index --rebaseline
 
 ──────────────────────────────────────────────
-Summary: 2 PASS · 1 FAIL · 1 STALE · 0 ERROR
+Summary: 2 PASS · 1 FAIL · 1 STALE · 0 ERROR · 0 INCOMPLETE
 Run log: .theme-forge/verify/header/run-logs/20260419-164201.json
 ```
 

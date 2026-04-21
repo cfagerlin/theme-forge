@@ -209,14 +209,19 @@ If `--variances` was passed, parse the comma-separated `"element:property"` pair
 
    ```
    PRIORITY ORDER:
-   0. user        — ★ user-specified variances (highest priority)
-   1. visibility  — hard gate, text invisible on dev
-   2. structural  — element missing or wrong position
-   3. layout      — height, width, responsive behavior (fix these BEFORE typography)
-   4. setting     — JSON setting change
-   5. css         — CSS override (typography, colors, spacing)
-   6. content     — text/image differences (flag only)
+   0. user                — ★ user-specified variances (highest priority)
+   0.5 expect_behaviors   — per-case structural assertions (source: expect_behaviors)
+   0.5 expect_variances   — user-declared benchmarks (source: layout_signature, vertical_rhythm,
+                            text_content, per_state with matched_benchmark: true)
+   1. visibility          — hard gate, text invisible on dev
+   2. structural          — element missing or wrong position
+   3. layout              — height, width, responsive behavior, layout_signature, vertical_rhythm
+   4. setting             — JSON setting change
+   5. css                 — CSS override (typography, colors, spacing), per_state css
+   6. content             — text/image differences, text_content (flag only)
    ```
+
+   **Source tiebreaker within a type:** `expect_variances` / `expect_behaviors` (user-declared benchmarks) sort first within their `type`. `layout_signature` beats ambient positional `layout`. `vertical_rhythm` beats positional gap variances. Within `per_state`, sort by probe_label alphabetically for determinism.
 
 ### 1.3 Display the Queue
 
@@ -321,6 +326,20 @@ variances use the default template path as before.
    Selector/setting: {what you'll modify}
    Expected: {FAIL value} → {target value}
    ```
+
+### 2.1.3 New variance sources (anchor-driven)
+
+Variances emitted by the Step 4.4 extractors in find-variances carry a `source` field that tells you which extractor produced them. Each source has a distinct fix strategy. Apply this table BEFORE falling through to the general hypothesize flow above.
+
+| `source` | Hypothesis starting point |
+|----------|--------------------------|
+| `layout_signature` | The parent container's flex/grid shape differs. Fix the ROLE's container, not the children. Check `gridTemplateColumns`, `flexDirection`, `gridAutoFlow`. A live `2×3` grid vs dev `1×6` row usually means the dev container uses `grid-template-columns: 1fr` or defaults to inline-flex. Override at the container selector (from the role's `live` anchor), not at each child. |
+| `vertical_rhythm` | Inter-anchor gap differs. Find which role owns the gap: in CSS, that's usually the SECOND role's `margin-top` or the first's `margin-bottom`. Read both to decide, then override one. Prefer the role whose existing CSS already has a margin rule (so you're adjusting, not inventing). |
+| `text_content` | Copy differs. DO NOT auto-edit. Surface the diff to the user and ask whether to update the section setting, the locale JSON, or the liquid file. `type: "content"` variances are flag-only by hard rule. |
+| `per_state` | A specific variant state differs. The fix usually targets `[data-state="<label>"]` or `input:checked + label` selectors, not the role's base selector. Read the probe_evidence on the variance to see exactly which state(s) diverge; don't assume all states are broken. |
+| `expect_behaviors` | A role is structurally wrong for this case (present when it should be absent, or vice versa). Fix via per-case liquid conditionals or section template JSON. Never override by hiding with `display: none` — that leaves the element in the DOM and re-breaks other tests. |
+
+**Multi-case hygiene:** Variances tagged with a `case` other than `null` may have per-case overrides in the anchor map. Before writing the selector for a CSS override, check `.theme-forge/anchors/<section>.json` → `overrides[<case>].roles[<role>]` for a case-specific selector. Use `:is()` or `:where()` with both the base and override selectors to avoid case-specific CSS files.
 
 ### 2.1.5 CASCADE CHECK
 
