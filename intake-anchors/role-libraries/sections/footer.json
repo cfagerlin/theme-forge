@@ -1,0 +1,89 @@
+{
+  "section_type": "footer",
+  "description": "Bottom-of-page footer: newsletter, policy links, social icons, payment icons, copyright. Theme-agnostic baseline.",
+  "roles": [
+    {
+      "role_name": "newsletter_form",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "footer form[action*='/contact#contact_form'], footer form.newsletter-form, footer [class*='newsletter'] form", "weight": 0.95, "source": "section:footer" },
+        { "selector": "footer form input[type='email']", "weight": 0.85, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["Subscribe", "Sign up", "Email"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "newsletter_heading",
+      "element_type": "heading",
+      "required": false,
+      "candidates": [
+        { "selector": "footer [class*='newsletter'] h2, footer [class*='newsletter'] h3, footer [class*='newsletter'] h4", "weight": 0.9, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["Subscribe", "Sign up", "Join"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "nav_column",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "footer nav ul, footer .footer__menu, footer [class*='footer-nav']", "weight": 0.9, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["list of links"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "nav_heading",
+      "element_type": "heading",
+      "required": false,
+      "candidates": [
+        { "selector": "footer .footer-block__heading, footer h3, footer h4:not([class*='newsletter'])", "weight": 0.85, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["Help", "Shop", "Company", "About"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "social_icons",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "footer ul.social-icons, footer .footer__social, footer [class*='social-list']", "weight": 0.95, "source": "section:footer" },
+        { "selector": "footer a[href*='instagram.com'], footer a[href*='facebook.com'], footer a[href*='tiktok.com']", "weight": 0.8, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["icon-only links"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "payment_icons",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "footer ul.payment-icons, footer .footer__payment, footer [class*='payment-icons']", "weight": 0.95, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["Visa", "Mastercard", "payment methods"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "copyright",
+      "element_type": "text",
+      "required": false,
+      "candidates": [
+        { "selector": "footer .footer__copyright, footer [class*='copyright']:not(a)", "weight": 0.95, "source": "section:footer" },
+        { "selector": "footer small:last-child, footer p:last-child", "weight": 0.7, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["© YYYY", "All rights reserved"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "policy_links",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "footer a[href*='/policies/'], footer ul.policy-links", "weight": 0.9, "source": "section:footer" }
+      ],
+      "expected_text_patterns": ["Privacy", "Terms", "Refund"],
+      "expected_attributes": {}
+    }
+  ]
+}

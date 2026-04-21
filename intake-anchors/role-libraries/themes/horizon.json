@@ -1,0 +1,81 @@
+{
+  "theme_family": "horizon",
+  "description": "Shopify Horizon theme (and derivatives). Uses web components (variant-option, swatch-input, product-form-component) and BEM-style classes (product-information__*, product__*).",
+  "fingerprint": {
+    "selectors_present": ["variant-option", "swatch-input", "product-form-component"],
+    "theme_name_patterns": ["Horizon", "Horizon *"]
+  },
+  "role_candidates": {
+    "product_title": [
+      { "selector": ".product-information h1, product-information h1", "weight": 0.95, "source": "theme:horizon" },
+      { "selector": "h1.product__title, h1.product-title", "weight": 0.85, "source": "theme:horizon" }
+    ],
+    "subtitle": [
+      { "selector": ".product-information__subtitle, .product__subtitle", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "detail_price": [
+      { "selector": ".product-information .price .price__current, product-price .price__current", "weight": 0.95, "source": "theme:horizon" },
+      { "selector": ".price:not(.price--on-sale) .price-item--regular", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "compare_at_price": [
+      { "selector": ".price--on-sale .price__was, .price__was", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "variant_picker_container": [
+      { "selector": "variant-picker, product-form-component variant-picker", "weight": 0.95, "source": "theme:horizon" },
+      { "selector": "fieldset.product-form__fieldset", "weight": 0.85, "source": "theme:horizon" }
+    ],
+    "variant_option_swatch": [
+      { "selector": "swatch-input, variant-option swatch-input, input[type='radio'].variant-option__button", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "variant_option_label": [
+      { "selector": "swatch-label, .variant-option__label, .product-form__input label", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "primary_atc": [
+      { "selector": "product-form-component button[type='submit']", "weight": 0.95, "source": "theme:horizon" },
+      { "selector": ".product-form__submit", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "quantity_selector": [
+      { "selector": "quantity-input input[name='quantity']", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "description": [
+      { "selector": ".product-information__description, .product__description", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "accordion_details": [
+      { "selector": ".product-information details, accordion-component, details.accordion", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "installments_block": [
+      { "selector": "shopify-payment-terms", "weight": 1.0, "source": "theme:horizon" }
+    ],
+    "logo": [
+      { "selector": ".header__heading-logo img, .header__heading-link img", "weight": 0.95, "source": "theme:horizon" },
+      { "selector": ".header__heading-logo svg, header-component .logo svg", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "primary_nav": [
+      { "selector": ".header__inline-menu, header-menu, .header__menu", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "search_trigger": [
+      { "selector": ".header__search details, predictive-search summary, .header__icon--search", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "cart_trigger": [
+      { "selector": ".header__icon--cart, cart-drawer-toggle, a.header__icon[href='/cart']", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "cart_count": [
+      { "selector": ".cart-count-bubble, cart-icon-bubble .cart-count-bubble", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "announcement_bar": [
+      { "selector": ".announcement-bar, announcement-bar, .utility-bar", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "newsletter_form": [
+      { "selector": ".footer__newsletter form, .newsletter-form", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "social_icons": [
+      { "selector": "ul.social-icons, .footer__follow-on-shop, .social-icons", "weight": 0.9, "source": "theme:horizon" }
+    ],
+    "payment_icons": [
+      { "selector": "ul.payment-icons, .footer__payment", "weight": 0.95, "source": "theme:horizon" }
+    ],
+    "copyright": [
+      { "selector": ".footer__copyright, small.copyright", "weight": 0.95, "source": "theme:horizon" }
+    ]
+  }
+}

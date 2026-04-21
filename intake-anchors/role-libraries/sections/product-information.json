@@ -1,0 +1,153 @@
+{
+  "section_type": "product-information",
+  "description": "Product detail page main info block: title, price, variant pickers, add-to-cart, description, reviews summary. Selectors here are theme-agnostic; theme-family libraries add vocabulary specific to Horizon, Dawn, legacy_jewelry, etc.",
+  "roles": [
+    {
+      "role_name": "product_title",
+      "element_type": "heading",
+      "required": true,
+      "candidates": [
+        { "selector": "main h1:not(.sticky-add-to-cart *):not(.sticky-atc *):not([class*=sticky] *)", "weight": 1.0, "source": "section:product-information" },
+        { "selector": ".product-information h1, .product__title h1, .product-title h1", "weight": 0.95, "source": "section:product-information" },
+        { "selector": "h1[itemprop='name']", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "h1.product__title, h1.product-title", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["1-8 words", "title case or sentence case"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "subtitle",
+      "element_type": "text",
+      "required": false,
+      "candidates": [
+        { "selector": ".product__subtitle, .product-subtitle, .product-information .subtitle", "weight": 0.9, "source": "section:product-information" },
+        { "selector": ".product__vendor, [itemprop='brand']", "weight": 0.7, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["1-4 words", "often collection or vendor name"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "reviews_summary",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "[class*='okendo'][class*='rating'], [class*='okendo-star-rating'], [data-oke-reviews-product-listing-rating]", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "[class*='yotpo'][class*='bottomLine'], .yotpo-bottomline", "weight": 0.85, "source": "section:product-information" },
+        { "selector": "[class*='judge-me'][class*='preview-badge'], .jdgm-prev-badge", "weight": 0.85, "source": "section:product-information" },
+        { "selector": ".product-information [class*='review']:not(a):not(button)", "weight": 0.5, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["N.N ★ (M)", "review count"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "detail_price",
+      "element_type": "price",
+      "required": true,
+      "candidates": [
+        { "selector": ".product-information .price:not([class*='sticky']):not([class*='compare'])", "weight": 0.95, "source": "section:product-information" },
+        { "selector": ".price__regular .price-item--regular, .price-item--regular", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "[data-product-price]:not([data-compare]):not([class*='sticky'])", "weight": 0.85, "source": "section:product-information" },
+        { "selector": ".price-money:not([class*='sticky']):not([class*='compare'])", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["$N.NN", "currency symbol followed by digits"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "compare_at_price",
+      "element_type": "price",
+      "required": false,
+      "candidates": [
+        { "selector": ".price__sale .price-item--regular, .price-item--sale-regular, s.price-item, .price-compare", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "[data-compare-price]:not(:empty)", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["$N.NN (strikethrough)"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "variant_picker_container",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": ".product-form__input[data-option-index], variant-radios, variant-picker, .variant-picker", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "fieldset[name*='Variant'], fieldset.product-form__fieldset", "weight": 0.7, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["option label + swatches/radio"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "primary_atc",
+      "element_type": "button",
+      "required": true,
+      "candidates": [
+        { "selector": "form[action*='/cart/add'] button[type='submit']:not(.sticky-atc *):not([class*='sticky'] *)", "weight": 1.0, "source": "section:product-information" },
+        { "selector": "button[name='add']:not([class*='sticky'] *)", "weight": 0.95, "source": "section:product-information" },
+        { "selector": ".product-form__submit, .product-form__cart-submit, .product-form button.button--primary", "weight": 0.9, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["Add to cart", "Add to bag", "Buy it now", "Pre-order"],
+      "expected_attributes": { "type": "submit" }
+    },
+    {
+      "role_name": "quantity_selector",
+      "element_type": "input",
+      "required": false,
+      "candidates": [
+        { "selector": "quantity-input input[name='quantity'], .quantity__input", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "input[name='quantity']:not([type='hidden'])", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["numeric value"],
+      "expected_attributes": { "name": "quantity" }
+    },
+    {
+      "role_name": "description",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": ".product-information .description, .product__description, .product-description", "weight": 0.9, "source": "section:product-information" },
+        { "selector": "[itemprop='description']", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["multiple sentences"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "accordion_details",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": ".product-information details, .product__accordion details, accordion-component", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["summary + expandable content"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "shipping_estimate",
+      "element_type": "text",
+      "required": false,
+      "candidates": [
+        { "selector": "[data-shipping-estimate], .shipping-estimate, .product-information [class*='shipping']:not(a):not(button)", "weight": 0.8, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["Ships in", "Delivery by", "Get it by"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "installments_block",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": "shopify-payment-terms, .shopify-payment-terms", "weight": 1.0, "source": "section:product-information" },
+        { "selector": "[class*='afterpay'], [class*='klarna'], [class*='affirm'], [class*='shop-pay-installments']", "weight": 0.9, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["4 payments of $N", "Starting at $N/mo"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "share_buttons",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": ".share-button, .product__share, share-button", "weight": 0.85, "source": "section:product-information" }
+      ],
+      "expected_text_patterns": ["Share"],
+      "expected_attributes": {}
+    }
+  ]
+}

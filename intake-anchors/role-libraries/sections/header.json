@@ -1,0 +1,94 @@
+{
+  "section_type": "header",
+  "description": "Top-of-page header: logo, primary nav, search, cart, account. Theme-agnostic baseline.",
+  "roles": [
+    {
+      "role_name": "logo",
+      "element_type": "image",
+      "required": true,
+      "candidates": [
+        { "selector": "header .header__logo img, header .header-logo img", "weight": 0.95, "source": "section:header" },
+        { "selector": "header a[href='/'] img, header a.logo img", "weight": 0.9, "source": "section:header" },
+        { "selector": "header svg.logo, header .logo svg", "weight": 0.8, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["alt text: brand name"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "primary_nav",
+      "element_type": "container",
+      "required": true,
+      "candidates": [
+        { "selector": "header nav.header__menu, header .header__inline-menu", "weight": 0.95, "source": "section:header" },
+        { "selector": "header nav:not(.mobile-nav):not([class*='drawer'])", "weight": 0.85, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["list of links"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "primary_nav_item",
+      "element_type": "link",
+      "required": false,
+      "candidates": [
+        { "selector": "header nav.header__menu > ul > li > a, header .header__inline-menu > ul > li > a", "weight": 0.95, "source": "section:header" },
+        { "selector": "header nav li > a:not([class*='mobile']):not([class*='drawer'])", "weight": 0.8, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["single word or 1-3 words"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "search_trigger",
+      "element_type": "button",
+      "required": false,
+      "candidates": [
+        { "selector": "header button[aria-label*='Search' i], header [class*='search-modal'] button", "weight": 0.95, "source": "section:header" },
+        { "selector": "header a[href*='/search'], header details.search summary", "weight": 0.85, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["Search"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "cart_trigger",
+      "element_type": "button",
+      "required": true,
+      "candidates": [
+        { "selector": "header a[href='/cart'], header button[aria-controls*='cart' i]", "weight": 0.95, "source": "section:header" },
+        { "selector": "header .header__cart, header [class*='cart-toggle']", "weight": 0.85, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["Cart", "Bag", "(N)"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "cart_count",
+      "element_type": "text",
+      "required": false,
+      "candidates": [
+        { "selector": "header .cart-count-bubble, header [class*='cart-count']:not(a):not(button)", "weight": 0.95, "source": "section:header" },
+        { "selector": "header [data-cart-count]", "weight": 0.85, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["numeric"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "account_link",
+      "element_type": "link",
+      "required": false,
+      "candidates": [
+        { "selector": "header a[href*='/account']", "weight": 0.9, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["Account", "Log in", "Sign in"],
+      "expected_attributes": {}
+    },
+    {
+      "role_name": "announcement_bar",
+      "element_type": "container",
+      "required": false,
+      "candidates": [
+        { "selector": ".announcement-bar, .header-announcement, announcement-bar", "weight": 0.95, "source": "section:header" },
+        { "selector": ".utility-bar, .promo-bar, [class*='header__announcement']", "weight": 0.85, "source": "section:header" }
+      ],
+      "expected_text_patterns": ["short promotional text"],
+      "expected_attributes": {}
+    }
+  ]
+}
