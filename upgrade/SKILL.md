@@ -108,7 +108,7 @@ Performs THREE changes across the project's `.theme-forge/`:
 upgrade --to v0.22 --dry-run
 
 PROJECT LIBRARY:
-  WOULD CREATE .theme-forge/role-libraries/projects/gldn.json (skeleton)
+  WOULD CREATE .theme-forge/role-libraries/projects/acme.json (skeleton)
 
 DECISION REPORT BACKFILL:
   WOULD CREATE .theme-forge/anchors/product-information-main.decision-report.json (stub from v0.21 anchors)

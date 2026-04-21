@@ -98,7 +98,7 @@ Detection order per side (stop at first hit):
    ({
      horizon: !!document.querySelector('variant-option, swatch-input, product-form-component'),
      dawn: !!document.querySelector('[class^="product__"], .product-form__buttons'),
-     legacy_jewelry: !!document.querySelector('.variant-picker, .gldn-product-form, [data-variant-material]')
+     legacy_jewelry: !!document.querySelector('.variant-picker, [data-variant-material], .variant-material')
    })
    ```
    Pick the highest-confidence hit. Ties → `unknown`.
@@ -124,7 +124,7 @@ Load order:
 **Merge rules:**
 
 - For each role, concatenate candidates from all four layers.
-- If the same selector appears in multiple layers, collapse to a single entry with the highest weight and a union of sources (e.g., `["section:product-information", "project:gldn"]`).
+- If the same selector appears in multiple layers, collapse to a single entry with the highest weight and a union of sources (e.g., `["section:product-information", "project:<slug>"]`).
 - Cross-section contamination filter: when loading a theme-family library, drop candidates whose role is not in the section library's `role_inventory` (prevents PDP libraries from leaking header/footer roles into a PDP run).
 - **Speculative downweight**: when loading a theme-family library flagged `"confidence": "speculative"` (library-level or per-candidate), multiply each affected candidate's `weight` by 0.5 BEFORE collapsing duplicates. A project-layer entry with the same selector (`"source": "project:*"`, implicit `confidence: "validated"`) will then beat the speculative one on the duplicate-collapse step. Record the original weight as `weight_raw` and the applied multiplier as `confidence_multiplier` for the decision report.
 - Missing files are skipped (section library is the only one required).
@@ -144,7 +144,7 @@ Each role in the merged library looks like:
   "candidates": [
     { "selector": "h1:not(.sticky-add-to-cart *)", "weight": 1.0, "source": "section:product-information" },
     { "selector": ".product-information h1", "weight": 0.9, "source": "theme:horizon" },
-    { "selector": ".gldn-product-title h1", "weight": 0.9, "source": "theme:legacy_jewelry" }
+    { "selector": ".product-single__title h1", "weight": 0.85, "source": "theme:legacy_jewelry" }
   ],
   "expected_text_patterns": ["product name", "uppercase 1-5 words"],
   "expected_attributes": {}
@@ -174,7 +174,7 @@ For each (case, side) pair:
 Step 2.4 aggregating across 4 cases ... done (120ms)
 Step 2.4.5 reverse-probing 3 asymmetric roles ...
   reviews_summary: probe dev → no match (best 0.38 < 0.40)
-  shipping_estimate: probe live → .gldn-shipping-estimator (score 0.71, passed tolerance)
+  shipping_estimate: probe live → .shipping-estimator (score 0.71, passed tolerance)
   gift_wrapping: probe live → no match (best 0.28 < 0.40)
 Step 2.4.5 done (2.1s)
 
@@ -323,7 +323,7 @@ Overrides:
 
 #### 2.4.5 Asymmetric reverse-probe (L2)
 
-**Why this step exists:** the gldn eval caught 0% live-side coverage — library candidates tuned for the dev theme missed on the live theme entirely. Rather than leave the role as `no_match_live`, take the dev winner's DOM fingerprint and search the live DOM for a matching element. This gets the live selector discovered, paired, and scored — feeding into Step 2.5 (discovery) as a `source: "reverse_probe"` candidate.
+**Why this step exists:** a real-world migration eval caught 0% live-side coverage — library candidates tuned for the dev theme missed on the live theme entirely. Rather than leave the role as `no_match_live`, take the dev winner's DOM fingerprint and search the live DOM for a matching element. This gets the live selector discovered, paired, and scored — feeding into Step 2.5 (discovery) as a `source: "reverse_probe"` candidate.
 
 **When it runs:** for each role where Step 2.4 produced `status: "no_match_live"` OR `status: "no_match_dev"` (one side winner, the other absent). Do NOT run for `no_match` (both absent) or `resolved` (both present).
 
@@ -364,7 +364,7 @@ Overrides:
 
 #### 2.5 Generative role discovery from base-cache
 
-Role libraries are finite. Real themes contain custom snippets that libraries won't predict (`{% render 'gldn-pdp-shipping' %}`, `{% render 'special-request' %}`). Parse `base-cache/sections/<section>.liquid` for structural landmarks:
+Role libraries are finite. Real themes contain custom snippets that libraries won't predict (`{% render 'brand-pdp-shipping' %}`, `{% render 'special-request' %}`). Parse `base-cache/sections/<section>.liquid` for structural landmarks:
 
 1. **Headings** — any `<h[1-6]>` in the template → propose a role named from the literal-string context or nearby `{% render %}` tag.
 2. **Snippet renders** — every `{% render 'NAME' %}` or `{% include 'NAME' %}` → propose a role named `NAME` (stripped prefix, snake_cased). Pull the snippet's root element from `base-cache/snippets/<NAME>.liquid`; use its first significant element as the selector candidate.
@@ -387,7 +387,7 @@ If score < 0.5, flag the pairing as **cross_verify_failed**:
 
 ```
 role: product_title
-  live:  ".gldn-product-title h1"       "Dainty Chain Necklace"
+  live:  ".brand-product-title h1"      "Dainty Chain Necklace"
   dev:   ".product-information h1"      "Filters (0)"
   cross_verify: FAILED (text similarity 0.03, position match 0.1)
 
@@ -411,7 +411,7 @@ Emit `.theme-forge/anchors/<section>.json`. New fields vs v0.20 schema:
   "theme_family": { "live": "legacy_jewelry", "dev": "horizon" },
   "roles": {
     "product_title": {
-      "live": ".gldn-product-title h1",
+      "live": ".product-single__title h1",
       "dev": ".product-information h1",
       "status": "resolved",
       "element_type": "heading",
@@ -484,7 +484,7 @@ Cases probed: standard_product, tag_personalizer, full_personalizer, ready_to_sh
 
 RESOLVED ROLES (18)
   role                          | live selector                    | dev selector                | live score | cross-verify
-  product_title                 | .gldn-product-title h1           | .product-information h1     | 0.94       | passed
+  product_title                 | .product-single__title h1        | .product-information h1     | 0.94       | passed
   detail_price                  | .price-money:not([class*=stick]) | .price:not([class*=sticky]) | 0.89       | passed
   primary_atc                   | button[name='add']               | button[name='add']          | 0.91       | passed
   ... (15 more)
@@ -496,7 +496,7 @@ CASE OVERRIDES (6)
 
 DISCOVERED FROM BASE-CACHE (3)
   role                          | signal                                  | suggested selector
-  gldn_pdp_shipping             | {% render 'gldn-pdp-shipping' %}        | .gldn-pdp-shipping
+  brand_pdp_shipping            | {% render 'brand-pdp-shipping' %}       | .brand-pdp-shipping
   special_request_block         | {% render 'special-request' %}          | .special-request
   giving_block                  | {% render 'giving-block' %}             | [data-giving-block]
 
@@ -575,14 +575,14 @@ Every run writes `.theme-forge/anchors/<section>.decision-report.json` alongside
     { "path": "intake-anchors/role-libraries/sections/product-information.json", "confidence": "validated", "role_count": 14 },
     { "path": "intake-anchors/role-libraries/themes/legacy_jewelry.json", "confidence": "speculative", "role_count": 8, "weight_multiplier": 0.5 },
     { "path": "intake-anchors/role-libraries/themes/horizon.json", "confidence": "speculative", "role_count": 12, "weight_multiplier": 0.5 },
-    { "path": ".theme-forge/role-libraries/projects/gldn.json", "confidence": "validated", "role_count": 3 }
+    { "path": ".theme-forge/role-libraries/projects/acme.json", "confidence": "validated", "role_count": 3 }
   ],
   "roles": {
     "product_title": {
       "status": "resolved",
       "winner": {
-        "selector": ".gldn-product-title h1",
-        "source": "project:gldn",
+        "selector": ".brand-product-title h1",
+        "source": "project:acme",
         "side": "live",
         "score": 0.94,
         "score_breakdown": {
@@ -736,7 +736,7 @@ Promotes this run's discovered and reverse-probed winners into the project-layer
 
 ```json
 {
-  "project": "gldn",
+  "project": "acme",
   "version": 1,
   "updated_at": "2026-04-20T22:00:00Z",
   "roles": {
@@ -744,7 +744,7 @@ Promotes this run's discovered and reverse-probed winners into the project-layer
       "element_type": "heading",
       "candidates": [
         {
-          "selector": ".gldn-product-title h1",
+          "selector": ".brand-product-title h1",
           "weight": 0.95,
           "side": "live",
           "promoted_from": "reverse_probe",
@@ -772,12 +772,12 @@ Per-candidate fields:
 2. For each promotion candidate, print:
    ```
    PROMOTE? role=product_title side=live
-     selector:      .gldn-product-title h1
+     selector:      .brand-product-title h1
      source:        reverse_probe
      score:         0.87
      sample_text:   "Dainty Chain Necklace"
      cross_verify:  passed
-     target:        .theme-forge/role-libraries/projects/gldn.json
+     target:        .theme-forge/role-libraries/projects/acme.json
    ```
 3. Prompt `[y/n/q]`. `y` adds to project library. `n` skips this one. `q` aborts all remaining. `--yes` auto-accepts every prompt (only use in scripted flows where the user already reviewed the anchors file).
 4. For each accepted promotion:
@@ -788,7 +788,7 @@ Per-candidate fields:
 5. If `--dry-run`, print the diff (`+ added candidate ...`) instead of writing. No file changes.
 6. After writes, run `git status` and print a one-line reminder:
    ```
-   project library updated: .theme-forge/role-libraries/projects/gldn.json
+   project library updated: .theme-forge/role-libraries/projects/acme.json
    next run will seed these as high-weight library candidates (tie-break: project > section)
    commit when ready: git add .theme-forge/role-libraries/
    ```
