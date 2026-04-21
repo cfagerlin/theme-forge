@@ -300,9 +300,13 @@ Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (s
 
 1. Confirm the target theme path exists and contains Shopify theme files (`config/`, `sections/`, `templates/`)
 2. If a browse tool is available, verify the live URL is reachable
-3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/`, `.theme-forge/tmp/`, `.theme-forge/cases/` directories
+3. Create `.theme-forge/mappings/sections/`, `.theme-forge/mappings/pages/`, `.theme-forge/reports/sections/`, `.theme-forge/reports/pages/`, `.theme-forge/references/`, `.theme-forge/tmp/`, `.theme-forge/cases/`, `.theme-forge/anchors/`, `.theme-forge/role-libraries/` directories
 
    `.theme-forge/cases/` is the multi-case workflow home (one JSON per template, plus `_shared.json` for header/footer/cart-drawer cases). Empty at onboard. Populated by `/theme-forge intake-cases <template> --from <artifact>` when a template has multiple archetypes (e.g., `product` renders 10+ different layouts depending on tags or product type). Committed by default (see `cases_commit_default` in config).
+
+   `.theme-forge/anchors/` holds the semantic anchor map for every section (one JSON per section-key). Anchors replace positional extraction (`heading-0`, `button-0`) with role-based selectors (`product_title`, `primary_atc`) so find-variances can compare like-with-like across live and dev even when DOM order diverges. Empty at onboard. Populated by `/theme-forge intake-anchors <section-key>` (auto-discovers roles from the live DOM and section type) or by hand. Committed by default alongside the section report. Without an anchor map, find-variances falls back to positional extraction with a loud warning.
+
+   `.theme-forge/role-libraries/` holds section-type role libraries (e.g., `product-information.json`, `header.json`) that intake-anchors uses as templates when auto-discovering roles for a new section. Ship-with-framework files; rarely hand-edited per project.
 4. **Check `.gitignore`**: Add session-specific and tool-generated paths to `.gitignore`:
    ```
    .theme-forge/base-cache/

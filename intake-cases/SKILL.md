@@ -117,6 +117,26 @@ Expected:
 
 For `_shared.json`, paths are optional (shared sections often use the default page URL). If `path` is omitted, set it to `null` and add a `notes` entry explaining which page(s) the shared section is tested against.
 
+### Step 5.5: Validate expect_variances (if present)
+
+If any case carries `expect_variances`, validate each entry before writing:
+
+1. Required fields present: `region`, `anchor`, `describe`, `extract`.
+2. `extract` is one of `layout_signature`, `vertical_rhythm`, `text_content`, `per_state`, `computed_style`.
+3. If `extract: computed_style`, `property` must also be present.
+4. `region` is unique within the case (no two entries with same region slug).
+5. `anchor` reference is NOT resolved against the anchor map at intake time. This skill does not require `.theme-forge/anchors/<section>.json` to exist yet — the user may intake cases first, then run `intake-anchors`. Find-variances does the anchor resolution and hard-errors if the referenced anchor is missing.
+
+On validation failure:
+```
+ERROR: case "standard_product" has invalid expect_variances[1]
+  Missing required field: extract
+  Allowed extract values: layout_signature, vertical_rhythm, text_content, per_state, computed_style
+
+Fix the artifact and retry:
+  /theme-forge intake-cases <page> --from <artifact>
+```
+
 ### Step 6: Build the JSON
 
 Schema:
@@ -128,12 +148,48 @@ Schema:
     "full_personalizer": {
       "path": "/products/thames-pinky-ring",
       "status": "active",
-      "notes": "engraving + illustration"
+      "notes": "engraving + illustration",
+      "expect_behaviors": {
+        "personalizer_button": "present",
+        "native_atc": "absent"
+      },
+      "expect_variances": [
+        {
+          "region": "primary_cta",
+          "anchor": "primary_atc",
+          "describe": "replace native ATC with 'Personalize your piece'",
+          "extract": "text_content"
+        }
+      ]
     },
-    "tag_personalizer": {
-      "path": "/products/birth-flower-disk-necklace",
+    "standard_product": {
+      "path": "/products/dainty-chain-necklace",
       "status": "active",
-      "notes": "add-a-tag button only"
+      "notes": "swatch size variant",
+      "expect_behaviors": {
+        "personalizer_button": "absent",
+        "native_atc": "present"
+      },
+      "expect_variances": [
+        {
+          "region": "material_finish_layout",
+          "anchor": "variant_material_container",
+          "describe": "Material + Finish render side-by-side, not stacked",
+          "extract": "layout_signature"
+        },
+        {
+          "region": "size_grid",
+          "anchor": "variant_size_container",
+          "describe": "6-top + 3-bottom grid, grey bg, black outline on select",
+          "extract": "layout_signature"
+        },
+        {
+          "region": "header_rhythm",
+          "anchor": "product_information_header",
+          "describe": "tighter vertical rhythm between title, subtitle, reviews",
+          "extract": "vertical_rhythm"
+        }
+      ]
     }
   }
 }
@@ -148,6 +204,15 @@ Schema:
 - `path` (required for per-page files, optional for `_shared`) — URL path relative to `live_url` / `dev_url` origin
 - `status` (required) — one of the three values above
 - `notes` (optional) — free-text description, shown in matrix output
+- `expect_behaviors` (optional) — map of behavioral role → `"present" | "absent" | "<state-value>"`. Used by find-variances to assert DOM presence/absence per case (e.g., `"personalizer_button": "present"` means the role must resolve to a visible node for this case).
+- `expect_variances` (optional) — array of user-asserted design gaps. Each entry is a regression benchmark: find-variances must detect it (or the run flags the extraction as incomplete). Fields:
+  - `region` (required) — short stable slug for the gap (e.g., `material_finish_layout`). Used as the variance ID suffix.
+  - `anchor` (required) — role name from `.theme-forge/anchors/<section>.json`. Anchor resolves to a live+dev selector pair.
+  - `describe` (required) — plain-English description of the gap, shown in refine-section variance card.
+  - `extract` (required) — one of `layout_signature`, `vertical_rhythm`, `text_content`, `per_state`, `computed_style`. Tells find-variances which extractor to run on the anchor.
+  - `property` (optional, required when `extract: computed_style`) — single CSS property name (e.g., `font-size`).
+
+**Why expect_variances exists:** Positional extraction (`heading-0`, `button-0`) misses layout-level differences and produces false positives when DOM order diverges across live and dev. `expect_variances` lets the user pin specific, known design gaps to anchors. Find-variances probes each anchor with the requested extractor, so the variance gets detected even when DOM positions shift. The list also doubles as a regression benchmark: if find-variances reports zero matches for a declared expect_variance, the run is flagged `incomplete` and the user is told which one failed to reproduce.
 
 ### Step 7: Handle existing files
 
