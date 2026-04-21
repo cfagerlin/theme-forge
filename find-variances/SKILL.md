@@ -77,6 +77,12 @@ report. Each variance includes a test condition that refine-section can execute 
 ### Live extraction is cached
 - **Live site values are cached** in `.theme-forge/reports/sections/{section-key}.json`. Legacy (no-case) runs use a flat `live_cache` object. Case-scoped runs use `live_cache_by_case[<case>]` — a nested map keyed by case. The cache key includes: URL path, section selector, and extraction timestamp. Cache is valid for the duration of a migration session. `--force` bypasses the cache.
 
+### Hairline properties: trust computed-style, not the screenshot (v0.23.1)
+- **The model's image pipeline downscales screenshots** to a few hundred pixels wide before you see them. A 1px `#e8e8e8` border, a `font-weight: 400` vs `500` delta, or a `box-shadow: 0 1px 2px rgba(0,0,0,0.05)` will not survive that downscale. You will look at a PNG and see "no difference" when a real pixel-level difference exists.
+- **Extraction trusts `getComputedStyle()` as ground truth.** The computed-style values in the section report ARE the evidence. Do not second-guess them by squinting at a screenshot.
+- **For ad-hoc verification** — e.g., "is this selector actually getting a 1px border on the live site?" — use `scripts/computed-style-probe.sh --url <url> --selector "<sel>" --properties "border-bottom-width,border-bottom-color,border-bottom-style"`. Read the numbers, not the pixels.
+- **For pixel-level spot-checks** — `scripts/pixel-diff.sh --a <live.png> --b <dev.png>` returns KEY=VALUE counts and region bounding boxes. Read the `DIFF_MISMATCHED` and `DIFF_REGION_COUNT`. Do not rely on visual inspection of the diff PNG at hairline scales.
+
 ## Variance Schema
 
 Each entry in the `variances` array:
