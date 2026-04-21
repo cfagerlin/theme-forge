@@ -1,0 +1,60 @@
+{
+  "description": "Element-type attribute rules applied in the intake-anchors scorer aggregation pass. Keyed by element_type from role library entries. Each rule returns a signed adjustment that the scorer adds to the candidate's total score. Total adjustment is capped to [-0.2, +0.15] per candidate to prevent any single rule from dominating the 0-1 base score range.",
+  "version": 1,
+  "adjustment_cap": { "min": -0.2, "max": 0.15 },
+  "rules": {
+    "price": {
+      "text_matches": "/(\\$|€|£|¥|USD|CAD|EUR|GBP)\\s*\\d|^\\d+\\.\\d{2}$/i",
+      "allowed_tags": ["SPAN", "DIV", "P", "PRICE-MONEY", "S", "BDI"],
+      "blocked_tags": ["WISHLIST-PRODUCT", "CART-ITEM", "PRODUCT-CARD"],
+      "blocked_ancestors": ["wishlist-product", "cart-item", "product-card", ".product-card", ".product-tile", ".collection-card"],
+      "pass_adjustment": 0.15,
+      "fail_adjustment": -0.2
+    },
+    "heading": {
+      "allowed_tags": ["H1", "H2", "H3", "H4"],
+      "text_length_range": [1, 80],
+      "text_blocklist": ["/^(Filters?|Menu|Search|Cart|Account|Sort|Categories)$/i"],
+      "blocked_ancestors": [".sticky-add-to-cart", ".sticky-atc", "[class*='sticky']", ".product-card", ".collection-card"],
+      "pass_adjustment": 0.15,
+      "fail_adjustment": -0.2
+    },
+    "button": {
+      "allowed_tags": ["BUTTON", "A"],
+      "allowed_input_types": ["submit", "button"],
+      "role_attr_allowed": ["button"],
+      "require_text_or_aria_label": true,
+      "blocked_ancestors": [".product-card", ".collection-card", ".product-tile"],
+      "pass_adjustment": 0.15,
+      "fail_adjustment": -0.2
+    },
+    "text": {
+      "text_length_range": [1, 400],
+      "pass_adjustment": 0.05,
+      "fail_adjustment": -0.05
+    },
+    "container": {
+      "min_children": 1,
+      "forbidden_pass_of_rules": ["price", "heading", "button"],
+      "pass_adjustment": 0.05,
+      "fail_adjustment": -0.1
+    },
+    "image": {
+      "allowed_tags": ["IMG", "PICTURE"],
+      "require_src_or_dataset": true,
+      "pass_adjustment": 0.1,
+      "fail_adjustment": -0.1
+    },
+    "swatch": {
+      "allowed_tags": ["INPUT", "LABEL", "BUTTON", "SPAN", "DIV", "SWATCH-INPUT"],
+      "require_value_or_aria_label": true,
+      "pass_adjustment": 0.1,
+      "fail_adjustment": -0.1
+    }
+  },
+  "notes": {
+    "adjustment_cap_rationale": "Base scorer total sums to 1.0 exactly (0.25 size + 0.25 position + 0.2 text + 0.15 attr + 0.15 weight). An uncapped +0.2 or -0.3 would break the 0-1 assumption used by the 0.4 resolution threshold and the 0.5 cross-verify threshold. Cap at [-0.2, +0.15] preserves most of the signal while keeping the final score close to normalized.",
+    "why_pass_not_uniform": "Container and text rules are weaker signals so their adjustments are smaller. Price, heading, button are strong structural signals so they get the full cap.",
+    "why_blocked_ancestors_matter": "The v0.21 eval caught a wishlist-product blob winning detail_price on live because size_score dominated. blocked_ancestors + blocked_tags catch the common case where a blob custom element exposes price data as an attribute JSON blob instead of rendered text."
+  }
+}

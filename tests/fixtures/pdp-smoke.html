@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PDP Smoke Fixture</title>
+  <style>
+    body { font-family: sans-serif; max-width: 1200px; margin: 0 auto; }
+    .product-information { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding: 40px; }
+    .gallery { aspect-ratio: 1; background: #eee; }
+    .details { display: flex; flex-direction: column; gap: 16px; }
+    h1.main-title { font-size: 2rem; margin: 0; }
+    .subtitle { color: #666; }
+    .price { font-size: 1.5rem; font-weight: bold; }
+    .price-compare { text-decoration: line-through; color: #999; }
+    .swatch-group { display: flex; gap: 8px; }
+    .swatch-element { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #ddd; }
+    button[name="add"] { padding: 12px 24px; font-size: 1rem; background: #000; color: #fff; border: none; }
+    .sticky-atc { position: fixed; bottom: 0; background: #fff; padding: 16px; }
+    .sticky-atc h1 { font-size: 1rem; }
+    wishlist-product { display: block; width: 500px; height: 200px; background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <section class="product-information">
+    <div class="gallery">Gallery</div>
+    <div class="details">
+      <h1 class="main-title">Dainty Chain Necklace</h1>
+      <div class="subtitle">14k solid gold</div>
+      <div class="price-row">
+        <span class="price">$68</span>
+        <span class="price price-compare">$85</span>
+      </div>
+      <div class="swatch swatch.option-material swatch-group">
+        <span class="swatch-element" data-value="gold"></span>
+        <span class="swatch-element" data-value="silver"></span>
+      </div>
+      <button name="add" type="submit">Add to cart</button>
+      <div class="oke-sr" data-stars="4.8">4.8 ★ (122)</div>
+      <wishlist-product data-product-price='{"amount":"58.00"}'></wishlist-product>
+    </div>
+  </section>
+  <div class="sticky-atc">
+    <h1>Dainty Chain Necklace</h1>
+    <span class="price">$68</span>
+    <button>Add</button>
+  </div>
+</body>
+</html>

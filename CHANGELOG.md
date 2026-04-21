@@ -1,10 +1,54 @@
 # Changelog
 
+## 0.22.0 — 2026-04-20
+
+**Algorithm hardening pass. Scorer bug fix, asymmetric reverse-probe (L2), element-type rules (L6), speculative downweight, project-layer library first-class, decision report, cross-verify rejection, regression harness.**
+
+A real-world v0.21 eval on a jewelry-store migration (live=legacy_jewelry, dev=horizon) exposed three classes of algorithm failure: 77% of library candidates were dead (wrong selectors for this store), 0% live-side coverage for key roles (library tuned for dev, not live), and a wishlist-product blob won detail_price because size_score dominated on a blob element whose price was in attribute JSON, not rendered text. This release closes all three and adds the DX layer to make future failures debuggable in one command.
+
+### What's new
+
+- **Scorer bug fix (`intake-anchors/SKILL.md:162`)** — v0.21 scorer compared `role === 'heading'` against `role_name === 'product_title'`, always fell through to `textScore = 0.5` regardless of text content. v0.22 scorer takes the full role entry and keys textScore on `element_type` (abstract: "heading") while keeping attrScore on `role_name` (specific: "primary_atc"). A valid heading now gets textScore=1.0 instead of 0.5 — the fix is worth ~0.1 on the final score, often the difference between winning and losing.
+- **Regression harness (NEW)** — `bun tests/intake-anchors.test.ts` launches chromium, injects the scorer against fixture PDPs, asserts the winner selector + score floor. Three scenarios ship: smoke product_title, smoke primary_atc, regression guard for the scorer bug. Run locally before every intake-anchors change. Requires `bun install` first.
+- **Element-type rules (L6)** — `intake-anchors/element-type-rules.json` ships per-element-type pass/fail adjustments (signed, capped at `[-0.2, +0.15]`). Price rules block `wishlist-product`, `cart-item`, `product-card` ancestors — the wishlist blob that won on live v0.21 no longer survives the aggregation pass. Heading rules block sticky-ATC ancestors and "Filters / Menu / Search / Cart" text. Button rules require BUTTON tag or `role=button` with non-empty text/aria-label. Applied in a new Step 2.3.5 after base scoring, before Step 2.4 aggregation.
+- **Asymmetric reverse-probe (L2 MVP, Step 2.4.5)** — when one side resolves and the other doesn't, take the anchor side's text + position + size fingerprint and search the low-coverage side's DOM for a matching element. Element-type-specific tolerances: heading requires text similarity ≥ 0.8, price requires currency regex pass, button requires tag + aria/text match. Reverse-probed candidates get `source: "reverse_probe"` and flow back through Step 2.3 scoring + Step 2.3.5 element-type rules. Closes the 0%-live-side-coverage failure from the real-world migration eval.
+- **Speculative theme library downweight** — theme-family libraries flagged `confidence: "speculative"` multiply every candidate's weight by 0.5 at merge time. `legacy_jewelry.json` and `horizon.json` both ship with the flag — promote per-project validated candidates into `.theme-forge/role-libraries/projects/<slug>.json` via `--update-project` to bypass the multiplier.
+- **Project-layer library (NEW)** — `.theme-forge/role-libraries/projects/<project_slug>.json` is first-class in the merge contract. Candidates are `confidence: "validated"` by default (no downweight), win duplicate-collapse against same-selector speculative entries, and sort first under the tie-break rule `project > section > theme-family > discovered > reverse_probe`.
+- **`--update-project` flag** — promotes this run's `reverse_probe` and `discovered` winners into the project library with user confirmation per candidate. Records `promoted_from`, `promoted_at`, `sample_text`, `side`. Skips candidates with `cross_verify: "failed"`. Pairs with `--dry-run` for review-before-write.
+- **Decision report (Step 6.5)** — every `intake-anchors` run now writes `.theme-forge/anchors/<section>.decision-report.json` with full score breakdown per role, top-3 runners-up, rejected candidates (with `element_type_failures`), cross-verify scores, reverse-probe outcomes, per-step timing. The audit trail for "why did X win?"
+- **`--why <role>` query (Step 6.6)** — reads the decision report and pretty-prints one role's scoring detail. First stop for "this selector looks wrong" debugging.
+- **Progress streaming (Step 2.3)** — per-(case, side) completion lines with timing, plus aggregation + reverse-probe + cross-verify progress markers. No more blank-terminal staring for 30-60s on large sections.
+- **`confidence: "rejected"` for cross-verify failures** — find-variances now emits `rejected` (not v0.21's `low`) when `cross_verify: "failed"`. refine-section's new Step 1.0a filters rejected variances from the workable queue, prints them under a `REJECTED (cross-verify failed — intake re-run required)` header with the exact unblock command. Prevents refine from editing the wrong element.
+- **Upgrade migration v0.21 → v0.22** — `/theme-forge upgrade --to v0.22 [--dry-run]` creates the project library skeleton, backfills decision-report stubs for existing anchor maps, and rewrites existing `confidence: "low"` cross_verify variances to `confidence: "rejected"`. Full rollback via `.theme-forge/.migrations/v0.22-backup.json`.
+- **Scorer output enriched** — captures `tag`, `ancestor_classes`, `aria_label`, `role_attr`, `input_type`, `has_src_or_dataset`, `child_count` per candidate to feed the new element-type rules.
+
+### Fixes
+
+- Scorer text scoring is now driven by `element_type`, not `role_name`. Existing roles that were winning at 0.5 textScore despite valid short text now score at 1.0 textScore — small but decisive on 0.4-threshold boundary cases.
+- refine-section no longer processes cross-verify-failed variances. Prior behavior: still attempted a fix with `confidence: "low"` tag, often editing the wrong element because the selector pair pointed at unrelated DOM.
+
+### Breaking changes
+
+- Anchor maps written by v0.21 are still readable. The upgrade migration (optional but recommended before re-running intake-anchors) backfills stubs for `--why` support and rewrites stale `confidence: "low"` variance entries.
+- `find-variances` emits `confidence: "rejected"` in place of v0.21's `confidence: "low"` for cross-verify failures. Downstream consumers that branched on `"low"` must add a branch for `"rejected"`. refine-section already handles this.
+
+### Files touched
+
+- `intake-anchors/SKILL.md` — scorer rewrite (Step 2.3), Step 2.3.5 element-type rules, Step 2.4.5 asymmetric reverse-probe, Step 6.5 decision report, Step 6.6 `--why`, `--update-project` workflow, progress streaming.
+- `intake-anchors/element-type-rules.json` — NEW, ships with price/heading/button/text/container/image/swatch rules.
+- `intake-anchors/role-libraries/themes/horizon.json`, `legacy_jewelry.json` — add `confidence: "speculative"` + `confidence_notes`.
+- `find-variances/SKILL.md` — cross_verify failure now emits `confidence: "rejected"`.
+- `refine-section/SKILL.md` — new Step 1.0a rejected-variance filter.
+- `upgrade/SKILL.md` — v0.22 migration block.
+- `onboard/SKILL.md` — project-layer library directory + merge contract docs.
+- `tests/intake-anchors.test.ts`, `tests/fixtures/pdp-smoke.html`, `package.json` — NEW regression harness.
+- `.gitignore` — add `node_modules/`.
+
 ## 0.21.0 — 2026-04-20
 
 **intake-anchors, second pass. Role libraries ship. Theme-family detection. Multi-case probing. Score-based selector matching. No-guess policy. Generative discovery. Cross-verify pairings.**
 
-The 0.20 first-run surfaced six silent-failure modes in auto-discover. Agents ran `intake-anchors standard_product` on a legacy-jewelry live site with a Horizon dev theme, walked away with 37 "resolved" roles, and 18 of them paired a live selector with a dev selector that pointed at unrelated elements (live `.gldn-product-title h1` → dev `.header__inline-menu a` because both happened to be the first matching `h1` under their respective anchors). Selectors got fabricated when nothing matched. Single-case probing concluded variant pickers didn't exist on sections where they only appeared for variant-having products. The role-libraries directory was referenced but never shipped.
+The 0.20 first-run surfaced six silent-failure modes in auto-discover. Agents ran `intake-anchors standard_product` on a legacy-jewelry live site with a Horizon dev theme, walked away with 37 "resolved" roles, and 18 of them paired a live selector with a dev selector that pointed at unrelated elements (live `.product-single__title h1` → dev `.header__inline-menu a` because both happened to be the first matching `h1` under their respective anchors). Selectors got fabricated when nothing matched. Single-case probing concluded variant pickers didn't exist on sections where they only appeared for variant-having products. The role-libraries directory was referenced but never shipped.
 
 This release closes all six holes and ships the libraries.
 
@@ -15,13 +59,13 @@ This release closes all six holes and ships the libraries.
   - `intake-anchors/role-libraries/sections/header.json` (8 roles: logo, primary_nav, primary_nav_item, search_trigger, cart_trigger, cart_count, account_link, announcement_bar).
   - `intake-anchors/role-libraries/sections/footer.json` (8 roles: newsletter_form, newsletter_heading, nav_column, nav_heading, social_icons, payment_icons, copyright, policy_links).
   - `intake-anchors/role-libraries/themes/horizon.json` (Horizon-specific candidates: `variant-option`, `swatch-input`, `product-form-component`, `.price__current`, etc.).
-  - `intake-anchors/role-libraries/themes/legacy_jewelry.json` (legacy-jewelry candidates: `.gldn-*`, `.variant-material`, `.variant-size`, `.personalize-btn`, `.make-it-solid-gold-btn`, Okendo + Judge.me + Yotpo review widgets).
+  - `intake-anchors/role-libraries/themes/legacy_jewelry.json` (legacy-jewelry candidates: `.variant-material`, `.variant-size`, `.variant-picker`, `.personalize-btn`, `.product-single__*`, Okendo + Judge.me + Yotpo review widgets).
 - **Theme-family detection per side (Step 2.1)** — auto-discover now resolves a theme family per side (live, dev) via explicit flag → config hint → base-cache `settings_schema.json` fingerprint → DOM probe. Detected families are recorded in the anchor map header: `"theme_family": { "live": "legacy_jewelry", "dev": "horizon" }`. New args: `--theme-family-live`, `--theme-family-dev`.
 - **Layered role library merge (Step 2.2)** — section library + theme-family (live) + theme-family (dev) + project override merge in order, appending candidates (not replacing) so later layers add vocabulary without losing baseline selectors.
 - **Multi-case parallel probing (Step 2.3)** — every active case in `cases/<page>.json` gets probed for every role. A role is "present" if ANY case produces a winner scoring ≥ 0.4. Divergent selectors across cases auto-generate case overrides. One-case probing is gone.
 - **Candidate-scoring (Step 2.3)** — each candidate selector gets scored on size (0.25) + y-position (0.25) + text content fit (0.2) + expected attributes (0.15) + library weight (0.15). Highest score wins; runners-up recorded. First-match-wins is gone. Threshold: 0.4. Below threshold = `no_match`.
 - **No-guess policy (Step 2.3)** — selectors are never fabricated. If no candidate scores ≥ 0.4, the role is written as `"live": null, "status": "no_match"` (or `no_match_live`/`no_match_dev` for asymmetric gaps). find-variances surfaces these as `structural` variances tagged `source: "intake_anchors_gap"` — visible, fixable, user-actionable.
-- **Generative role discovery (Step 2.5)** — parses `base-cache/sections/<section>.liquid` for structural landmarks: `<h[1-6]>` headings, `{% render 'NAME' %}` snippets, `<button type="submit">` forms, unique `data-*` attributes. Propagates them through the same scoring pipeline as library roles. Themes with custom snippets (`{% render 'gldn-pdp-shipping' %}`, `{% render 'special-request' %}`) stop being invisible.
+- **Generative role discovery (Step 2.5)** — parses `base-cache/sections/<section>.liquid` for structural landmarks: `<h[1-6]>` headings, `{% render 'NAME' %}` snippets, `<button type="submit">` forms, unique `data-*` attributes. Propagates them through the same scoring pipeline as library roles. Themes with custom snippets (`{% render 'brand-pdp-shipping' %}`, `{% render 'special-request' %}`) stop being invisible.
 - **Cross-verify pairings (Step 2.6)** — every resolved pair (live selector + dev selector) is validated with text similarity (0.5) + y-position match (0.3) + size ratio match (0.2). Score < 0.5 flags `cross_verify: "failed"` on the role. Auto-accept is blocked until the user explicitly acknowledges or fixes. find-variances tags resulting variances `confidence: "low"`.
 - **New anchor map fields** — `theme_family`, per-role `status` (`resolved | no_match | no_match_live | no_match_dev | case_scoped`), per-role `score`, `cross_verify`, per-side `sample_text`, `notes`. `rhythm.order_source` (`dom_y_coord` vs `hand_authored`), `rhythm.template_block_order` (cross-reference from template JSON), `rhythm.divergence`.
 - **Project role-library overrides** — `.theme-forge/role-libraries/sections/<type>.json` and `.theme-forge/role-libraries/themes/<family>.json` now layer on top of the framework libraries. Empty at onboard; populate per project when the baseline misses vocabulary.

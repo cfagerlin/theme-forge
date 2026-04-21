@@ -306,11 +306,12 @@ Create `.theme-forge/learnings/_seeds.json` with the universal seed learnings (s
 
    `.theme-forge/anchors/` holds the semantic anchor map for every section (one JSON per section-key). Anchors replace positional extraction (`heading-0`, `button-0`) with role-based selectors (`product_title`, `primary_atc`) so find-variances can compare like-with-like across live and dev even when DOM order diverges. Empty at onboard. Populated by `/theme-forge intake-anchors <section-key>` (auto-discovers roles from the live DOM and section type) or by hand. Committed by default alongside the section report. Without an anchor map, find-variances falls back to positional extraction with a loud warning.
 
-   `.theme-forge/role-libraries/` holds **project-specific overrides** that layer on top of the skill-bundled libraries. Empty at onboard. Two subdirectory shapes are supported:
+   `.theme-forge/role-libraries/` holds **project-specific overrides** that layer on top of the skill-bundled libraries. Empty at onboard. Three subdirectory shapes are supported:
    - `.theme-forge/role-libraries/sections/<section-type>.json` — extend or override the section-type baseline (e.g., add a project-unique role to `product-information`).
    - `.theme-forge/role-libraries/themes/<theme-family>.json` — add project-specific selector candidates for an already-known theme family, OR define a brand-new family (e.g., `custom_alpha.json`).
+   - `.theme-forge/role-libraries/projects/<project-slug>.json` — project-layer library (v0.22). Auto-populated by `intake-anchors --update-project`; stores reverse-probed and discovered winners so they persist across runs. Hand-authored entries also welcome.
 
-   The canonical libraries ship with the framework at `intake-anchors/role-libraries/sections/` (product-information, header, footer) and `intake-anchors/role-libraries/themes/` (horizon, legacy_jewelry). `intake-anchors` merges in the order: section library → theme-family (live) → theme-family (dev) → project override. Later layers win per candidate, and candidate lists are appended (not replaced), so project overrides add vocabulary without losing the baseline.
+   The canonical libraries ship with the framework at `intake-anchors/role-libraries/sections/` (product-information, header, footer) and `intake-anchors/role-libraries/themes/` (horizon, legacy_jewelry). `intake-anchors` merges in the order: section library → theme-family (live) → theme-family (dev) → project library. Candidate lists **append** across layers (they don't replace); duplicates collapse to the max weight with a union of sources. Theme-family libraries flagged `confidence: "speculative"` get a 0.5 weight multiplier applied to their candidates before merge. Tie-break order when scores are within ±0.01: `project > section > theme-family > discovered > reverse_probe`.
 4. **Check `.gitignore`**: Add session-specific and tool-generated paths to `.gitignore`:
    ```
    .theme-forge/base-cache/

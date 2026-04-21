@@ -1,0 +1,11 @@
+{
+  "name": "theme-forge-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:intake-anchors": "bun tests/intake-anchors.test.ts"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}

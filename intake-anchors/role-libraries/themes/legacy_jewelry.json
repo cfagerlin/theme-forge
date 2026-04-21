@@ -1,77 +1,69 @@
 {
   "theme_family": "legacy_jewelry",
-  "description": "Heavily-customized legacy Shopify theme common to jewelry brands (gldn, mejuri-style). Uses .gldn-* prefixed classes, .variant-picker + .variant-material containers, data-variant-* attributes.",
+  "description": "Heavily-customized legacy Shopify theme derivative common to jewelry brands. Typically Dawn-derived with brand-prefixed class additions, uses .variant-picker + .variant-material containers and data-variant-* attributes. Rename this family or author a project-layer library if your brand uses a unique class prefix.",
+  "confidence": "speculative",
+  "confidence_notes": "Selectors derived from the Dawn / legacy-jewelry shape but not validated against a broad set of stores. Promote your project's winning selectors into .theme-forge/role-libraries/projects/<project_slug>.json via `/theme-forge intake-anchors <section> --update-project` to override the 0.5x speculative downweight.",
   "fingerprint": {
-    "selectors_present": [".gldn-product-form", "[data-variant-material]", ".variant-material"],
-    "theme_name_patterns": ["Custom", "Modified Dawn", "GLDN *"]
+    "selectors_present": ["[data-variant-material]", ".variant-material", ".variant-picker"],
+    "theme_name_patterns": ["Custom", "Modified Dawn"]
   },
   "role_candidates": {
     "product_title": [
-      { "selector": ".gldn-product-title h1, .product-title-wrapper h1", "weight": 0.95, "source": "theme:legacy_jewelry" },
-      { "selector": ".product-single__title h1, .product__title h1", "weight": 0.85, "source": "theme:legacy_jewelry" }
+      { "selector": ".product-title-wrapper h1, .product-single__title h1, .product__title h1", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "subtitle": [
-      { "selector": ".gldn-product-subtitle, .product-single__subtitle", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".product-single__subtitle, .product__subtitle", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "reviews_summary": [
       { "selector": ".okendo-star-rating, [data-oke-reviews-product-listing-rating]", "weight": 0.95, "source": "theme:legacy_jewelry" },
-      { "selector": ".gldn-reviews-summary, .product-reviews-summary", "weight": 0.85, "source": "theme:legacy_jewelry" }
+      { "selector": ".product-reviews-summary, [data-product-reviews-summary]", "weight": 0.85, "source": "theme:legacy_jewelry" }
     ],
     "detail_price": [
-      { "selector": ".gldn-product-price .price-money, .price-money:not([class*='sticky']):not([class*='compare'])", "weight": 0.95, "source": "theme:legacy_jewelry" },
+      { "selector": ".price-money:not([class*='sticky']):not([class*='compare'])", "weight": 0.9, "source": "theme:legacy_jewelry" },
       { "selector": ".product__price .money, .product-single__price .money", "weight": 0.85, "source": "theme:legacy_jewelry" }
     ],
     "compare_at_price": [
       { "selector": ".price-compare, .price-money--compare, s.price-money", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "variant_picker_container": [
-      { "selector": ".variant-picker, .gldn-variant-picker, [data-variant-picker]", "weight": 0.95, "source": "theme:legacy_jewelry" }
+      { "selector": ".variant-picker, [data-variant-picker]", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "variant_material_container": [
       { "selector": ".variant-material, [data-variant-material]", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "variant_size_container": [
-      { "selector": ".variant-size, [data-variant-size], .gldn-size-picker", "weight": 0.95, "source": "theme:legacy_jewelry" }
+      { "selector": ".variant-size, [data-variant-size]", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "variant_option_swatch": [
-      { "selector": ".gldn-swatch, .variant-material button, .variant-material input[type='radio']", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".variant-material button, .variant-material input[type='radio']", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "primary_atc": [
-      { "selector": ".gldn-product-form button[name='add'], form.gldn-product-form button[type='submit']", "weight": 0.95, "source": "theme:legacy_jewelry" },
+      { "selector": "form[action*='/cart/add'] button[name='add'], form[action*='/cart/add'] button[type='submit']", "weight": 0.95, "source": "theme:legacy_jewelry" },
       { "selector": "button[name='add']:not([class*='sticky'] *):not(.sticky-atc *)", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "personalize_atc": [
-      { "selector": ".personalize-btn, .gldn-personalize-button, button[data-personalize]", "weight": 0.9, "source": "theme:legacy_jewelry" }
-    ],
-    "solid_gold_switch": [
-      { "selector": ".make-it-solid-gold-btn, button[data-solid-gold]", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".personalize-btn, button[data-personalize]", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "quantity_selector": [
-      { "selector": ".gldn-quantity input[name='quantity'], .quantity-selector input", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".quantity-selector input, input[name='quantity']", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "description": [
-      { "selector": ".gldn-product-description, .product-single__description", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".product-single__description, .product__description", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "accordion_details": [
-      { "selector": ".gldn-accordion details, .product-accordion details, .product-single__details details", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".product-accordion details, .product-single__details details", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "shipping_estimate": [
-      { "selector": ".gldn-pdp-shipping, [data-shipping-estimate], .shipping-estimate", "weight": 0.9, "source": "theme:legacy_jewelry" }
-    ],
-    "special_request_block": [
-      { "selector": ".special-request, .gldn-special-request, [data-special-request]", "weight": 0.9, "source": "theme:legacy_jewelry" }
-    ],
-    "giving_block": [
-      { "selector": ".giving-block, [data-giving-block]", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": "[data-shipping-estimate], .shipping-estimate", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "installments_block": [
       { "selector": "shopify-payment-terms, .afterpay-container, .klarna-container", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "logo": [
-      { "selector": ".site-header__logo img, .header-logo img, .gldn-logo img", "weight": 0.95, "source": "theme:legacy_jewelry" }
+      { "selector": ".site-header__logo img, .header-logo img", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "primary_nav": [
-      { "selector": ".site-nav, .main-nav, .gldn-nav", "weight": 0.95, "source": "theme:legacy_jewelry" }
+      { "selector": ".site-nav, .main-nav", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "search_trigger": [
       { "selector": ".site-header__search, button[data-search-toggle]", "weight": 0.9, "source": "theme:legacy_jewelry" }
@@ -86,16 +78,16 @@
       { "selector": ".announcement-bar, .promo-bar, .utility-bar", "weight": 0.95, "source": "theme:legacy_jewelry" }
     ],
     "newsletter_form": [
-      { "selector": ".footer-newsletter form, .gldn-newsletter form", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".footer-newsletter form", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "social_icons": [
-      { "selector": ".footer-social, .gldn-social-icons, ul.social-icons", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".footer-social, ul.social-icons", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "payment_icons": [
       { "selector": ".footer-payment, .payment-icons", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ],
     "copyright": [
-      { "selector": ".footer-copyright, .gldn-copyright, small.copyright", "weight": 0.9, "source": "theme:legacy_jewelry" }
+      { "selector": ".footer-copyright, small.copyright", "weight": 0.9, "source": "theme:legacy_jewelry" }
     ]
   }
 }
